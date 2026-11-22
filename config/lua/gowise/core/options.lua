@@ -23,7 +23,7 @@ opt.winblend = 5           -- Subtle transparency for floating windows
 -- Modeless Editing & Fluid Navigation
 opt.mouse = "a"            -- Full mouse support (click, scroll, drag)
 opt.clipboard = "unnamedplus" -- Sync with system clipboard seamlessly
-opt.virtualedit = "block"  -- Free visual block selection
+opt.virtualedit = "onemore,block" -- Free visual block selection & one-past-line-end
 opt.scrolloff = 8          -- Keep 8 lines of context vertically
 opt.sidescrolloff = 8      -- Keep 8 columns of context horizontally
 opt.wrap = false           -- No jarring line wraps by default
@@ -33,6 +33,12 @@ opt.timeoutlen = 300       -- Snappy key combo resolution
 opt.keymodel = "startsel,stopsel" -- Native modeless Shift-selection (VS Code / Zed parity)
 opt.selection = "inclusive"       -- Selection includes cursor endpoint
 opt.selectmode = "mouse,key"      -- Typing immediately replaces selection
+
+-- Code Spell Checker Configuration (CamelCase code identifiers & user dictionary)
+opt.spell = true
+opt.spelllang = { "en" }
+opt.spelloptions = "camel"
+opt.spellfile = vim.fn.stdpath("config") .. "/spell/en.utf-8.add"
 
 -- Tabs & Indentation (Polyglot defaults)
 opt.tabstop = 2

@@ -84,6 +84,7 @@ vim.g.maplocalleader = " "
 require("gowise.core.options")
 require("gowise.core.autocmds")
 require("gowise.core.keymaps")
+require("gowise.lsp.errorlens").setup()
 
 -- Load Plugins and Theme Engine
 require("gowise.plugins")

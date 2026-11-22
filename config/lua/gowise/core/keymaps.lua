@@ -364,20 +364,96 @@ map({ "n", "i", "v", "x", "s" }, "<C-a>", "<Esc>ggVG", { desc = "Select All", si
 -- 6. WORD NAVIGATION & WORD/LINE DELETIONS
 -- ============================================================================
 
+local function move_word_right(mode)
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local row = cursor[1]
+  local col = cursor[2]
+  local cur_line = vim.api.nvim_get_current_line()
+  local line_len = #cur_line
+  local max_col = (mode == "i" or vim.o.virtualedit:find("onemore")) and line_len or math.max(0, line_len - 1)
+
+  if col >= max_col then
+    if row < vim.api.nvim_buf_line_count(0) then
+      vim.api.nvim_win_set_cursor(0, { row + 1, 0 })
+    end
+    return
+  end
+
+  local sub = cur_line:sub(col + 1)
+  local _, s_end = sub:find("^%s+")
+  local offset = s_end or 0
+  local rest = sub:sub(offset + 1)
+
+  if #rest == 0 then
+    vim.api.nvim_win_set_cursor(0, { row, max_col })
+    return
+  end
+
+  local match_len = 0
+  local first_char = rest:sub(1, 1)
+  if first_char:match("[%w_]") then
+    local _, w_end = rest:find("^[%w_]+")
+    match_len = w_end or 1
+  else
+    local _, p_end = rest:find("^[^%w_%s]+")
+    match_len = p_end or 1
+  end
+
+  local new_col = math.min(col + offset + match_len, max_col)
+  vim.api.nvim_win_set_cursor(0, { row, new_col })
+end
+
+local function move_word_left(mode)
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local row = cursor[1]
+  local col = cursor[2]
+
+  if col <= 0 then
+    if row > 1 then
+      local prev_line = vim.api.nvim_buf_get_lines(0, row - 2, row - 1, false)[1] or ""
+      local prev_len = #prev_line
+      local max_col = (mode == "i" or vim.o.virtualedit:find("onemore")) and prev_len or math.max(0, prev_len - 1)
+      vim.api.nvim_win_set_cursor(0, { row - 1, max_col })
+    end
+    return
+  end
+
+  local cur_line = vim.api.nvim_get_current_line()
+  local sub = cur_line:sub(1, col)
+  local trimmed = sub:gsub("%s+$", "")
+  local trimmed_len = #trimmed
+
+  if trimmed_len == 0 then
+    vim.api.nvim_win_set_cursor(0, { row, 0 })
+    return
+  end
+
+  local last_char = trimmed:sub(trimmed_len, trimmed_len)
+  local word_start = 1
+  if last_char:match("[%w_]") then
+    local s = trimmed:find("[%w_]+$")
+    word_start = s or 1
+  else
+    local s = trimmed:find("[^%w_%s]+$")
+    word_start = s or 1
+  end
+
+  local new_col = word_start - 1
+  vim.api.nvim_win_set_cursor(0, { row, math.max(0, new_col) })
+end
+
 -- Word Left / Right (Ctrl+Left / Ctrl+Right & ANSI terminal sequences)
 local ctrl_left_keys = { "<C-Left>", "<C-kLeft>", "\27[1;5D", "\27[5D", "\27[57419;5u" }
 local ctrl_right_keys = { "<C-Right>", "<C-kRight>", "\27[1;5C", "\27[5C", "\27[57421;5u" }
 
 for _, k in ipairs(ctrl_left_keys) do
-  map("n", k, "<cmd>startinsert<CR><C-o>b", opts)
-  map({ "v", "x", "s" }, k, "b", opts)
-  map("i", k, "<C-o>b", opts)
+  map({ "n", "x", "s" }, k, function() move_word_left("n") end, opts)
+  map("i", k, function() move_word_left("i") end, opts)
 end
 
 for _, k in ipairs(ctrl_right_keys) do
-  map("n", k, "<cmd>startinsert<CR><C-o>w", opts)
-  map({ "v", "x", "s" }, k, "w", opts)
-  map("i", k, "<C-o>w", opts)
+  map({ "n", "x", "s" }, k, function() move_word_right("n") end, opts)
+  map("i", k, function() move_word_right("i") end, opts)
 end
 
 -- Home & End (Line Start / End)
@@ -455,20 +531,48 @@ map({ "v", "x" }, "<C-S-k>", "d", opts)
 -- 7. SELECTION (Shift+Arrows & Ctrl+Shift+Arrows Word Selection)
 -- ============================================================================
 
+local function select_word_right()
+  local m = vim.fn.mode()
+  if m == "i" then
+    vim.cmd("stopinsert")
+    vim.cmd("normal! v")
+  elseif m == "n" then
+    vim.cmd("normal! v")
+  elseif m == "s" then
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-g>", true, false, true), "n", false)
+  end
+  move_word_right("v")
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-g>", true, false, true), "n", false)
+end
+
+local function select_word_left()
+  local m = vim.fn.mode()
+  if m == "i" then
+    vim.cmd("stopinsert")
+    vim.cmd("normal! v")
+  elseif m == "n" then
+    vim.cmd("normal! v")
+  elseif m == "s" then
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-g>", true, false, true), "n", false)
+  end
+  move_word_left("v")
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-g>", true, false, true), "n", false)
+end
+
 -- Key codes for terminal compatibility (standard termcodes + xterm CSI + Kitty protocol sequences)
-local c_s_left_keys = { "<C-S-kLeft>", "\27[1;6D", "\27[6D", "\27[57419;6u" }
-local c_s_right_keys = { "<C-S-kRight>", "\27[1;6C", "\27[6C", "\27[57421;6u" }
+local c_s_left_keys = { "<C-S-Left>", "<C-S-kLeft>", "\27[1;6D", "\27[6D", "\27[57419;6u" }
+local c_s_right_keys = { "<C-S-Right>", "<C-S-kRight>", "\27[1;6C", "\27[6C", "\27[57421;6u" }
 local s_left_keys = { "\27[1;2D", "\27[2D", "\27[57419;2u" }
 local s_right_keys = { "\27[1;2C", "\27[2C", "\27[57421;2u" }
 local s_up_keys = { "\27[1;2A", "\27[2A", "\27[57418;2u" }
 local s_down_keys = { "\27[1;2B", "\27[2B", "\27[57420;2u" }
 
 for _, k in ipairs(c_s_left_keys) do
-  map({ "i", "n", "v", "x", "s" }, k, "<C-S-Left>", { remap = true, silent = true })
+  map({ "n", "i", "v", "x", "s" }, k, select_word_left, { desc = "Select Word Left (Ctrl+Shift+Left)", silent = true })
 end
 
 for _, k in ipairs(c_s_right_keys) do
-  map({ "i", "n", "v", "x", "s" }, k, "<C-S-Right>", { remap = true, silent = true })
+  map({ "n", "i", "v", "x", "s" }, k, select_word_right, { desc = "Select Word Right (Ctrl+Shift+Right)", silent = true })
 end
 
 for _, k in ipairs(s_left_keys) do
@@ -852,8 +956,34 @@ end, { desc = "Find References" })
 -- Rename Symbol (F2)
 map({ "n", "i" }, "<F2>", vim.lsp.buf.rename, { desc = "Rename Symbol" })
 
--- Quick Fix / Code Action (Ctrl+.)
-map({ "n", "i" }, "<C-.>", vim.lsp.buf.code_action, { desc = "Code Action" })
+-- Quick Fix / Solutions (Ctrl+., Alt+Enter, Cmd+.) - Unified with Code Spell Checker & LSP Code Actions
+local quick_fix_keys = { "<C-.>", "<M-CR>", "\27[46;5u", "<D-.>" }
+for _, k in ipairs(quick_fix_keys) do
+  map({ "n", "i", "v", "x" }, k, function()
+    require("gowise.components.spell").quick_fix()
+  end, { desc = "Quick Fix / Solutions (Ctrl+.)", silent = true })
+end
+
+-- Code Spell Checker (F7)
+map({ "n", "i" }, "<F7>", function()
+  require("gowise.components.spell").check()
+end, { desc = "Code Spell Checker (F7)", silent = true })
+
+vim.api.nvim_create_user_command("QuickFix", function()
+  require("gowise.components.spell").quick_fix()
+end, { desc = "Quick Fix / Solutions" })
+
+vim.api.nvim_create_user_command("CodeAction", function()
+  require("gowise.components.spell").quick_fix()
+end, { desc = "Quick Fix / Code Actions" })
+
+vim.api.nvim_create_user_command("SpellCheck", function()
+  require("gowise.components.spell").check()
+end, { desc = "Code Spell Checker Autocorrect" })
+
+vim.api.nvim_create_user_command("FixSpelling", function()
+  require("gowise.components.spell").check()
+end, { desc = "Code Spell Checker Autocorrect" })
 
 -- Format Document (Shift+Alt+F)
 map({ "n", "i", "v" }, "<A-S-f>", function()
