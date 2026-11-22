@@ -78,6 +78,7 @@ function M.sync_height()
 end
 
 function M.toggle()
+  pcall(vim.fn.mkdir, vim.fn.stdpath("cache") .. "/luac", "p")
   if Snacks and Snacks.terminal then
     M.sync_height()
 
@@ -166,6 +167,10 @@ function M.resize(delta)
 end
 
 function M.setup()
+  pcall(vim.fn.mkdir, vim.fn.stdpath("cache") .. "/luac", "p")
+  pcall(require, "snacks.win")
+  pcall(require, "snacks.terminal")
+
   -- Autocommand to track any resize (mouse drag, :resize, split adjustments)
   vim.api.nvim_create_autocmd("WinResized", {
     group = vim.api.nvim_create_augroup("GowiseTerminalResize", { clear = true }),

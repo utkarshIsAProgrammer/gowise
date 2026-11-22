@@ -1,6 +1,9 @@
 -- Gowise Core Engine Entrypoint
 -- Optimized for sub-30ms startup, ultra-low memory, and pure modeless VS Code/Zed editing
 
+-- Ensure cache directory exists before enabling loader
+pcall(vim.fn.mkdir, vim.fn.stdpath("cache") .. "/luac", "p")
+
 -- Enable fast LuaJIT bytecode loader cache
 if vim.loader then
   vim.loader.enable()
