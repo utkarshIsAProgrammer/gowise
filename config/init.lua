@@ -9,6 +9,12 @@ end
 -- Ensure NVIM_APPNAME is isolated
 vim.env.NVIM_APPNAME = "gowise"
 
+-- Ensure config directory is in runtimepath
+local config_dir = vim.fn.stdpath("config")
+if not vim.tbl_contains(vim.opt.rtp:get(), config_dir) then
+  vim.opt.rtp:prepend(config_dir)
+end
+
 -- Disable unused Vim internal plugins for maximum startup speed
 local disabled_builtins = {
   "gzip", "zip", "zipPlugin", "tar", "tarPlugin", "getscript", "getscriptPlugin",

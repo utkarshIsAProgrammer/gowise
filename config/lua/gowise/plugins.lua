@@ -61,7 +61,15 @@ local plugins = {
       indent = { enable = true },
     },
     config = function(_, opts)
-      require("nvim-treesitter.configs").setup(opts)
+      local ok, ts_configs = pcall(require, "nvim-treesitter.configs")
+      if ok then
+        ts_configs.setup(opts)
+      else
+        local ok2, ts_main = pcall(require, "nvim-treesitter")
+        if ok2 then
+          ts_main.setup(opts)
+        end
+      end
     end,
   },
 
