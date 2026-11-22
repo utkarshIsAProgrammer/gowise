@@ -681,7 +681,7 @@ map({ "n", "i" }, "<C-S-m>", function()
 end, { desc = "Toggle Problems" })
 
 -- ============================================================================
--- 9. TERMINAL MODE (POSIX Word Nav, Resize & Escape)
+-- 9. TERMINAL MODE (POSIX Word Nav, Swapped Resize & Escape)
 -- ============================================================================
 
 -- In terminal mode: Ctrl+Left/Right jump words using POSIX readline escapes
@@ -692,13 +692,37 @@ map("t", "<C-Right>", "<Esc>f", opts)
 map("t", "<C-BS>", "<C-w>", opts)
 map("t", "<M-BS>", "<C-w>", opts)
 
--- In terminal mode: Ctrl+Up / Ctrl+Down resize the bottom terminal drawer
-map("t", "<C-Up>", function()
-  require("gowise.components.terminal").resize(-2)
-end, opts)
-map("t", "<C-Down>", function()
+-- Terminal Resize: Ctrl+Up increases height (taller), Ctrl+Down decreases height (shorter)
+local function resize_terminal_up()
   require("gowise.components.terminal").resize(2)
-end, opts)
+end
+
+local function resize_terminal_down()
+  require("gowise.components.terminal").resize(-2)
+end
+
+local ctrl_up_keys = { "<C-Up>", "<Esc>[1;5A", "<Esc>[5A" }
+local ctrl_down_keys = { "<C-Down>", "<Esc>[1;5B", "<Esc>[5B" }
+
+for _, k in ipairs(ctrl_up_keys) do
+  map("t", k, resize_terminal_up, { desc = "Expand Terminal Height (Ctrl+Up)", silent = true })
+  map("n", k, function()
+    local resized = require("gowise.components.terminal").resize(2)
+    if not resized then
+      vim.cmd("normal! 5<C-y>")
+    end
+  end, { desc = "Expand Terminal / Scroll Up", silent = true })
+end
+
+for _, k in ipairs(ctrl_down_keys) do
+  map("t", k, resize_terminal_down, { desc = "Shrink Terminal Height (Ctrl+Down)", silent = true })
+  map("n", k, function()
+    local resized = require("gowise.components.terminal").resize(-2)
+    if not resized then
+      vim.cmd("normal! 5<C-e>")
+    end
+  end, { desc = "Shrink Terminal / Scroll Down", silent = true })
+end
 
 -- Escape terminal mode with Esc Esc
 map("t", "<Esc><Esc>", "<C-\\><C-n>", opts)
