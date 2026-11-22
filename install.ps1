@@ -116,17 +116,12 @@ if (Test-Path "$scriptDir\config\init.lua") {
     Copy-Item -Path "$scriptDir\*" -Destination $installDir -Recurse -Force
 } else {
     $repoUrl = "https://github.com/utkarshIsAProgrammer/minimal.git"
-    $fallbackUrl = "https://github.com/utkarshIsAProgrammer/gowise.git"
     if (Test-Path "$installDir\.git") {
         Write-Host "  Updating existing installation..." -ForegroundColor Gray
         git -C $installDir pull --quiet
     } else {
         Write-Host "  Cloning repository from GitHub..." -ForegroundColor Gray
-        try {
-            git clone --depth 1 $repoUrl $installDir --quiet
-        } catch {
-            git clone --depth 1 $fallbackUrl $installDir --quiet
-        }
+        git clone --depth 1 $repoUrl $installDir --quiet
     }
 }
 Write-Host "✔ Files synced to $installDir." -ForegroundColor Green

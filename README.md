@@ -97,16 +97,14 @@ If you ever wish to remove Minimal, it cleans up all its symlinks, cache, and st
 
 ---
 
-## 🎨 6 Signature Minimal Themes
+## 🎨 Curated Bespoke Themes
 
 Open the live theme previewer anytime with <kbd>Ctrl+K Ctrl+T</kbd> or through the Command Palette:
 
-1. **Minimal Obsidian Void** (Default): Pure deep space black (`#090B10`), electric cyan, vivid purple, and mint green.
-2. **Minimal Aurora Teal**: Nordic deep sea (`#0B151C`), glacier mist, emerald aurora, and starlight amber.
-3. **Minimal Cyber Synth**: Neon dark matter (`#120E1E`), laser magenta, hyper cyan, and electric lime.
-4. **Minimal Monolith Titanium**: Brushed graphite (`#121417`), chilled steel, cobalt blue, and emerald accents.
-5. **Minimal Velvet Espresso**: Roasted mocha (`#141115`), warm milk, tangerine flame, and soft amethyst.
-6. **Minimal Cobalt Nebula**: Deep cosmic navy (`#0A0E1A`), starlit silver, indigo ray, and ruby laser.
+1. **Cyber Aurora** (Default): High-contrast electric cyan and green aurora on deep midnight space (`#090d16`).
+2. **Dark Magic**: Deep neon synthwave & cyberpunk with obsidian violet (`#07070f`).
+3. **Medieval Scriptorium**: Illuminated manuscript, dragon gold, and ancient castle stone (`#0e0d0b`).
+4. **Crimson Nocturne**: Gothic black velvet, mahogany, and ruby red glow (`#0b0709`).
 
 ---
 

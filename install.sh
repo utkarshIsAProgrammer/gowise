@@ -188,15 +188,13 @@ sync_repository() {
   else
     log_info "Fetching latest Minimal from GitHub repository..."
     REPO_URL="https://github.com/utkarshIsAProgrammer/minimal.git"
-    FALLBACK_URL="https://github.com/utkarshIsAProgrammer/gowise.git"
     if [ -d "$INSTALL_DIR/.git" ]; then
       log_step "Updating existing installation at $INSTALL_DIR..."
       git -C "$INSTALL_DIR" pull --quiet || true
     else
       log_step "Cloning repository to $INSTALL_DIR..."
       rm -rf "$INSTALL_DIR"
-      git clone --depth 1 "$REPO_URL" "$INSTALL_DIR" --quiet 2>/dev/null || \
-      git clone --depth 1 "$FALLBACK_URL" "$INSTALL_DIR" --quiet
+      git clone --depth 1 "$REPO_URL" "$INSTALL_DIR" --quiet
     fi
   fi
   log_success "Minimal source files ready."
