@@ -1,4 +1,4 @@
--- Gowise VS Code-style Statusline
+-- Minimal VS Code-style Statusline
 -- Blazing fast, zero dependencies, pure Lua with cached telemetry
 
 local M = {}
@@ -46,7 +46,7 @@ end
 
 function M.render()
   local bufnr = vim.api.nvim_get_current_buf()
-  local mode = mode_names[vim.fn.mode()] or "GOWISE"
+  local mode = mode_names[vim.fn.mode()] or "MINIMAL"
 
   -- Mode Indicator (Clean pill)
   local parts = { "  " .. mode .. "  " }
@@ -100,9 +100,9 @@ function M.render()
 end
 
 function M.setup()
-  vim.opt.statusline = "%!v:lua.require('gowise.ui.statusline').render()"
+  vim.opt.statusline = "%!v:lua.require('minimal.ui.statusline').render()"
 
-  local group = vim.api.nvim_create_augroup("GowiseStatuslineCache", { clear = true })
+  local group = vim.api.nvim_create_augroup("MinimalStatuslineCache", { clear = true })
   vim.api.nvim_create_autocmd({ "DiagnosticChanged" }, {
     group = group,
     callback = function(args)

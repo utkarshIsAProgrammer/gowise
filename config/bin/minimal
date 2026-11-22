@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ===================================================================
-# Gowise - Terminal Client & Launcher Wrapper
+# Minimal - Terminal Client & Launcher Wrapper
 # ===================================================================
 
 NVIM_CLI=""
@@ -19,6 +19,6 @@ if [ -n "$NVIM" ]; then
     exec "$DIR/nvim" "$@"
 fi
 
-export NVIM_APPNAME="gowise"
+export NVIM_APPNAME="minimal"
 export NVIM_NOTTYFAST=1
 exec "$NVIM_CLI" "$@"

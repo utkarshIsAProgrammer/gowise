@@ -1,5 +1,5 @@
 ﻿# ==============================================================================
-# Gowise Universal Zero-Setup Installer for Windows (PowerShell)
+# Minimal Universal Zero-Setup Installer for Windows (PowerShell)
 # Handles all permissions, PATH registration, dependency auto-provisioning,
 # and Start Menu application integration
 # ==============================================================================
@@ -68,7 +68,7 @@ if (-not $nvimCmd) {
     # Standalone portable fallback if still missing
     $nvimCmd = Get-Command nvim -ErrorAction SilentlyContinue
     if (-not $nvimCmd) {
-        $nvimZipDir = "$env:LOCALAPPDATA\gowise-nvim"
+        $nvimZipDir = "$env:LOCALAPPDATA\minimal-nvim"
         Write-Host "  Downloading portable Neovim runtime to $nvimZipDir..." -ForegroundColor Cyan
         New-Item -ItemType Directory -Path $nvimZipDir -Force | Out-Null
         $zipFile = "$env:TEMP\nvim-win64.zip"
@@ -94,9 +94,9 @@ if (Get-Command nvim -ErrorAction SilentlyContinue) {
 }
 
 # 2. Setup Paths
-$installDir = "$env:LOCALAPPDATA\gowise-repo"
-$configDir  = "$env:LOCALAPPDATA\gowise"
-$dataDir    = "$env:LOCALAPPDATA\gowise-data"
+$installDir = "$env:LOCALAPPDATA\minimal-repo"
+$configDir  = "$env:LOCALAPPDATA\minimal"
+$dataDir    = "$env:LOCALAPPDATA\minimal-data"
 $binDir     = "$installDir\bin"
 
 if ($Clean) {
@@ -107,7 +107,7 @@ if ($Clean) {
 }
 
 # 3. Clone or Copy Repository
-Write-Host "==> Syncing Gowise files..." -ForegroundColor Cyan
+Write-Host "==> Syncing Minimal files..." -ForegroundColor Cyan
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 if (Test-Path "$scriptDir\config\init.lua") {
@@ -115,13 +115,18 @@ if (Test-Path "$scriptDir\config\init.lua") {
     if (-not (Test-Path $installDir)) { New-Item -ItemType Directory -Path $installDir -Force | Out-Null }
     Copy-Item -Path "$scriptDir\*" -Destination $installDir -Recurse -Force
 } else {
-    $repoUrl = "https://github.com/utkarshIsAProgrammer/gowise.git"
+    $repoUrl = "https://github.com/utkarshIsAProgrammer/minimal.git"
+    $fallbackUrl = "https://github.com/utkarshIsAProgrammer/gowise.git"
     if (Test-Path "$installDir\.git") {
         Write-Host "  Updating existing installation..." -ForegroundColor Gray
         git -C $installDir pull --quiet
     } else {
         Write-Host "  Cloning repository from GitHub..." -ForegroundColor Gray
-        git clone --depth 1 $repoUrl $installDir --quiet
+        try {
+            git clone --depth 1 $repoUrl $installDir --quiet
+        } catch {
+            git clone --depth 1 $fallbackUrl $installDir --quiet
+        }
     }
 }
 Write-Host "✔ Files synced to $installDir." -ForegroundColor Green
@@ -142,14 +147,14 @@ New-Item -ItemType Junction -Path $configDir -Target "$installDir\config" | Out-
 Write-Host "✔ Linked $configDir -> $installDir\config" -ForegroundColor Green
 
 # 5. Add to User PATH
-Write-Host "==> Registering 'gowise' command..." -ForegroundColor Cyan
+Write-Host "==> Registering 'minimal' command..." -ForegroundColor Cyan
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($userPath -notlike "*$binDir*") {
     [Environment]::SetEnvironmentVariable("Path", "$userPath;$binDir", "User")
     $env:Path += ";$binDir"
     Write-Host "✔ Added $binDir to User PATH." -ForegroundColor Green
 } else {
-    Write-Host "✔ 'gowise' is already in your PATH." -ForegroundColor Green
+    Write-Host "✔ 'minimal' is already in your PATH." -ForegroundColor Green
 }
 
 # 6. Windows Start Menu Shortcut Integration
@@ -157,13 +162,13 @@ Write-Host "==> Registering Windows Start Menu shortcut..." -ForegroundColor Cya
 try {
     $wshShell = New-Object -ComObject WScript.Shell
     $programsFolder = [Environment]::GetFolderPath("Programs")
-    $shortcutPath = "$programsFolder\Gowise.lnk"
+    $shortcutPath = "$programsFolder\Minimal.lnk"
     $shortcut = $wshShell.CreateShortcut($shortcutPath)
-    $shortcut.TargetPath = "$binDir\gowise.cmd"
+    $shortcut.TargetPath = "$binDir\minimal.cmd"
     $shortcut.WorkingDirectory = [Environment]::GetFolderPath("UserProfile")
-    $shortcut.Description = "Gowise - The Fluent, Modeless Terminal Code Editor"
+    $shortcut.Description = "Minimal - The Fluent, Modeless Terminal Code Editor"
     $shortcut.Save()
-    Write-Host "✔ Created Start Menu shortcut: Gowise" -ForegroundColor Green
+    Write-Host "✔ Created Start Menu shortcut: Minimal" -ForegroundColor Green
 } catch {
     Write-Host "▲ Could not create Start Menu shortcut (optional)." -ForegroundColor Gray
 }
@@ -174,21 +179,21 @@ $lazyDir = "$dataDir\lazy\lazy.nvim"
 if (-not (Test-Path $lazyDir)) {
     git clone --filter=blob:none --branch=stable https://github.com/folke/lazy.nvim.git $lazyDir --quiet
 }
-$env:NVIM_APPNAME = "gowise"
+$env:NVIM_APPNAME = "minimal"
 & nvim --headless "+Lazy! sync" +qa 2>$null
 Write-Host "✔ Preheat complete. Startup optimized." -ForegroundColor Green
 
 # 8. Friendly Finish Summary
 Write-Host ""
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
-Write-Host "✔ Gowise installed successfully and ready to use!" -ForegroundColor Green
+Write-Host "✔ Minimal installed successfully and ready to use!" -ForegroundColor Green
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
 Write-Host ""
 Write-Host "  To launch the editor, run:" -ForegroundColor White
-Write-Host "    gowise .                    # Open current folder / project" -ForegroundColor Cyan
-Write-Host "    gowise src\main.go          # Open or create a file" -ForegroundColor Cyan
-Write-Host "    gowise --doctor             # Check system health" -ForegroundColor Cyan
-Write-Host "    gowise --benchmark          # Measure cold startup latency" -ForegroundColor Cyan
+Write-Host "    minimal .                    # Open current folder / project" -ForegroundColor Cyan
+Write-Host "    minimal src\main.go          # Open or create a file" -ForegroundColor Cyan
+Write-Host "    minimal --doctor             # Check system health" -ForegroundColor Cyan
+Write-Host "    minimal --benchmark          # Measure cold startup latency" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  Or search for 'Gowise' in the Windows Start Menu!" -ForegroundColor Yellow
+Write-Host "  Or search for 'Minimal' in the Windows Start Menu!" -ForegroundColor Yellow
 Write-Host ""

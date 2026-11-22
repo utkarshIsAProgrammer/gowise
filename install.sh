@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Gowise Universal Zero-Setup Installer (Linux, macOS, WSL)
+# Minimal Universal Zero-Setup Installer (Linux, macOS, WSL)
 # Fully automated: installs dependencies, configures PATH, registers desktop app
 # ==============================================================================
 
@@ -41,7 +41,7 @@ for arg in "$@"; do
       CLEAN_INSTALL=true
       ;;
     --help|-h)
-      echo "Gowise Universal Installer"
+      echo "Minimal Universal Installer"
       echo "Usage: ./install.sh [options]"
       echo ""
       echo "Options:"
@@ -93,7 +93,7 @@ ensure_dependencies() {
   if command -v git &>/dev/null; then
     log_success "Git is available ($(git --version | awk '{print $3}'))."
   else
-    log_error "Git is required to install Gowise. Please install Git and rerun."
+    log_error "Git is required to install Minimal. Please install Git and rerun."
     exit 1
   fi
 
@@ -129,20 +129,20 @@ ensure_dependencies() {
       # If package manager didn't install modern nvim, download official standalone tarball
       if [ "$INSTALLED_PKG" = false ] && ! command -v nvim &>/dev/null; then
         log_step "Downloading official pre-compiled Neovim binary..."
-        mkdir -p "$HOME/.local/bin" "$HOME/.local/share/gowise-nvim"
+        mkdir -p "$HOME/.local/bin" "$HOME/.local/share/minimal-nvim"
         local NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz"
         if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
           NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-arm64.tar.gz"
         fi
         
         if command -v curl &>/dev/null; then
-          curl -sSL "$NVIM_URL" | tar -xz -C "$HOME/.local/share/gowise-nvim" --strip-components=1
+          curl -sSL "$NVIM_URL" | tar -xz -C "$HOME/.local/share/minimal-nvim" --strip-components=1
         elif command -v wget &>/dev/null; then
-          wget -qO- "$NVIM_URL" | tar -xz -C "$HOME/.local/share/gowise-nvim" --strip-components=1
+          wget -qO- "$NVIM_URL" | tar -xz -C "$HOME/.local/share/minimal-nvim" --strip-components=1
         fi
 
-        if [ -x "$HOME/.local/share/gowise-nvim/bin/nvim" ]; then
-          ln -sf "$HOME/.local/share/gowise-nvim/bin/nvim" "$HOME/.local/bin/nvim"
+        if [ -x "$HOME/.local/share/minimal-nvim/bin/nvim" ]; then
+          ln -sf "$HOME/.local/share/minimal-nvim/bin/nvim" "$HOME/.local/bin/nvim"
           export PATH="$HOME/.local/bin:$PATH"
         fi
       fi
@@ -160,18 +160,18 @@ ensure_dependencies() {
 
 # 3. Setup Target Directories
 setup_paths() {
-  INSTALL_DIR="${HOME}/.local/share/gowise/repo"
-  CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/gowise"
+  INSTALL_DIR="${HOME}/.local/share/minimal/repo"
+  CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/minimal"
   BIN_DIR="${HOME}/.local/bin"
-  DATA_DIR="${HOME}/.local/share/gowise"
-  CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/gowise"
-  STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/gowise"
+  DATA_DIR="${HOME}/.local/share/minimal"
+  CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/minimal"
+  STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/minimal"
 
   mkdir -p "$BIN_DIR" "$DATA_DIR" "$CACHE_DIR/luac" "$STATE_DIR"
   mkdir -p "$(dirname "$CONFIG_DIR")"
 
   if [ "$CLEAN_INSTALL" = true ]; then
-    log_warn "Clean install requested: Wiping old Gowise runtime state..."
+    log_warn "Clean install requested: Wiping old Minimal runtime state..."
     rm -rf "$CONFIG_DIR" "$INSTALL_DIR" "$CACHE_DIR" "$STATE_DIR" "$DATA_DIR/lazy"
     mkdir -p "$DATA_DIR" "$CACHE_DIR/luac" "$STATE_DIR"
   fi
@@ -186,18 +186,20 @@ sync_repository() {
     mkdir -p "$INSTALL_DIR"
     cp -rf "$SCRIPT_DIR"/* "$INSTALL_DIR"/ 2>/dev/null || true
   else
-    log_info "Fetching latest Gowise from GitHub repository..."
-    REPO_URL="https://github.com/utkarshIsAProgrammer/gowise.git"
+    log_info "Fetching latest Minimal from GitHub repository..."
+    REPO_URL="https://github.com/utkarshIsAProgrammer/minimal.git"
+    FALLBACK_URL="https://github.com/utkarshIsAProgrammer/gowise.git"
     if [ -d "$INSTALL_DIR/.git" ]; then
       log_step "Updating existing installation at $INSTALL_DIR..."
       git -C "$INSTALL_DIR" pull --quiet || true
     else
       log_step "Cloning repository to $INSTALL_DIR..."
       rm -rf "$INSTALL_DIR"
-      git clone --depth 1 "$REPO_URL" "$INSTALL_DIR" --quiet
+      git clone --depth 1 "$REPO_URL" "$INSTALL_DIR" --quiet 2>/dev/null || \
+      git clone --depth 1 "$FALLBACK_URL" "$INSTALL_DIR" --quiet
     fi
   fi
-  log_success "Gowise source files ready."
+  log_success "Minimal source files ready."
 }
 
 # 5. Link Isolated Configuration
@@ -218,11 +220,11 @@ link_config() {
 
 # 6. Install CLI Launcher & PATH
 install_launcher() {
-  log_info "Setting up 'gowise' command..."
-  chmod +x "$INSTALL_DIR/bin/gowise"
+  log_info "Setting up 'minimal' command..."
+  chmod +x "$INSTALL_DIR/bin/minimal"
   chmod +x "$INSTALL_DIR/config/bin/"* 2>/dev/null || true
-  ln -sf "$INSTALL_DIR/bin/gowise" "$BIN_DIR/gowise"
-  log_success "Created executable link: $BIN_DIR/gowise"
+  ln -sf "$INSTALL_DIR/bin/minimal" "$BIN_DIR/minimal"
+  log_success "Created executable link: $BIN_DIR/minimal"
 
   # PATH verification across popular shells
   if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
@@ -253,16 +255,16 @@ install_desktop_integration() {
 
     mkdir -p "$APP_DIR" "$ICON_DIR" "$HICOLOR_DIR"
 
-    if [ -f "$INSTALL_DIR/assets/gowise.svg" ]; then
-      cp -f "$INSTALL_DIR/assets/gowise.svg" "$ICON_DIR/gowise.svg"
-      cp -f "$INSTALL_DIR/assets/gowise.svg" "$HICOLOR_DIR/gowise.svg"
-      log_success "Installed Gowise application icon"
+    if [ -f "$INSTALL_DIR/assets/minimal.svg" ]; then
+      cp -f "$INSTALL_DIR/assets/minimal.svg" "$ICON_DIR/minimal.svg"
+      cp -f "$INSTALL_DIR/assets/minimal.svg" "$HICOLOR_DIR/minimal.svg"
+      log_success "Installed Minimal application icon"
     fi
 
-    if [ -f "$INSTALL_DIR/desktop/gowise.desktop" ]; then
-      cp -f "$INSTALL_DIR/desktop/gowise.desktop" "$APP_DIR/gowise.desktop"
-      chmod +x "$APP_DIR/gowise.desktop"
-      log_success "Installed desktop entry ($APP_DIR/gowise.desktop)"
+    if [ -f "$INSTALL_DIR/desktop/minimal.desktop" ]; then
+      cp -f "$INSTALL_DIR/desktop/minimal.desktop" "$APP_DIR/minimal.desktop"
+      chmod +x "$APP_DIR/minimal.desktop"
+      log_success "Installed desktop entry ($APP_DIR/minimal.desktop)"
     fi
 
     if command -v update-desktop-database &>/dev/null; then
@@ -280,14 +282,14 @@ preheat_cache() {
   log_info "Preheating LuaJIT bytecode & compiling plugin cache..."
 
   # Pre-clone lazy.nvim if missing
-  local LAZY_DIR="${HOME}/.local/share/gowise/lazy/lazy.nvim"
+  local LAZY_DIR="${HOME}/.local/share/minimal/lazy/lazy.nvim"
   if [ ! -d "$LAZY_DIR" ]; then
     git clone --filter=blob:none --branch=stable https://github.com/folke/lazy.nvim.git "$LAZY_DIR" --quiet 2>/dev/null || true
   fi
 
   # Run headless sync
   if command -v nvim &>/dev/null; then
-    NVIM_APPNAME=gowise nvim --headless "+Lazy! sync" +qa 2>/dev/null || true
+    NVIM_APPNAME=minimal nvim --headless "+Lazy! sync" +qa 2>/dev/null || true
   fi
   log_success "Preheat complete. Cold startup latency optimized (<50ms)."
 }
@@ -296,14 +298,14 @@ preheat_cache() {
 finish() {
   echo ""
   echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-  echo -e "${BOLD}${GREEN}✔ Gowise installed successfully and ready to use!${RESET}"
+  echo -e "${BOLD}${GREEN}✔ Minimal installed successfully and ready to use!${RESET}"
   echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
   echo ""
   echo -e "  To start editing, run:"
-  echo -e "    ${CYAN}gowise .${RESET}                      # Open current folder / workspace"
-  echo -e "    ${CYAN}gowise path/to/file.ext${RESET}       # Open or create any file"
-  echo -e "    ${CYAN}gowise --doctor${RESET}               # Inspect toolchains & LSP status"
-  echo -e "    ${CYAN}gowise --benchmark${RESET}            # Measure exact startup latency"
+  echo -e "    ${CYAN}minimal .${RESET}                      # Open current folder / workspace"
+  echo -e "    ${CYAN}minimal path/to/file.ext${RESET}       # Open or create any file"
+  echo -e "    ${CYAN}minimal --doctor${RESET}               # Inspect toolchains & LSP status"
+  echo -e "    ${CYAN}minimal --benchmark${RESET}            # Measure exact startup latency"
   echo ""
   echo -e "  ${BOLD}Essential shortcuts:${RESET}"
   echo -e "    • ${BOLD}Ctrl+S${RESET}        Save file (auto-creates parent directories)"

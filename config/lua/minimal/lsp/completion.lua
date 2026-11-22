@@ -1,4 +1,4 @@
--- Gowise Autocompletion & Snippets Configuration (blink.cmp)
+-- Minimal Autocompletion & Snippets Configuration (blink.cmp)
 -- C-compiled, ultra-fast fuzzy autocompletion with zero latency
 
 local M = {}

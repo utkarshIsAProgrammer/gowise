@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# GOWISE CLI Launcher (Linux & macOS)
+# MINIMAL CLI Launcher (Linux & macOS)
 # High-performance, modeless terminal code editor engine
 # ==============================================================================
 
@@ -11,27 +11,27 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 CONFIG_DIR="$PROJECT_ROOT/config"
 
 # Ensure isolated NVIM_APPNAME
-export NVIM_APPNAME="gowise"
+export NVIM_APPNAME="minimal"
 
 # Prevent ANSI DSR terminal query delay
 export NVIM_NOTTYFAST=1
 
 # Zero-Nest terminal delegation: If running inside terminal drawer, forward to host instance
 if [ -n "$NVIM" ]; then
-  exec "$CONFIG_DIR/bin/gowise" "$@"
+  exec "$CONFIG_DIR/bin/minimal" "$@"
 fi
 
 # Ensure bytecode cache directory exists
-mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/gowise/luac" 2>/dev/null || true
+mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/minimal/luac" 2>/dev/null || true
 
 # Prepend Mason bin directory so formatters (prettier, black, stylua, shfmt) are in PATH
-MASON_BIN="${XDG_DATA_HOME:-$HOME/.local/share}/gowise/mason/bin"
+MASON_BIN="${XDG_DATA_HOME:-$HOME/.local/share}/minimal/mason/bin"
 if [ -d "$MASON_BIN" ]; then
   export PATH="$MASON_BIN:$PATH"
 fi
 
-# Check if ~/.config/gowise exists or link it
-USER_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/gowise"
+# Check if ~/.config/minimal exists or link it
+USER_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/minimal"
 if [ ! -e "$USER_CONFIG" ]; then
   mkdir -p "$(dirname "$USER_CONFIG")"
   ln -s "$CONFIG_DIR" "$USER_CONFIG"
@@ -39,15 +39,15 @@ fi
 
 # Help Flag
 if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-  echo -e "\033[1;36mGowise Code Editor\033[0m - The Fluent, Modeless Terminal IDE"
+  echo -e "\033[1;36mMinimal Code Editor\033[0m - The Fluent, Modeless Terminal IDE"
   echo ""
   echo -e "\033[1mUsage:\033[0m"
-  echo "  gowise                     Launch editor in current folder"
-  echo "  gowise <file>              Open or create file (e.g. gowise api/main.go)"
-  echo "  gowise <directory>         Open workspace directory"
-  echo "  gowise --doctor            Diagnose system health & installed toolchains"
-  echo "  gowise --benchmark         Measure exact startup latency in milliseconds"
-  echo "  gowise --version           Show version information"
+  echo "  minimal                     Launch editor in current folder"
+  echo "  minimal <file>              Open or create file (e.g. minimal api/main.go)"
+  echo "  minimal <directory>         Open workspace directory"
+  echo "  minimal --doctor            Diagnose system health & installed toolchains"
+  echo "  minimal --benchmark         Measure exact startup latency in milliseconds"
+  echo "  minimal --version           Show version information"
   echo ""
   echo -e "\033[1mEssential Shortcuts:\033[0m"
   echo "  Ctrl+S                     Save file (auto-creates parent directories)"
@@ -64,7 +64,7 @@ fi
 
 # Doctor / Health Check Flag
 if [ "$1" = "--doctor" ] || [ "$1" = "doctor" ]; then
-  echo -e "\033[1;36m==> Running Gowise Health Doctor...\033[0m\n"
+  echo -e "\033[1;36m==> Running Minimal Health Doctor...\033[0m\n"
   
   echo -e "  \033[1mOS Platform:\033[0m          $(uname -s) ($(uname -m))"
   echo -e "  \033[1mActive Shell:\033[0m         ${SHELL:-bash}"
@@ -112,16 +112,16 @@ fi
 
 # Version Flag
 if [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
-  echo "Gowise 1.0.0 (Powered by Neovim $(nvim --version | head -n1 | cut -d' ' -f2))"
+  echo "Minimal 1.0.0 (Powered by Neovim $(nvim --version | head -n1 | cut -d' ' -f2))"
   exit 0
 fi
 
 # Benchmark Flag
 if [ "$1" = "--benchmark" ]; then
-  echo -e "\033[1;36mBenchmarking Gowise Startup Time...\033[0m"
-  NVIM_APPNAME=gowise nvim --startuptime /tmp/gowise_bench.log --headless -c "q" >/dev/null 2>&1
-  tail -n 2 /tmp/gowise_bench.log | head -n 1 | awk '{printf "\033[1;32m✔ Total Cold Start: %s ms\033[0m\n", $1}'
-  rm -f /tmp/gowise_bench.log
+  echo -e "\033[1;36mBenchmarking Minimal Startup Time...\033[0m"
+  NVIM_APPNAME=minimal nvim --startuptime /tmp/minimal_bench.log --headless -c "q" >/dev/null 2>&1
+  tail -n 2 /tmp/minimal_bench.log | head -n 1 | awk '{printf "\033[1;32m✔ Total Cold Start: %s ms\033[0m\n", $1}'
+  rm -f /tmp/minimal_bench.log
   exit 0
 fi
 
@@ -146,5 +146,5 @@ if [ "$#" -eq 1 ] && [ -d "$1" ]; then
   exec nvim
 fi
 
-# Launch Gowise in Isolated Mode
+# Launch Minimal in Isolated Mode
 exec nvim "$@"

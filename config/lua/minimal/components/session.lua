@@ -1,4 +1,4 @@
--- Gowise Automatic Session & Workspace Persistence Engine
+-- Minimal Automatic Session & Workspace Persistence Engine
 -- Automatically restores the last active workspace, open files, tabs, layout and cursor lines
 
 local M = {}
@@ -95,20 +95,20 @@ function M.restore()
     pcall(function()
       vim.cmd("silent! source " .. vim.fn.fnameescape(session_file))
     end)
-    vim.notify("✓ Workspace session restored", vim.log.levels.INFO, { title = "Gowise" })
+    vim.notify("✓ Workspace session restored", vim.log.levels.INFO, { title = "Minimal" })
   elseif vim.fn.filereadable(global_session) == 1 then
     pcall(function()
       vim.cmd("silent! source " .. vim.fn.fnameescape(global_session))
     end)
-    vim.notify("✓ Last session restored", vim.log.levels.INFO, { title = "Gowise" })
+    vim.notify("✓ Last session restored", vim.log.levels.INFO, { title = "Minimal" })
   else
-    vim.notify("No saved session found for this workspace", vim.log.levels.INFO, { title = "Gowise" })
+    vim.notify("No saved session found for this workspace", vim.log.levels.INFO, { title = "Minimal" })
   end
 end
 
 function M.setup()
   ensure_state_dirs()
-  local session_group = vim.api.nvim_create_augroup("GowiseSession", { clear = true })
+  local session_group = vim.api.nvim_create_augroup("MinimalSession", { clear = true })
 
   -- Continuously track active workspace & file
   vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "DirChanged" }, {

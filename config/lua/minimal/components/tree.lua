@@ -1,4 +1,4 @@
--- Gowise Docked Sidebar File Tree
+-- Minimal Docked Sidebar File Tree
 -- Fixed, predictable explorer that stays open until toggled (VS Code / Zed standard)
 
 local M = {}

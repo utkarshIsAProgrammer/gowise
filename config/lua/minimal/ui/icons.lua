@@ -1,5 +1,5 @@
 -- ===================================================================
--- Gowise High-Definition Icon Theme
+-- Minimal High-Definition Icon Theme
 -- Curated, context-aware, large & related icons with vibrant palette
 -- Flow & Zed design aesthetic: modern Nerd Font v3 glyphs
 -- ===================================================================

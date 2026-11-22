@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ===================================================================
-# Gowise - Zero-Nest Terminal Client Wrapper (nvim)
-# Prevents nested Neovim inside Gowise terminal and opens files directly
+# Minimal - Zero-Nest Terminal Client Wrapper (nvim)
+# Prevents nested Neovim inside Minimal terminal and opens files directly
 # in the active parent editor instance.
 # ===================================================================
 

@@ -1,4 +1,4 @@
--- Gowise Unified Search & Navigation Pickers
+-- Minimal Unified Search & Navigation Pickers
 -- Bridges Command Palette, File Finder, Symbol Search, and Live Grep
 
 local M = {}

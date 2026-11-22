@@ -1,4 +1,4 @@
--- Gowise Core Engine Entrypoint
+-- Minimal Core Engine Entrypoint
 -- Optimized for sub-30ms startup, ultra-low memory, and pure modeless VS Code/Zed editing
 
 -- Ensure cache directory exists before enabling loader
@@ -10,7 +10,7 @@ if vim.loader then
 end
 
 -- Ensure NVIM_APPNAME is isolated
-vim.env.NVIM_APPNAME = "gowise"
+vim.env.NVIM_APPNAME = "minimal"
 
 -- Ensure config directory is in runtimepath
 local config_dir = vim.fn.stdpath("config")
@@ -76,7 +76,7 @@ if not vim.uv.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
--- Prepend config bin to PATH so embedded terminals route 'gowise', 'nvim', 'code' to active instance
+-- Prepend config bin to PATH so embedded terminals route 'minimal', 'nvim', 'code' to active instance
 local config_bin = vim.fn.stdpath("config") .. "/bin"
 if vim.fn.isdirectory(config_bin) == 1 then
 	vim.env.PATH = config_bin .. ":" .. vim.env.PATH
@@ -87,23 +87,23 @@ vim.g.mapleader = " "
 vim.g.maplocalleader = " "
 
 -- Load Core Configurations
-require("gowise.core.options")
-require("gowise.core.autocmds")
-require("gowise.core.keymaps")
-require("gowise.lsp.errorlens").setup()
+require("minimal.core.options")
+require("minimal.core.autocmds")
+require("minimal.core.keymaps")
+require("minimal.lsp.errorlens").setup()
 
 -- Load Plugins and Theme Engine
-require("gowise.plugins")
+require("minimal.plugins")
 
 -- Initialize UI & Ecosystem Components
 vim.api.nvim_create_autocmd("User", {
 	pattern = "VeryLazy",
 	callback = function()
-		require("gowise.ui.statusline").setup()
-		require("gowise.ui.tabline").setup()
-		require("gowise.ui.winbar").setup()
-		require("gowise.components.session").setup()
-		require("gowise.components.terminal").setup()
-		require("gowise.components.runner").setup()
+		require("minimal.ui.statusline").setup()
+		require("minimal.ui.tabline").setup()
+		require("minimal.ui.winbar").setup()
+		require("minimal.components.session").setup()
+		require("minimal.components.terminal").setup()
+		require("minimal.components.runner").setup()
 	end,
 })

@@ -1,5 +1,5 @@
 -- ============================================================================
--- Gowise Universal Keymaps (100% Modeless VS Code & Zed Parity)
+-- Minimal Universal Keymaps (100% Modeless VS Code & Zed Parity)
 -- Pure Non-Modal Editor: Always ready to type, zero Vim Normal mode traps.
 -- ============================================================================
 
@@ -161,13 +161,13 @@ local function handle_escape()
 
   -- If inside explorer sidebar, close it
   if ft == "snacks_explorer" or ft:find("explorer") or ft:find("snacks_picker") then
-    require("gowise.components.tree").toggle()
+    require("minimal.components.tree").toggle()
     return
   end
 
   -- If inside terminal drawer, hide it
   if ft == "snacks_terminal" or bt == "terminal" then
-    require("gowise.components.terminal").toggle()
+    require("minimal.components.terminal").toggle()
     return
   end
 
@@ -218,9 +218,9 @@ local function notify_saved()
   local buf = vim.api.nvim_get_current_buf()
   local buf_name = vim.api.nvim_buf_get_name(buf)
   local fname = buf_name ~= "" and vim.fn.fnamemodify(buf_name, ":t") or "[Untitled]"
-  vim.notify("✓ Saved: " .. fname, vim.log.levels.INFO, { title = "Gowise" })
+  vim.notify("✓ Saved: " .. fname, vim.log.levels.INFO, { title = "Minimal" })
 end
-_G.gowise_notify_saved = notify_saved
+_G.minimal_notify_saved = notify_saved
 
 local function close_active_buffer()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -242,12 +242,12 @@ local function close_active_buffer()
 end
 
 -- Save File (Ctrl+S) - 100% Modeless: Never drops out of insert mode
-map("i", "<C-s>", "<cmd>silent! write<CR><cmd>lua _G.gowise_notify_saved()<CR>", { desc = "Save File (Ctrl+S)", silent = true })
-map({ "n", "v", "x", "s" }, "<C-s>", "<cmd>silent! write<CR><cmd>lua _G.gowise_notify_saved()<CR><cmd>startinsert<CR>", { desc = "Save File (Ctrl+S)", silent = true })
+map("i", "<C-s>", "<cmd>silent! write<CR><cmd>lua _G.minimal_notify_saved()<CR>", { desc = "Save File (Ctrl+S)", silent = true })
+map({ "n", "v", "x", "s" }, "<C-s>", "<cmd>silent! write<CR><cmd>lua _G.minimal_notify_saved()<CR><cmd>startinsert<CR>", { desc = "Save File (Ctrl+S)", silent = true })
 
 -- Save All (Ctrl+Shift+S)
-map("i", "<C-S-s>", "<cmd>silent! wa<CR><cmd>lua vim.notify('✓ Saved all files', vim.log.levels.INFO, { title = 'Gowise' })<CR>", { desc = "Save All Files", silent = true })
-map({ "n", "v", "x", "s" }, "<C-S-s>", "<cmd>silent! wa<CR><cmd>lua vim.notify('✓ Saved all files', vim.log.levels.INFO, { title = 'Gowise' })<CR><cmd>startinsert<CR>", { desc = "Save All Files", silent = true })
+map("i", "<C-S-s>", "<cmd>silent! wa<CR><cmd>lua vim.notify('✓ Saved all files', vim.log.levels.INFO, { title = 'Minimal' })<CR>", { desc = "Save All Files", silent = true })
+map({ "n", "v", "x", "s" }, "<C-S-s>", "<cmd>silent! wa<CR><cmd>lua vim.notify('✓ Saved all files', vim.log.levels.INFO, { title = 'Minimal' })<CR><cmd>startinsert<CR>", { desc = "Save All Files", silent = true })
 
 -- New File (Ctrl+N)
 map({ "n", "i", "v" }, "<C-n>", "<cmd>enew<CR><cmd>startinsert<CR>", { desc = "New File", silent = true })
@@ -275,7 +275,7 @@ local function copy_selection()
   vim.fn.setreg('*', content)
   vim.fn.setreg('"', content)
   vim.cmd('normal! gv')
-  vim.notify("Selection copied to clipboard", vim.log.levels.INFO, { title = "Gowise Clipboard" })
+  vim.notify("Selection copied to clipboard", vim.log.levels.INFO, { title = "Minimal Clipboard" })
 end
 
 local function copy_line()
@@ -283,7 +283,7 @@ local function copy_line()
   vim.fn.setreg('+', line .. '\n', 'l')
   vim.fn.setreg('*', line .. '\n', 'l')
   vim.fn.setreg('"', line .. '\n', 'l')
-  vim.notify("Line copied to clipboard", vim.log.levels.INFO, { title = "Gowise Clipboard" })
+  vim.notify("Line copied to clipboard", vim.log.levels.INFO, { title = "Minimal Clipboard" })
 end
 
 local function cut_selection()
@@ -885,7 +885,7 @@ local function focus_sidebar()
       end
     end
   end
-  require("gowise.components.tree").toggle()
+  require("minimal.components.tree").toggle()
 end
 
 local function focus_editor()
@@ -918,7 +918,7 @@ local function focus_terminal()
       end
     end
   end
-  require("gowise.components.terminal").toggle()
+  require("minimal.components.terminal").toggle()
 end
 
 -- Keymaps for direct focus:
@@ -946,7 +946,7 @@ vim.api.nvim_create_user_command("FocusTerminal", focus_terminal, { desc = "Focu
 
 -- Toggle File Tree Sidebar (Ctrl+B across all modes: normal, insert, visual, terminal)
 map({ "n", "i", "v", "t" }, "<C-b>", function()
-  require("gowise.components.tree").toggle()
+  require("minimal.components.tree").toggle()
 end, { desc = "Toggle Sidebar", silent = true })
 
 -- ============================================================================
@@ -992,7 +992,7 @@ function _G.OpenFileFromTerminal(target_path)
         Snacks.explorer({ cwd = full })
       end
     end)
-    vim.notify("✓ Switched workspace: " .. full, vim.log.levels.INFO, { title = "Gowise Workspace" })
+    vim.notify("✓ Switched workspace: " .. full, vim.log.levels.INFO, { title = "Minimal Workspace" })
     return "OK"
   end
 
@@ -1016,7 +1016,7 @@ function _G.OpenFileFromTerminal(target_path)
   focus_editor()
   vim.cmd("edit " .. vim.fn.fnameescape(full))
   vim.cmd("startinsert")
-  vim.notify("✓ Opened: " .. vim.fn.fnamemodify(full, ":t"), vim.log.levels.INFO, { title = "Gowise Editor" })
+  vim.notify("✓ Opened: " .. vim.fn.fnamemodify(full, ":t"), vim.log.levels.INFO, { title = "Minimal Editor" })
   return "OK"
 end
 
@@ -1036,32 +1036,32 @@ local term_toggle_keys = {
 }
 for _, key in ipairs(term_toggle_keys) do
   map({ "n", "i", "t", "v" }, key, function()
-    require("gowise.components.terminal").toggle()
+    require("minimal.components.terminal").toggle()
   end, { desc = "Toggle Terminal Drawer", silent = true })
 end
 
 -- New Terminal Instance (dedicated shortcut, preventing Ctrl+~ accidental split)
 map({ "n", "i", "t", "v" }, "<leader>tn", function()
-  require("gowise.components.terminal").new_instance()
+  require("minimal.components.terminal").new_instance()
 end, { desc = "New Terminal Instance", silent = true })
 
 -- Run Code (F5) & Stop Code (Shift+F5)
 map({ "n", "i" }, "<F5>", function()
-  require("gowise.components.runner").run()
+  require("minimal.components.runner").run()
 end, { desc = "Run Code (F5)", silent = true })
 
 map({ "n", "i" }, "<S-F5>", function()
-  require("gowise.components.runner").stop()
+  require("minimal.components.runner").stop()
 end, { desc = "Stop Code (Shift+F5)", silent = true })
 
 -- Theme Switcher (Ctrl+K Ctrl+T)
 map({ "n", "i" }, "<C-k><C-t>", function()
-  require("gowise.themes.engine").theme_picker()
+  require("minimal.themes.engine").theme_picker()
 end, { desc = "Preferences: Color Theme", silent = true })
 
 -- Toggle Transparency (Ctrl+K Ctrl+U)
 map({ "n", "i" }, "<C-k><C-u>", function()
-  require("gowise.themes.engine").toggle_transparency()
+  require("minimal.themes.engine").toggle_transparency()
 end, { desc = "Toggle Transparency", silent = true })
 
 -- ============================================================================
@@ -1096,29 +1096,29 @@ map({ "n", "i" }, "<F2>", vim.lsp.buf.rename, { desc = "Rename Symbol" })
 local quick_fix_keys = { "<C-.>", "<M-CR>", "\27[46;5u", "<D-.>" }
 for _, k in ipairs(quick_fix_keys) do
   map({ "n", "i", "v", "x" }, k, function()
-    require("gowise.components.spell").quick_fix()
+    require("minimal.components.spell").quick_fix()
   end, { desc = "Quick Fix / Solutions (Ctrl+.)", silent = true })
 end
 
 -- Code Spell Checker (F7)
 map({ "n", "i" }, "<F7>", function()
-  require("gowise.components.spell").check()
+  require("minimal.components.spell").check()
 end, { desc = "Code Spell Checker (F7)", silent = true })
 
 vim.api.nvim_create_user_command("QuickFix", function()
-  require("gowise.components.spell").quick_fix()
+  require("minimal.components.spell").quick_fix()
 end, { desc = "Quick Fix / Solutions" })
 
 vim.api.nvim_create_user_command("CodeAction", function()
-  require("gowise.components.spell").quick_fix()
+  require("minimal.components.spell").quick_fix()
 end, { desc = "Quick Fix / Code Actions" })
 
 vim.api.nvim_create_user_command("SpellCheck", function()
-  require("gowise.components.spell").check()
+  require("minimal.components.spell").check()
 end, { desc = "Code Spell Checker Autocorrect" })
 
 vim.api.nvim_create_user_command("FixSpelling", function()
-  require("gowise.components.spell").check()
+  require("minimal.components.spell").check()
 end, { desc = "Code Spell Checker Autocorrect" })
 
 -- Format Document (Shift+Alt+F)
@@ -1127,7 +1127,7 @@ map({ "n", "i", "v" }, "<A-S-f>", function()
   if ok and conform then
     conform.format({ async = true, lsp_format = "fallback" }, function(err)
       if not err then
-        vim.notify("Formatted document successfully", vim.log.levels.INFO, { title = "Gowise Formatter" })
+        vim.notify("Formatted document successfully", vim.log.levels.INFO, { title = "Minimal Formatter" })
       end
     end)
   else
@@ -1164,11 +1164,11 @@ map("t", "<M-BS>", "<C-w>", opts)
 
 -- Terminal Resize: Ctrl+Up increases height (taller), Ctrl+Down decreases height (shorter)
 local function resize_terminal_up()
-  require("gowise.components.terminal").resize(2)
+  require("minimal.components.terminal").resize(2)
 end
 
 local function resize_terminal_down()
-  require("gowise.components.terminal").resize(-2)
+  require("minimal.components.terminal").resize(-2)
 end
 
 local ctrl_up_keys = { "<C-Up>", "\27[1;5A", "\27[5A", "\27[57418;5u" }
@@ -1177,7 +1177,7 @@ local ctrl_down_keys = { "<C-Down>", "\27[1;5B", "\27[5B", "\27[57420;5u" }
 for _, k in ipairs(ctrl_up_keys) do
   map("t", k, resize_terminal_up, { desc = "Expand Terminal Height (Ctrl+Up)", silent = true })
   map("n", k, function()
-    local resized = require("gowise.components.terminal").resize(2)
+    local resized = require("minimal.components.terminal").resize(2)
     if not resized then
       vim.cmd("normal! 5<C-y>")
     end
@@ -1187,7 +1187,7 @@ end
 for _, k in ipairs(ctrl_down_keys) do
   map("t", k, resize_terminal_down, { desc = "Shrink Terminal Height (Ctrl+Down)", silent = true })
   map("n", k, function()
-    local resized = require("gowise.components.terminal").resize(-2)
+    local resized = require("minimal.components.terminal").resize(-2)
     if not resized then
       vim.cmd("normal! 5<C-e>")
     end

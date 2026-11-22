@@ -1,4 +1,4 @@
--- Gowise Fluent Line & Smooth Visual Experience
+-- Minimal Fluent Line & Smooth Visual Experience
 -- Delivers the glowing green fluent line and smooth visual cues
 
 local M = {}
@@ -15,7 +15,7 @@ function M.setup()
   set(0, "SnacksIndent", { fg = "#202836" })
 
   -- Cursor line pulse/fluency on insert enter / leave
-  local fluent_group = vim.api.nvim_create_augroup("GowiseFluent", { clear = true })
+  local fluent_group = vim.api.nvim_create_augroup("MinimalFluent", { clear = true })
 
   vim.api.nvim_create_autocmd("InsertEnter", {
     group = fluent_group,

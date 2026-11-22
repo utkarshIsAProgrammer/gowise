@@ -1,4 +1,4 @@
-# Gowise Code Editor
+# Minimal Code Editor
 
 > **The Fluent, Modeless Terminal Code Editor for All Operating Systems.**  
 > Blends the blazing speed (<50ms startup) and low resource footprint of the terminal with the modeless editing, rich aesthetics, and polyglot power of modern graphical IDEs like VS Code and Zed.
@@ -8,33 +8,33 @@
 ## ⚡ Core Philosophy & Guarantees
 
 1. **Sub-50ms Cold Startup & Low Resource Usage**: Uses native Neovim 0.12 LuaJIT bytecode caching, compiled C/Rust plugins (`blink.cmp`, `snacks.nvim`), and intelligent event deferral. Starts in **~48ms** and runs comfortably under 40 MB RAM.
-2. **100% Strict OS Isolation**: Powered by `NVIM_APPNAME=gowise`. Configs, plugins, sessions, and state are isolated in `~/.config/gowise` (or `%LOCALAPPDATA%\gowise` on Windows). Never interferes with your vanilla `nvim` or other configurations.
+2. **100% Strict OS Isolation**: Powered by `NVIM_APPNAME=minimal`. Configs, plugins, sessions, and state are isolated in `~/.config/minimal` (or `%LOCALAPPDATA%\minimal` on Windows). Never interferes with your vanilla `nvim` or other configurations.
 3. **Zero Host Terminal Tampering**: Never modifies your terminal emulator configs (`kitty.conf`, `ghostty.conf`, `foot.ini`, Windows Terminal). Word jumping, selection, and modeless navigation are handled natively by the editor.
 4. **Universal All-OS Support**: First-class, zero-prerequisite installer for Linux (Debian, Ubuntu, Arch, Fedora, Alpine, Void), macOS (Intel & Apple Silicon), WSL, and Windows.
-5. **Zero-Nest Terminal RPC Client**: Running `gowise <file>`, `nvim <file>`, or `code <file>` inside the integrated terminal drawer forwards the file directly to a new tab in the parent editor window instead of launching a nested Neovim process.
+5. **Zero-Nest Terminal RPC Client**: Running `minimal <file>`, `nvim <file>`, or `code <file>` inside the integrated terminal drawer forwards the file directly to a new tab in the parent editor window instead of launching a nested Neovim process.
 6. **Fluent Visuals**:
    - **Rainbow Tabs**: Color-accented tab bar with dirty indicators and filetype icons.
    - **Green Smooth & Fluent Cursor**: Modeless vertical beam (`ver25`) with active scope indent guidance.
    - **Breadcrumbs Winbar**: Instant directory path navigation with file icons.
    - **Realtime Hex Colorizer**: Inline color previews for hex and CSS colors (`#00E5FF`, `#FF007F`).
-   - **6 Bespoke Gowise Themes**: Handcrafted original palettes with live interactive switcher.
+   - **6 Bespoke Minimal Themes**: Handcrafted original palettes with live interactive switcher.
 
 ---
 
 ## 🚀 Universal One-Line Installation
 
-Install Gowise on any operating system with a single command. The installer automatically provisions dependencies, compiles the plugin cache, and registers the application.
+Install Minimal on any operating system with a single command. The installer automatically provisions dependencies, compiles the plugin cache, and registers the application.
 
 ### 🐧 Linux & 🍏 macOS & 🐧 WSL (One-Liner)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/utkarshIsAProgrammer/minimal/main/install.sh | bash
 ```
-*(Or with `wget`: `wget -qO- https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/install.sh | bash`)*
+*(Or with `wget`: `wget -qO- https://raw.githubusercontent.com/utkarshIsAProgrammer/minimal/main/install.sh | bash`)*
 
 ### 🪟 Windows (PowerShell One-Liner)
 Open PowerShell (as normal user) and run:
 ```powershell
-irm https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/utkarshIsAProgrammer/minimal/main/install.ps1 | iex
 ```
 
 ---
@@ -49,64 +49,64 @@ If you are setting up a brand-new computer or want to test a completely clean in
    - If `nvim` (or Neovim v0.10+) is missing, the installer automatically provisions the modern pre-compiled engine into your user directory.
    - On Windows, if `git` or `nvim` is missing, the installer automatically provisions them via `winget` or direct portable download.
 2. **One-Command Fresh Reset**:
-   If you already have Gowise and want to test a 100% clean installation from scratch:
+   If you already have Minimal and want to test a 100% clean installation from scratch:
    - **Linux / macOS**:
      ```bash
-     curl -fsSL https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/install.sh | bash -s -- --clean
+     curl -fsSL https://raw.githubusercontent.com/utkarshIsAProgrammer/minimal/main/install.sh | bash -s -- --clean
      ```
    - **Windows**:
      ```powershell
-     & ([scriptblock]::Create((irm https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/install.ps1))) -Clean
+     & ([scriptblock]::Create((irm https://raw.githubusercontent.com/utkarshIsAProgrammer/minimal/main/install.ps1))) -Clean
      ```
 3. **Desktop & Application Launcher Integration**:
-   - On Linux, Gowise is registered with your desktop environment (`~/.local/share/applications/gowise.desktop`) and app grid with a dedicated HD vector icon.
-   - On Windows, a **Gowise** shortcut is automatically placed in your Windows Start Menu.
+   - On Linux, Minimal is registered with your desktop environment (`~/.local/share/applications/minimal.desktop`) and app grid with a dedicated HD vector icon.
+   - On Windows, a **Minimal** shortcut is automatically placed in your Windows Start Menu.
 
 ---
 
-## 💻 Running Gowise
+## 💻 Running Minimal
 
 ```bash
 # Open current directory / workspace
-gowise .
+minimal .
 
 # Open or create a file anywhere (auto-creates parent directories on save)
-gowise src/api/routes/auth.go
+minimal src/api/routes/auth.go
 
 # Inspect system health and language compilers
-gowise --doctor
+minimal --doctor
 
 # Benchmark exact startup latency in milliseconds
-gowise --benchmark
+minimal --benchmark
 ```
 
 ---
 
 ## 🧹 Clean Uninstallation
 
-If you ever wish to remove Gowise, it cleans up all its symlinks, cache, and state, leaving your system completely untouched:
+If you ever wish to remove Minimal, it cleans up all its symlinks, cache, and state, leaving your system completely untouched:
 
 - **Linux / macOS**:
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/uninstall.sh | bash -s -- -y
+  curl -fsSL https://raw.githubusercontent.com/utkarshIsAProgrammer/minimal/main/uninstall.sh | bash -s -- -y
   ```
 - **Windows**:
   ```powershell
-  & ([scriptblock]::Create((irm https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/uninstall.ps1))) -Force
+  & ([scriptblock]::Create((irm https://raw.githubusercontent.com/utkarshIsAProgrammer/minimal/main/uninstall.ps1))) -Force
   ```
 
 ---
 
-## 🎨 6 Signature Gowise Themes
+## 🎨 6 Signature Minimal Themes
 
 Open the live theme previewer anytime with <kbd>Ctrl+K Ctrl+T</kbd> or through the Command Palette:
 
-1. **Gowise Obsidian Void** (Default): Pure deep space black (`#090B10`), electric cyan, vivid purple, and mint green.
-2. **Gowise Aurora Teal**: Nordic deep sea (`#0B151C`), glacier mist, emerald aurora, and starlight amber.
-3. **Gowise Cyber Synth**: Neon dark matter (`#120E1E`), laser magenta, hyper cyan, and electric lime.
-4. **Gowise Monolith Titanium**: Brushed graphite (`#121417`), chilled steel, cobalt blue, and emerald accents.
-5. **Gowise Velvet Espresso**: Roasted mocha (`#141115`), warm milk, tangerine flame, and soft amethyst.
-6. **Gowise Cobalt Nebula**: Deep cosmic navy (`#0A0E1A`), starlit silver, indigo ray, and ruby laser.
+1. **Minimal Obsidian Void** (Default): Pure deep space black (`#090B10`), electric cyan, vivid purple, and mint green.
+2. **Minimal Aurora Teal**: Nordic deep sea (`#0B151C`), glacier mist, emerald aurora, and starlight amber.
+3. **Minimal Cyber Synth**: Neon dark matter (`#120E1E`), laser magenta, hyper cyan, and electric lime.
+4. **Minimal Monolith Titanium**: Brushed graphite (`#121417`), chilled steel, cobalt blue, and emerald accents.
+5. **Minimal Velvet Espresso**: Roasted mocha (`#141115`), warm milk, tangerine flame, and soft amethyst.
+6. **Minimal Cobalt Nebula**: Deep cosmic navy (`#0A0E1A`), starlit silver, indigo ray, and ruby laser.
 
 ---
 

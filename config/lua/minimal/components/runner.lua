@@ -1,4 +1,4 @@
--- Gowise Multi-Language Interactive Code Runner (F5 Engine)
+-- Minimal Multi-Language Interactive Code Runner (F5 Engine)
 -- Fast, persistent bottom output console with interactive stdin and zero disappearing output
 
 local M = {}
@@ -58,7 +58,7 @@ end
 function M.run()
   local cmd = get_run_command()
   if not cmd then
-    vim.notify("No runner configured for filetype: " .. vim.bo.filetype, vim.log.levels.WARN, { title = "Gowise Runner" })
+    vim.notify("No runner configured for filetype: " .. vim.bo.filetype, vim.log.levels.WARN, { title = "Minimal Runner" })
     return
   end
 
@@ -104,7 +104,7 @@ function M.stop()
   if M.current_job then
     vim.fn.jobstop(M.current_job)
     M.current_job = nil
-    vim.notify("Execution terminated.", vim.log.levels.INFO, { title = "Gowise Runner" })
+    vim.notify("Execution terminated.", vim.log.levels.INFO, { title = "Minimal Runner" })
   end
 end
 

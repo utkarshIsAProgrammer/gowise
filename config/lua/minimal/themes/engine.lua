@@ -1,5 +1,5 @@
 -- ===================================================================
--- Gowise Theme Engine (Imported from Minimal Code Editor)
+-- Minimal Theme Engine (Imported from Minimal Code Editor)
 -- Curated Bespoke Themes: Dark Magic, Cyber Aurora, Medieval Scriptorium, Crimson Nocturne
 -- ===================================================================
 
@@ -28,7 +28,7 @@ end
 
 function M.apply_transparency_globals(enabled)
   vim.g.minimal_transparent = enabled
-  vim.g.gowise_transparent = enabled
+  vim.g.minimal_transparent = enabled
   vim.g.darkmagic_transparent = enabled
   vim.g.cyberaurora_transparent = enabled
   vim.g.medieval_transparent = enabled
@@ -48,7 +48,7 @@ function M.set_transparency(enabled, notify)
   M.apply_sidebar_and_terminal_bg()
   if notify ~= false then
     local state_str = enabled and "ON (Acrylic Glass / Terminal Pass-Through)" or "OFF (Rich Solid Theme Colors)"
-    vim.notify("✓ Background Transparency: " .. state_str, vim.log.levels.INFO, { title = "Gowise Theme" })
+    vim.notify("✓ Background Transparency: " .. state_str, vim.log.levels.INFO, { title = "Minimal Theme" })
   end
 end
 
@@ -124,7 +124,7 @@ end
 -- Apply and sync sidebar and terminal bgcolor to strictly match the editor background
 function M.apply_sidebar_and_terminal_bg()
   local normal_hl = vim.api.nvim_get_hl(0, { name = "Normal" })
-  local is_trans = (vim.g.minimal_transparent == true or vim.g.gowise_transparent == true)
+  local is_trans = (vim.g.minimal_transparent == true or vim.g.minimal_transparent == true)
   local bg = is_trans and "NONE" or (normal_hl.bg and string.format("#%06x", normal_hl.bg) or "NONE")
   local fg = normal_hl.fg and string.format("#%06x", normal_hl.fg) or nil
 
@@ -194,11 +194,11 @@ function M.set_theme(theme_name, notify)
           break
         end
       end
-      vim.notify("✓ Switched to " .. label, vim.log.levels.INFO, { title = "Gowise Theme" })
+      vim.notify("✓ Switched to " .. label, vim.log.levels.INFO, { title = "Minimal Theme" })
     end
     return true
   else
-    vim.notify("Failed to apply theme '" .. theme_name .. "': " .. tostring(err), vim.log.levels.ERROR, { title = "Gowise Theme" })
+    vim.notify("Failed to apply theme '" .. theme_name .. "': " .. tostring(err), vim.log.levels.ERROR, { title = "Minimal Theme" })
     return false
   end
 end

@@ -1,4 +1,4 @@
--- Gowise Polyglot LSP Servers Setup
+-- Minimal Polyglot LSP Servers Setup
 -- Native Neovim 0.12 LSP configuration with Mason auto-installer
 
 local M = {}

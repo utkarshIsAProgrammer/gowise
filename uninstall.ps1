@@ -1,5 +1,5 @@
 ﻿# ==============================================================================
-# Gowise Clean Uninstaller for Windows (PowerShell)
+# Minimal Clean Uninstaller for Windows (PowerShell)
 # Safely removes junctions, binaries, data, and Start Menu shortcuts
 # ==============================================================================
 
@@ -9,30 +9,30 @@ param(
 )
 
 if (-not $Force) {
-    $confirm = Read-Host "Are you sure you want to completely uninstall Gowise? (y/N)"
+    $confirm = Read-Host "Are you sure you want to completely uninstall Minimal? (y/N)"
     if ($confirm -notmatch '^[Yy]$') {
         Write-Host "Uninstallation cancelled." -ForegroundColor Yellow
         exit 0
     }
 }
 
-Write-Host "==> Removing Gowise from Windows..." -ForegroundColor Cyan
+Write-Host "==> Removing Minimal from Windows..." -ForegroundColor Cyan
 
 # 1. Remove Config Junction
-$configDir = "$env:LOCALAPPDATA\gowise"
+$configDir = "$env:LOCALAPPDATA\minimal"
 if (Test-Path $configDir) {
     Remove-Item -Path $configDir -Force -Recurse -ErrorAction SilentlyContinue
     Write-Host "✔ Removed $configDir" -ForegroundColor Green
 }
 
 # 2. Remove Data and Repo
-$repoDir = "$env:LOCALAPPDATA\gowise-repo"
+$repoDir = "$env:LOCALAPPDATA\minimal-repo"
 if (Test-Path $repoDir) {
     Remove-Item -Path $repoDir -Force -Recurse -ErrorAction SilentlyContinue
     Write-Host "✔ Removed $repoDir" -ForegroundColor Green
 }
 
-$dataDir = "$env:LOCALAPPDATA\gowise-data"
+$dataDir = "$env:LOCALAPPDATA\minimal-data"
 if (Test-Path $dataDir) {
     Remove-Item -Path $dataDir -Force -Recurse -ErrorAction SilentlyContinue
     Write-Host "✔ Cleaned plugin data" -ForegroundColor Green
@@ -40,7 +40,7 @@ if (Test-Path $dataDir) {
 
 # 3. Remove Start Menu Shortcut
 $programsFolder = [Environment]::GetFolderPath("Programs")
-$shortcutPath = "$programsFolder\Gowise.lnk"
+$shortcutPath = "$programsFolder\Minimal.lnk"
 if (Test-Path $shortcutPath) {
     Remove-Item -Path $shortcutPath -Force -ErrorAction SilentlyContinue
     Write-Host "✔ Removed Start Menu shortcut" -ForegroundColor Green
@@ -56,4 +56,4 @@ if ($userPath -like "*$binDir*") {
 }
 
 Write-Host ""
-Write-Host "✔ Gowise has been cleanly and completely uninstalled from Windows." -ForegroundColor Green
+Write-Host "✔ Minimal has been cleanly and completely uninstalled from Windows." -ForegroundColor Green

@@ -1,12 +1,12 @@
--- Gowise Core Autocommands
+-- Minimal Core Autocommands
 local api = vim.api
 
-local gowise_group = api.nvim_create_augroup("GowiseCore", { clear = true })
+local minimal_group = api.nvim_create_augroup("MinimalCore", { clear = true })
 
 -- 1. Smart Directory Creation on Save
--- If you run: gowise some/new/folder/file.go and save, automatically creates parent folders
+-- If you run: minimal some/new/folder/file.go and save, automatically creates parent folders
 api.nvim_create_autocmd("BufWritePre", {
-  group = gowise_group,
+  group = minimal_group,
   callback = function(event)
     if event.match:match("^%w%w+:[\\/][\\/]") then
       return
@@ -21,7 +21,7 @@ api.nvim_create_autocmd("BufWritePre", {
 
 -- 2. Ensure Regular Document Buffers are Always Modifiable
 api.nvim_create_autocmd({ "BufEnter", "BufReadPost", "BufNewFile" }, {
-  group = gowise_group,
+  group = minimal_group,
   callback = function(args)
     if vim.bo[args.buf].buftype == "" and not vim.bo[args.buf].readonly then
       pcall(function() vim.bo[args.buf].modifiable = true end)
@@ -32,7 +32,7 @@ api.nvim_create_autocmd({ "BufEnter", "BufReadPost", "BufNewFile" }, {
 
 -- 3. Restore Cursor Position on File Open
 api.nvim_create_autocmd("BufReadPost", {
-  group = gowise_group,
+  group = minimal_group,
   callback = function(args)
     local valid_line = vim.fn.line([['"]]) >= 1 and vim.fn.line([['"]]) <= vim.fn.line("$")
     local not_commit = vim.b[args.buf].filetype ~= "gitcommit"
@@ -44,7 +44,7 @@ api.nvim_create_autocmd("BufReadPost", {
 
 -- 3. Highlight on Copy (Yank Feedback)
 api.nvim_create_autocmd("TextYankPost", {
-  group = gowise_group,
+  group = minimal_group,
   callback = function()
     vim.highlight.on_yank({ higroup = "Visual", timeout = 150 })
   end,
@@ -53,7 +53,7 @@ api.nvim_create_autocmd("TextYankPost", {
 -- 4. Clean Terminal Experience
 -- When entering terminal drawer, disable line numbers and start insert mode immediately
 api.nvim_create_autocmd("TermOpen", {
-  group = gowise_group,
+  group = minimal_group,
   callback = function()
     vim.opt_local.number = false
     vim.opt_local.relativenumber = false
@@ -66,9 +66,9 @@ api.nvim_create_autocmd("TermOpen", {
 
 -- 5. Auto Format on Save (Handled cleanly by conform.nvim or LSP fallback)
 api.nvim_create_autocmd("BufWritePre", {
-  group = gowise_group,
+  group = minimal_group,
   callback = function(args)
-    if vim.g.gowise_format_on_save ~= false then
+    if vim.g.minimal_format_on_save ~= false then
       local ok, conform = pcall(require, "conform")
       if ok and conform then
         conform.format({ bufnr = args.buf, timeout_ms = 1500, lsp_format = "fallback" })
@@ -87,7 +87,7 @@ api.nvim_create_autocmd("BufWritePre", {
 
 -- 6. Auto-resize splits when window is resized
 api.nvim_create_autocmd("VimResized", {
-  group = gowise_group,
+  group = minimal_group,
   callback = function()
     local current_tab = vim.fn.tabpagenr()
     vim.cmd("tabdo wincmd =")
@@ -96,9 +96,9 @@ api.nvim_create_autocmd("VimResized", {
 })
 
 -- 7. Seamless Workspace Directory Interception
--- Automatically handles opening directories (gowise <folder>, :edit <dir>)
+-- Automatically handles opening directories (minimal <folder>, :edit <dir>)
 api.nvim_create_autocmd("BufEnter", {
-  group = gowise_group,
+  group = minimal_group,
   pattern = "*",
   nested = true,
   callback = function(args)

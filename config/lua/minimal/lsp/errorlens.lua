@@ -1,4 +1,4 @@
--- Gowise Error Lens & Inline Diagnostic Highlights
+-- Minimal Error Lens & Inline Diagnostic Highlights
 -- Displays elegant, non-intrusive compiler & linter diagnostics directly on line ends in real time
 
 local M = {}

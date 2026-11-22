@@ -1,4 +1,4 @@
--- Gowise Breadcrumbs Winbar
+-- Minimal Breadcrumbs Winbar
 -- Displays: folder > filename > current function/symbol
 -- Cached per-buffer for instantaneous 0-lag cursor movement
 
@@ -45,26 +45,26 @@ end
 
 function M.render()
   local bufnr = vim.api.nvim_get_current_buf()
-  local cached = vim.b[bufnr].gowise_winbar
+  local cached = vim.b[bufnr].minimal_winbar
   if cached ~= nil then
     return cached
   end
 
   local winbar_str = build_winbar(bufnr)
-  vim.b[bufnr].gowise_winbar = winbar_str
+  vim.b[bufnr].minimal_winbar = winbar_str
   return winbar_str
 end
 
 function M.setup()
-  vim.opt.winbar = "%!v:lua.require('gowise.ui.winbar').render()"
+  vim.opt.winbar = "%!v:lua.require('minimal.ui.winbar').render()"
 
-  local group = vim.api.nvim_create_augroup("GowiseWinbarCache", { clear = true })
+  local group = vim.api.nvim_create_augroup("MinimalWinbarCache", { clear = true })
   vim.api.nvim_create_autocmd({ "BufEnter", "BufFilePost", "DirChanged" }, {
     group = group,
     callback = function(args)
       local bufnr = args.buf or vim.api.nvim_get_current_buf()
       if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
-        vim.b[bufnr].gowise_winbar = build_winbar(bufnr)
+        vim.b[bufnr].minimal_winbar = build_winbar(bufnr)
       end
     end,
   })

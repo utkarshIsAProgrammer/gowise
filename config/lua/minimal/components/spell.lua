@@ -1,4 +1,4 @@
--- Gowise Integrated Code Spell Checker (VS Code Code Spell Checker Parity)
+-- Minimal Integrated Code Spell Checker (VS Code Code Spell Checker Parity)
 -- Intelligent CamelCase, snake_case, and code identifier spelling autocorrection with dictionary support
 
 local M = {}

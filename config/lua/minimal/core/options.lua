@@ -1,4 +1,4 @@
--- Gowise Core Options
+-- Minimal Core Options
 -- Tuned for maximum responsiveness, modeless VS Code experience, and low latency
 
 local opt = vim.opt

@@ -1,4 +1,4 @@
--- Gowise Integrated Terminal Drawer (VS Code / Zed Style)
+-- Minimal Integrated Terminal Drawer (VS Code / Zed Style)
 -- Persistent bottom dock with dedicated isolated Bash shell, remembered height, and multi-terminal tabs
 
 local M = {}
@@ -82,8 +82,8 @@ M.current_term = nil
 function M.get_target_dir()
   local buf = vim.api.nvim_get_current_buf()
   if vim.bo[buf].buftype == "terminal" or vim.bo[buf].filetype == "snacks_terminal" or vim.b[buf].snacks_terminal then
-    if vim.b[buf].gowise_term_cwd and vim.b[buf].gowise_term_cwd ~= "" then
-      return vim.b[buf].gowise_term_cwd
+    if vim.b[buf].minimal_term_cwd and vim.b[buf].minimal_term_cwd ~= "" then
+      return vim.b[buf].minimal_term_cwd
     end
     return vim.fn.getcwd()
   end
@@ -154,12 +154,12 @@ function M.toggle()
       pcall(vim.api.nvim_win_set_height, M.current_term.win, M.height)
     end
     local chan = vim.b[M.current_term.buf].terminal_job_id
-    local current_term_cwd = vim.b[M.current_term.buf].gowise_term_cwd
+    local current_term_cwd = vim.b[M.current_term.buf].minimal_term_cwd
     if chan and current_term_cwd and current_term_cwd ~= target_dir then
       pcall(vim.api.nvim_chan_send, chan, string.format(" cd %q && clear\r", target_dir))
-      vim.b[M.current_term.buf].gowise_term_cwd = target_dir
+      vim.b[M.current_term.buf].minimal_term_cwd = target_dir
     elseif chan and not current_term_cwd then
-      vim.b[M.current_term.buf].gowise_term_cwd = target_dir
+      vim.b[M.current_term.buf].minimal_term_cwd = target_dir
     end
     return
   end
@@ -177,8 +177,8 @@ function M.toggle()
     },
     interactive = true,
     env = {
-      TERM_PROGRAM = "gowise",
-      GOWISE_TERMINAL = "1",
+      TERM_PROGRAM = "minimal",
+      MINIMAL_TERMINAL = "1",
     },
   })
 
@@ -191,7 +191,7 @@ function M.toggle()
   end
 
   if term and term.buf and vim.api.nvim_buf_is_valid(term.buf) then
-    vim.b[term.buf].gowise_term_cwd = target_dir
+    vim.b[term.buf].minimal_term_cwd = target_dir
   end
 
   vim.schedule(function()
@@ -218,13 +218,13 @@ function M.new_instance()
       },
       interactive = true,
       env = {
-        TERM_PROGRAM = "gowise",
-        GOWISE_TERMINAL = "1",
+        TERM_PROGRAM = "minimal",
+        MINIMAL_TERMINAL = "1",
       },
     })
     M.current_term = term
     if term and term.buf and vim.api.nvim_buf_is_valid(term.buf) then
-      vim.b[term.buf].gowise_term_cwd = target_dir
+      vim.b[term.buf].minimal_term_cwd = target_dir
     end
   end
 end
@@ -264,7 +264,7 @@ function M.setup()
 
   -- Autocommand to ensure all terminal windows strictly inherit editor background
   vim.api.nvim_create_autocmd("TermOpen", {
-    group = vim.api.nvim_create_augroup("GowiseTermColors", { clear = true }),
+    group = vim.api.nvim_create_augroup("MinimalTermColors", { clear = true }),
     callback = function()
       pcall(function()
         vim.wo.winhighlight = "Normal:SnacksNormal,NormalNC:SnacksNormalNC,WinBar:SnacksWinBar,WinBarNC:SnacksWinBarNC,FloatTitle:SnacksTitle,FloatFooter:SnacksFooter,WinSeparator:SnacksWinSeparator,StatusLine:StatusLineTerm,StatusLineNC:StatusLineTermNC"
@@ -274,7 +274,7 @@ function M.setup()
 
   -- Autocommand to track any resize (mouse drag, :resize, split adjustments)
   vim.api.nvim_create_autocmd("WinResized", {
-    group = vim.api.nvim_create_augroup("GowiseTerminalResize", { clear = true }),
+    group = vim.api.nvim_create_augroup("MinimalTerminalResize", { clear = true }),
     callback = function()
       M.sync_height()
     end,
@@ -283,12 +283,12 @@ function M.setup()
   -- User command: :Terminal to open/toggle bash terminal drawer
   vim.api.nvim_create_user_command("Terminal", function()
     M.toggle()
-  end, { desc = "Toggle Gowise Integrated Bash Terminal" })
+  end, { desc = "Toggle Minimal Integrated Bash Terminal" })
 
   -- User command: :TerminalNew to create a new instance
   vim.api.nvim_create_user_command("TerminalNew", function()
     M.new_instance()
-  end, { desc = "Open New Gowise Bash Terminal Instance" })
+  end, { desc = "Open New Minimal Bash Terminal Instance" })
 end
 
 return M

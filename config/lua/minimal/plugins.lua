@@ -1,4 +1,4 @@
--- Gowise Optimized Plugin Architecture
+-- Minimal Optimized Plugin Architecture
 -- Ultra-lightweight: sub-30ms startup, compiled Rust/Lua cores, and zero bloat
 
 local plugins = {
@@ -14,12 +14,12 @@ local plugins = {
         width = 62,
         preset = {
           header = [[
-   ██████╗  ██████╗ ██╗    ██╗██╗███████╗███████╗
-  ██╔════╝ ██╔═══██╗██║    ██║██║██╔════╝██╔════╝
-  ██║  ███╗██║   ██║██║ █╗ ██║██║███████╗█████╗  
-  ██║   ██║██║   ██║██║███╗██║██║╚════██║██╔══╝  
-  ╚██████╔╝╚██████╔╝╚███╔███╔╝██║███████║███████╗
-   ╚═════╝  ╚═════╝  ╚══╝╚══╝ ╚═╝╚══════╝╚══════╝
+  ███╗   ███╗██╗███╗   ██╗██╗███╗   ███╗ █████╗ ██╗     
+  ████╗ ████║██║████╗  ██║██║████╗ ████║██╔══██╗██║     
+  ██╔████╔██║██║██╔██╗ ██║██║██╔████╔██║███████║██║     
+  ██║╚██╔╝██║██║██║╚██╗██║██║██║╚██╔╝██║██╔══██║██║     
+  ██║ ╚═╝ ██║██║██║ ╚████║██║██║ ╚═╝ ██║██║  ██║███████╗
+  ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝
 
         ⚡ The Fluent, Modeless Terminal IDE]],
           keys = {
@@ -27,10 +27,10 @@ local plugins = {
             { icon = "󰍉 ", key = "p", desc = "Quick Open File (Ctrl+P)", action = ":lua Snacks.picker.files()" },
             { icon = "󰈭 ", key = "f", desc = "Find Text / Grep (Ctrl+Shift+F)", action = ":lua Snacks.picker.grep()" },
             { icon = "󱋡 ", key = "r", desc = "Recent Files", action = ":lua Snacks.picker.recent()" },
-            { icon = " ", key = "t", desc = "Change Theme (Ctrl+K Ctrl+T)", action = ":lua require('gowise.themes.engine').theme_picker()" },
-            { icon = "󰉍 ", key = "b", desc = "File Explorer (Ctrl+B)", action = ":lua require('gowise.components.tree').toggle()" },
-            { icon = " ", key = "j", desc = "Terminal Drawer (Ctrl+`)", action = ":lua require('gowise.components.terminal').toggle()" },
-            { icon = "󰓅 ", key = "d", desc = "Health Doctor", action = ":!gowise --doctor" },
+            { icon = " ", key = "t", desc = "Change Theme (Ctrl+K Ctrl+T)", action = ":lua require('minimal.themes.engine').theme_picker()" },
+            { icon = "󰉍 ", key = "b", desc = "File Explorer (Ctrl+B)", action = ":lua require('minimal.components.tree').toggle()" },
+            { icon = " ", key = "j", desc = "Terminal Drawer (Ctrl+`)", action = ":lua require('minimal.components.terminal').toggle()" },
+            { icon = "󰓅 ", key = "d", desc = "Health Doctor", action = ":!minimal --doctor" },
             { icon = "󰈆 ", key = "q", desc = "Quit Editor", action = ":qa" },
           },
         },
@@ -111,7 +111,7 @@ local plugins = {
   },
 
   -- 2. Blink.cmp: Ultra-fast C/Rust-compiled Autocompletion
-  require("gowise.lsp.completion").spec,
+  require("minimal.lsp.completion").spec,
 
   -- 3. Tree-sitter: Polyglot AST Semantic Highlighting
   {
@@ -196,7 +196,7 @@ local plugins = {
     "echasnovski/mini.icons",
     lazy = false,
     opts = function()
-      return require("gowise.ui.icons").opts
+      return require("minimal.ui.icons").opts
     end,
     config = function(_, opts)
       local icons = require("mini.icons")
@@ -248,8 +248,8 @@ local plugins = {
         ensure_installed = { "gopls", "ts_ls", "pyright", "rust_analyzer", "clangd", "bashls", "emmet_language_server", "html", "cssls" },
         automatic_installation = true,
       })
-      require("gowise.lsp.servers").setup()
-      require("gowise.lsp.errorlens").setup()
+      require("minimal.lsp.servers").setup()
+      require("minimal.lsp.errorlens").setup()
     end,
   },
 
@@ -381,5 +381,5 @@ require("lazy").setup(plugins, {
 })
 
 -- Apply Theme and Fluent visual cues
-require("gowise.themes.engine").setup()
-require("gowise.ui.fluent").setup()
+require("minimal.themes.engine").setup()
+require("minimal.ui.fluent").setup()

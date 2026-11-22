@@ -1,4 +1,4 @@
--- Gowise Rainbow Tabs Engine
+-- Minimal Rainbow Tabs Engine
 -- Color-coded tabs with cached filetype icons, modified dots, and fluent active tab indicator
 
 local M = {}
@@ -61,7 +61,7 @@ function M.render()
     s = s .. tab_hl .. " " .. rainbow_hl .. (is_active and "▎" or "▏") .. tab_hl .. " %#" .. icon_hl .. "#" .. icon .. tab_hl .. " " .. name
 
     if b.changed == 1 then
-      s = s .. " %#GowiseFluentGreen#●%*"
+      s = s .. " %#MinimalFluentGreen#●%*"
     end
 
     s = s .. " %#TabLine# "
@@ -72,7 +72,7 @@ function M.render()
 end
 
 function M.setup()
-  vim.opt.tabline = "%!v:lua.require('gowise.ui.tabline').render()"
+  vim.opt.tabline = "%!v:lua.require('minimal.ui.tabline').render()"
   vim.opt.showtabline = 2 -- Always show tabline like VS Code & Zed
 end
 

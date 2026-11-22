@@ -1,15 +1,15 @@
 @echo off
 rem ==============================================================================
-rem GOWISE CLI Launcher (Windows Command Prompt)
+rem MINIMAL CLI Launcher (Windows Command Prompt)
 rem ==============================================================================
 
-set "NVIM_APPNAME=gowise"
+set "NVIM_APPNAME=minimal"
 set "SCRIPT_DIR=%~dp0"
 set "CONFIG_DIR=%SCRIPT_DIR%..\config"
 
 rem Link Windows LocalAppData config if not present
-if not exist "%LOCALAPPDATA%\gowise" (
-    mklink /J "%LOCALAPPDATA%\gowise" "%CONFIG_DIR%" >nul 2>&1
+if not exist "%LOCALAPPDATA%\minimal" (
+    mklink /J "%LOCALAPPDATA%\minimal" "%CONFIG_DIR%" >nul 2>&1
 )
 
 nvim.exe %*
