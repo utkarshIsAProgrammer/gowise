@@ -6,6 +6,7 @@ local M = {}
 M.spec = {
   "Saghen/blink.cmp",
   version = "*",
+  event = "InsertEnter",
   dependencies = { "rafamadriz/friendly-snippets" },
   opts = {
     keymap = {

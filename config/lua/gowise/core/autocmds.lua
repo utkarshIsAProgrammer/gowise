@@ -59,6 +59,7 @@ api.nvim_create_autocmd("TermOpen", {
     vim.opt_local.relativenumber = false
     vim.opt_local.signcolumn = "no"
     vim.opt_local.cursorline = false
+    vim.opt_local.scrollback = 5000
     vim.cmd("startinsert")
   end,
 })

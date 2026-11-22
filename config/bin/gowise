@@ -20,4 +20,5 @@ if [ -n "$NVIM" ]; then
 fi
 
 export NVIM_APPNAME="gowise"
+export NVIM_NOTTYFAST=1
 exec "$NVIM_CLI" "$@"

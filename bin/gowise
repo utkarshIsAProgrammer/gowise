@@ -13,6 +13,14 @@ CONFIG_DIR="$PROJECT_ROOT/config"
 # Ensure isolated NVIM_APPNAME
 export NVIM_APPNAME="gowise"
 
+# Prevent ANSI DSR terminal query delay
+export NVIM_NOTTYFAST=1
+
+# Zero-Nest terminal delegation: If running inside terminal drawer, forward to host instance
+if [ -n "$NVIM" ]; then
+  exec "$CONFIG_DIR/bin/gowise" "$@"
+fi
+
 # Ensure bytecode cache directory exists
 mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/gowise/luac" 2>/dev/null || true
 

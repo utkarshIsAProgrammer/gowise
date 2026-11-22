@@ -1,5 +1,5 @@
 -- Gowise Rainbow Tabs Engine
--- Color-coded tabs with filetype icons, modified dots, and fluent active tab indicator
+-- Color-coded tabs with cached filetype icons, modified dots, and fluent active tab indicator
 
 local M = {}
 
@@ -12,6 +12,30 @@ local rainbow_colors = {
   "%#RainbowDelimiter6#",
 }
 
+local icon_cache = {}
+local mini_icons = nil
+
+local function get_file_icon(name)
+  if icon_cache[name] then
+    return icon_cache[name][1], icon_cache[name][2]
+  end
+
+  if mini_icons == nil then
+    local ok, mi = pcall(require, "mini.icons")
+    mini_icons = ok and mi or false
+  end
+
+  local icon, icon_hl = "󰈔 ", "TabLine"
+  if mini_icons and mini_icons.get then
+    local ic, hl = mini_icons.get("file", name)
+    if ic and ic ~= "" then icon = ic end
+    if hl and hl ~= "" then icon_hl = hl end
+  end
+
+  icon_cache[name] = { icon, icon_hl }
+  return icon, icon_hl
+end
+
 function M.render()
   local s = ""
   local current_buf = vim.api.nvim_get_current_buf()
@@ -22,15 +46,12 @@ function M.render()
     local name = vim.fn.fnamemodify(b.name, ":t")
     if name == "" then name = "[Untitled]" end
 
-    -- Resolve big, related file icon & color
+    -- Resolve cached file icon & color
     local icon, icon_hl = "󰈔 ", (is_active and "TabLineSel" or "TabLine")
     if name ~= "[Untitled]" then
-      local ok_mini, mini_icons = pcall(require, "mini.icons")
-      if ok_mini and mini_icons.get then
-        local ic, hl = mini_icons.get("file", name)
-        if ic and ic ~= "" then icon = ic end
-        if hl and hl ~= "" then icon_hl = hl end
-      end
+      local ic, hl = get_file_icon(name)
+      icon = ic
+      icon_hl = is_active and "TabLineSel" or hl
     end
 
     -- Rainbow accent color for tab index

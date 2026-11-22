@@ -185,7 +185,7 @@ local plugins = {
   -- 6. Mini.pairs: Ultra-lightweight Auto-pairs
   {
     "echasnovski/mini.pairs",
-    lazy = false,
+    event = "InsertEnter",
     opts = {
       modes = { insert = true, command = false, terminal = false },
     },
@@ -257,6 +257,7 @@ local plugins = {
   {
     "jake-stewart/multicursor.nvim",
     branch = "1.0",
+    event = { "BufReadPost", "BufNewFile" },
     config = function()
       local mc = require("multicursor-nvim")
       mc.setup()
@@ -369,7 +370,8 @@ require("lazy").setup(plugins, {
       paths = {},
       disabled_plugins = {
         "gzip", "matchit", "matchparen", "netrwPlugin", "tarPlugin",
-        "tohtml", "tutor", "zipPlugin",
+        "tohtml", "tutor", "zipPlugin", "2html_plugin", "getscript",
+        "getscriptPlugin", "vimball", "vimballPlugin", "spellfile_plugin",
       },
     },
   },

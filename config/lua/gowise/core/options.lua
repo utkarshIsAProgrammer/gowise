@@ -65,6 +65,7 @@ opt.undolevels = 10000
 opt.swapfile = false       -- No annoying .swp files
 opt.backup = false
 opt.writebackup = false
+opt.shada = "!,'100,<50,s10,h" -- Fast ShaDa loading and clean register storage
 
 -- Session Management
 opt.sessionoptions = "blank,buffers,curdir,folds,help,tabpages,winsize,winpos,terminal"

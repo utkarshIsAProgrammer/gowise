@@ -70,6 +70,7 @@ function M.setup()
   for server, user_config in pairs(M.servers) do
     local s_config = vim.deepcopy(user_config)
     s_config.capabilities = vim.tbl_deep_extend("force", {}, capabilities, s_config.capabilities or {})
+    s_config.flags = vim.tbl_deep_extend("force", { debounce_text_changes = 150 }, s_config.flags or {})
 
     if not s_config.root_dir and not s_config.root_markers then
       s_config.root_markers = { ".git", "package.json", "go.mod", "Cargo.toml", "index.html" }
