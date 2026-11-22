@@ -128,7 +128,7 @@ Open the live theme previewer anytime with <kbd>Ctrl+K Ctrl+T</kbd> or through t
 | **Insert Line Below / Above** | <kbd>Ctrl+Enter</kbd> / <kbd>Ctrl+Shift+Enter</kbd> |
 | **Toggle Line / Block Comment** | <kbd>Ctrl+/</kbd> / <kbd>Shift+Alt+A</kbd> |
 | **Fold / Unfold Block** | <kbd>Ctrl+Shift+[</kbd> / <kbd>Ctrl+Shift+]</kbd> |
-| **Multi-Cursor (Next Match)** | <kbd>Ctrl+D</kbd> |
+| **Select Word / Multi-Cursor (Next Match)** | <kbd>Ctrl+D</kbd> |
 
 ### 2. Navigation, Focus & Precise Selection
 | Action | Shortcut |

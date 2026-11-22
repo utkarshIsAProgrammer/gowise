@@ -187,6 +187,18 @@ local function handle_escape()
     end
   end
 
+  -- If multi-cursor is active, clear extra cursors
+  local ok, mc = pcall(require, "multicursor-nvim")
+  if ok then
+    if not mc.cursorsEnabled() then
+      mc.enableCursors()
+      return
+    elseif mc.hasCursors() then
+      mc.clearCursors()
+      return
+    end
+  end
+
   -- If in selection mode (visual/select), cancel selection and stay in typing mode
   local m = vim.fn.mode()
   if m == "s" or m == "x" or m == "v" or m == "V" or m == "\22" then

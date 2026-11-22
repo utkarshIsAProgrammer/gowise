@@ -262,13 +262,29 @@ local plugins = {
       local mc = require("multicursor-nvim")
       mc.setup()
 
-      -- Ctrl+D: Select next match
-      vim.keymap.set({ "n", "v", "i" }, "<C-d>", function()
-        mc.matchAddCursor(1)
-      end, { desc = "Add Cursor to Next Match" })
+      -- Ctrl+D: Select Word / Add Next Occurrence (VS Code standard)
+      local function select_word_or_next_match()
+        local mode = vim.fn.mode()
+        local has_selection = mode == "v" or mode == "V" or mode == "\22" or mode == "s" or mode == "S" or mode == "\19"
+
+        if not has_selection and not mc.hasCursors() then
+          local line = vim.api.nvim_get_current_line()
+          if #line > 0 then
+            if mode == "i" then
+              vim.cmd("stopinsert")
+            end
+            vim.cmd("normal! viw")
+            vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-g>", true, false, true), "x", false)
+          end
+        else
+          mc.matchAddCursor(1)
+        end
+      end
+
+      vim.keymap.set({ "n", "v", "x", "s", "i" }, "<C-d>", select_word_or_next_match, { desc = "Select Word / Add Next Match (Ctrl+D)" })
 
       -- Skip match
-      vim.keymap.set({ "n", "v", "i" }, "<C-S-d>", function()
+      vim.keymap.set({ "n", "v", "x", "s", "i" }, "<C-S-d>", function()
         mc.matchSkipCursor(1)
       end, { desc = "Skip Match" })
 
