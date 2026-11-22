@@ -162,6 +162,10 @@ try {
     $shortcut.TargetPath = "$binDir\minimal.cmd"
     $shortcut.WorkingDirectory = [Environment]::GetFolderPath("UserProfile")
     $shortcut.Description = "Minimal - The Fluent, Modeless Terminal Code Editor"
+    $iconPath = "$installDir\assets\minimal.ico"
+    if (Test-Path $iconPath) {
+        $shortcut.IconLocation = "$iconPath,0"
+    }
     $shortcut.Save()
     Write-Host "✔ Created Start Menu shortcut: Minimal" -ForegroundColor Green
 } catch {

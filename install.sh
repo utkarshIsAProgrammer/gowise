@@ -256,7 +256,14 @@ install_desktop_integration() {
     if [ -f "$INSTALL_DIR/assets/minimal.svg" ]; then
       cp -f "$INSTALL_DIR/assets/minimal.svg" "$ICON_DIR/minimal.svg"
       cp -f "$INSTALL_DIR/assets/minimal.svg" "$HICOLOR_DIR/minimal.svg"
-      log_success "Installed Minimal application icon"
+      log_success "Installed Minimal application SVG icon"
+    fi
+
+    if [ -f "$INSTALL_DIR/assets/minimal.png" ]; then
+      cp -f "$INSTALL_DIR/assets/minimal.png" "$ICON_DIR/minimal.png"
+      mkdir -p "$ICON_DIR/hicolor/512x512/apps"
+      cp -f "$INSTALL_DIR/assets/minimal.png" "$ICON_DIR/hicolor/512x512/apps/minimal.png"
+      log_success "Installed Minimal application PNG icon"
     fi
 
     if [ -f "$INSTALL_DIR/desktop/minimal.desktop" ]; then
