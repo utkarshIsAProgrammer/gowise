@@ -84,9 +84,12 @@ map("x", "<C-x>", '"+d', opts)
 map("n", "<C-x>", '"+dd', opts)
 map("i", "<C-x>", '<C-o>"+dd', opts)
 
-map({ "v", "x" }, "<S-Del>", '"+d', { desc = "Cut Selection", silent = true })
-map("n", "<S-Del>", '"+dd', { desc = "Cut Current Line", silent = true })
-map("i", "<S-Del>", '<Esc>"+ddi', { desc = "Cut Current Line", silent = true })
+local s_del_keys = { "<S-Del>", "\27[3;2~" }
+for _, k in ipairs(s_del_keys) do
+  map({ "v", "x" }, k, '"+d', { desc = "Cut Selection", silent = true })
+  map("n", k, '"+dd', { desc = "Cut Current Line", silent = true })
+  map("i", k, '<Esc>"+ddi', { desc = "Cut Current Line", silent = true })
+end
 
 -- Paste (Ctrl+V and Shift+Insert)
 map("n", "<C-v>", '"+P', opts)
@@ -105,19 +108,21 @@ map("v", "<S-Insert>", '"+p', opts)
 
 -- Word Left / Right (Ctrl+Left / Ctrl+Right & ANSI terminal sequences)
 local function move_word_left_insert()
-  vim.cmd("stopinsert")
+  local esc = vim.api.nvim_replace_termcodes("<Esc>", true, true, true)
+  vim.api.nvim_feedkeys(esc, "nx", false)
   vim.cmd("normal! b")
   vim.cmd("startinsert")
 end
 
 local function move_word_right_insert()
-  vim.cmd("stopinsert")
+  local esc = vim.api.nvim_replace_termcodes("<Esc>", true, true, true)
+  vim.api.nvim_feedkeys(esc, "nx", false)
   vim.cmd("normal! w")
   vim.cmd("startinsert")
 end
 
-local ctrl_left_keys = { "<C-Left>", "<Esc>[1;5D", "<Esc>[5D" }
-local ctrl_right_keys = { "<C-Right>", "<Esc>[1;5C", "<Esc>[5C" }
+local ctrl_left_keys = { "<C-Left>", "<C-kLeft>", "\27[1;5D", "\27[5D", "\27[57419;5u" }
+local ctrl_right_keys = { "<C-Right>", "<C-kRight>", "\27[1;5C", "\27[5C", "\27[57421;5u" }
 
 for _, k in ipairs(ctrl_left_keys) do
   map("n", k, "b", opts)
@@ -195,9 +200,11 @@ local function delete_word_right()
   vim.api.nvim_set_current_line(new_line)
 end
 
-map("i", "<C-Del>", delete_word_right, opts)
-map("i", "<M-Del>", delete_word_right, opts)
-map("n", "<C-Del>", delete_word_right, opts)
+local c_del_keys = { "<C-Del>", "<M-Del>", "\27[3;5~" }
+for _, k in ipairs(c_del_keys) do
+  map("i", k, delete_word_right, opts)
+  map("n", k, delete_word_right, opts)
+end
 
 -- Delete Line (Ctrl+Shift+K)
 map("n", "<C-S-k>", "dd", opts)
@@ -208,130 +215,163 @@ map("v", "<C-S-k>", "d", opts)
 -- 4. SELECTION (Shift+Arrows & Ctrl+Shift+Arrows Word Selection)
 -- ============================================================================
 
--- Whole Word Selection Functions (VS Code Parity across all modes)
-local function select_word_right()
-  local mode = vim.fn.mode()
-  if mode == "i" then
-    local cur = vim.api.nvim_win_get_cursor(0)
-    vim.cmd("stopinsert")
-    local line = vim.api.nvim_get_current_line()
-    if cur[2] < #line then
-      vim.api.nvim_win_set_cursor(0, { cur[1], cur[2] })
-      vim.cmd("normal! ve")
-    end
-  elseif mode == "v" or mode == "V" or mode == "\22" then
+local function is_word_char(ch)
+  if not ch or ch == "" then return false end
+  return ch:match("[%w_]") ~= nil
+end
+
+local function select_word_right_vis()
+  local vpos = vim.fn.getpos("v")
+  local cpos = vim.fn.getpos(".")
+  local cmp = (cpos[2] > vpos[2] or (cpos[2] == vpos[2] and cpos[3] >= vpos[3])) and 1 or -1
+  if cmp >= 0 then
+    local old_c = vim.fn.getpos(".")
     vim.cmd("normal! e")
+    local new_c = vim.fn.getpos(".")
+    if old_c[2] == new_c[2] and old_c[3] == new_c[3] then
+      vim.cmd("normal! w")
+    end
+  else
+    vim.cmd("normal! w")
+    local new_c = vim.fn.getpos(".")
+    if new_c[2] > vpos[2] or (new_c[2] == vpos[2] and new_c[3] >= vpos[3]) then
+      vim.cmd("normal! e")
+    end
+  end
+end
+
+local function select_word_left_vis()
+  local vpos = vim.fn.getpos("v")
+  local cpos = vim.fn.getpos(".")
+  local cmp = (cpos[2] < vpos[2] or (cpos[2] == vpos[2] and cpos[3] <= vpos[3])) and -1 or 1
+  if cmp <= 0 then
+    local old_c = vim.fn.getpos(".")
+    vim.cmd("normal! b")
+    local new_c = vim.fn.getpos(".")
+    if old_c[2] == new_c[2] and old_c[3] == new_c[3] then
+      vim.cmd("normal! ge")
+    end
+  else
+    vim.cmd("normal! ge")
+    local new_c = vim.fn.getpos(".")
+    if new_c[2] < vpos[2] or (new_c[2] == vpos[2] and new_c[3] <= vpos[3]) then
+      vim.cmd("normal! b")
+    end
+  end
+end
+
+-- Whole Word Selection Functions (VS Code Parity across all modes)
+local function is_word_char(ch)
+  if not ch or ch == "" then return false end
+  return ch:match("[%w_]") ~= nil
+end
+
+local function select_word_right_vis()
+  local vpos = vim.fn.getpos("v")
+  local cpos = vim.fn.getpos(".")
+  local cmp = (cpos[2] > vpos[2] or (cpos[2] == vpos[2] and cpos[3] >= vpos[3])) and 1 or -1
+  if cmp >= 0 then
+    local old_c = vim.fn.getpos(".")
+    vim.cmd("normal! e")
+    local new_c = vim.fn.getpos(".")
+    if old_c[2] == new_c[2] and old_c[3] == new_c[3] then
+      vim.cmd("normal! w")
+    end
+  else
+    vim.cmd("normal! w")
+    local new_c = vim.fn.getpos(".")
+    if new_c[2] > vpos[2] or (new_c[2] == vpos[2] and new_c[3] >= vpos[3]) then
+      vim.cmd("normal! e")
+    end
+  end
+end
+
+local function select_word_left_vis()
+  local vpos = vim.fn.getpos("v")
+  local cpos = vim.fn.getpos(".")
+  local cmp = (cpos[2] < vpos[2] or (cpos[2] == vpos[2] and cpos[3] <= vpos[3])) and -1 or 1
+  if cmp <= 0 then
+    local old_c = vim.fn.getpos(".")
+    vim.cmd("normal! b")
+    local new_c = vim.fn.getpos(".")
+    if old_c[2] == new_c[2] and old_c[3] == new_c[3] then
+      vim.cmd("normal! ge")
+    end
+  else
+    vim.cmd("normal! ge")
+    local new_c = vim.fn.getpos(".")
+    if new_c[2] < vpos[2] or (new_c[2] == vpos[2] and new_c[3] <= vpos[3]) then
+      vim.cmd("normal! b")
+    end
+  end
+end
+
+local function select_word_right_norm()
+  local cur = vim.api.nvim_win_get_cursor(0)
+  local line = vim.api.nvim_get_current_line()
+  if #line == 0 then return end
+  local ch = line:sub(cur[2] + 1, cur[2] + 1)
+  if is_word_char(ch) then
+    vim.cmd("normal! viw")
   else
     vim.cmd("normal! ve")
   end
 end
 
-local function select_word_left()
-  local mode = vim.fn.mode()
-  if mode == "i" then
-    local cur = vim.api.nvim_win_get_cursor(0)
-    vim.cmd("stopinsert")
-    if cur[2] > 0 then
-      vim.api.nvim_win_set_cursor(0, { cur[1], cur[2] - 1 })
-      vim.cmd("normal! vb")
-    end
-  elseif mode == "v" or mode == "V" or mode == "\22" then
-    vim.cmd("normal! b")
+local function select_word_left_norm()
+  local cur = vim.api.nvim_win_get_cursor(0)
+  local line = vim.api.nvim_get_current_line()
+  if #line == 0 then return end
+  local ch = line:sub(cur[2] + 1, cur[2] + 1)
+  if is_word_char(ch) then
+    vim.cmd("normal! viwo")
   else
     vim.cmd("normal! vb")
   end
 end
 
--- Character-by-Character Selection Functions (Shift+Arrows across all modes)
-local function select_char_right()
-  local mode = vim.fn.mode()
-  if mode == "i" then
-    local cur = vim.api.nvim_win_get_cursor(0)
-    vim.cmd("stopinsert")
-    local line = vim.api.nvim_get_current_line()
-    if cur[2] < #line then
-      vim.api.nvim_win_set_cursor(0, { cur[1], cur[2] })
-      vim.cmd("normal! v")
-    end
-  elseif mode == "v" or mode == "V" or mode == "\22" then
-    vim.cmd("normal! l")
-  else
-    vim.cmd("normal! vl")
-  end
-end
-
-local function select_char_left()
-  local mode = vim.fn.mode()
-  if mode == "i" then
-    local cur = vim.api.nvim_win_get_cursor(0)
-    vim.cmd("stopinsert")
-    if cur[2] > 0 then
-      vim.api.nvim_win_set_cursor(0, { cur[1], cur[2] - 1 })
-      vim.cmd("normal! v")
-    end
-  elseif mode == "v" or mode == "V" or mode == "\22" then
-    vim.cmd("normal! h")
-  else
-    vim.cmd("normal! vh")
-  end
-end
-
-local function select_char_up()
-  local mode = vim.fn.mode()
-  if mode == "i" then
-    vim.cmd("stopinsert")
-    vim.cmd("normal! vk")
-  elseif mode == "v" or mode == "V" or mode == "\22" then
-    vim.cmd("normal! k")
-  else
-    vim.cmd("normal! vk")
-  end
-end
-
-local function select_char_down()
-  local mode = vim.fn.mode()
-  if mode == "i" then
-    vim.cmd("stopinsert")
-    vim.cmd("normal! vj")
-  elseif mode == "v" or mode == "V" or mode == "\22" then
-    vim.cmd("normal! j")
-  else
-    vim.cmd("normal! vj")
-  end
-end
-
--- Key codes for terminal compatibility (standard termcodes + xterm CSI escape sequences)
-local c_s_left_keys = { "<C-S-Left>", "<Esc>[1;6D", "<Esc>[6D" }
-local c_s_right_keys = { "<C-S-Right>", "<Esc>[1;6C", "<Esc>[6C" }
-local s_left_keys = { "<S-Left>", "<Esc>[1;2D", "<Esc>[2D" }
-local s_right_keys = { "<S-Right>", "<Esc>[1;2C", "<Esc>[2C" }
-local s_up_keys = { "<S-Up>", "<Esc>[1;2A", "<Esc>[2A" }
-local s_down_keys = { "<S-Down>", "<Esc>[1;2B", "<Esc>[2B" }
-
-local all_editor_modes = { "n", "i", "v", "x" }
+-- Key codes for terminal compatibility (standard termcodes + xterm CSI + Kitty protocol sequences)
+local c_s_left_keys = { "<C-S-Left>", "<C-S-kLeft>", "\27[1;6D", "\27[6D", "\27[57419;6u" }
+local c_s_right_keys = { "<C-S-Right>", "<C-S-kRight>", "\27[1;6C", "\27[6C", "\27[57421;6u" }
+local s_left_keys = { "<S-Left>", "\27[1;2D", "\27[2D", "\27[57419;2u" }
+local s_right_keys = { "<S-Right>", "\27[1;2C", "\27[2C", "\27[57421;2u" }
+local s_up_keys = { "<S-Up>", "\27[1;2A", "\27[2A", "\27[57418;2u" }
+local s_down_keys = { "<S-Down>", "\27[1;2B", "\27[2B", "\27[57420;2u" }
 
 for _, k in ipairs(c_s_left_keys) do
-  map(all_editor_modes, k, select_word_left, { desc = "Select Word Left", silent = true })
+  map("n", k, select_word_left_norm, { desc = "Select Word Left", silent = true })
+  map("i", k, "<Esc>viwo", { desc = "Select Word Left", silent = true })
+  map({ "v", "x" }, k, select_word_left_vis, { desc = "Select Word Left", silent = true })
 end
 
 for _, k in ipairs(c_s_right_keys) do
-  map(all_editor_modes, k, select_word_right, { desc = "Select Word Right", silent = true })
+  map("n", k, select_word_right_norm, { desc = "Select Word Right", silent = true })
+  map("i", k, "<Esc>lviw", { desc = "Select Word Right", silent = true })
+  map({ "v", "x" }, k, select_word_right_vis, { desc = "Select Word Right", silent = true })
 end
 
 for _, k in ipairs(s_left_keys) do
-  map(all_editor_modes, k, select_char_left, { desc = "Select Left Character", silent = true })
+  map("n", k, "vh", { desc = "Select Left Character", silent = true })
+  map("i", k, "<Esc>v", { desc = "Select Left Character", silent = true })
+  map({ "v", "x" }, k, "h", { desc = "Select Left Character", silent = true })
 end
 
 for _, k in ipairs(s_right_keys) do
-  map(all_editor_modes, k, select_char_right, { desc = "Select Right Character", silent = true })
+  map("n", k, "vl", { desc = "Select Right Character", silent = true })
+  map("i", k, "<Esc>lv", { desc = "Select Right Character", silent = true })
+  map({ "v", "x" }, k, "l", { desc = "Select Right Character", silent = true })
 end
 
 for _, k in ipairs(s_up_keys) do
-  map(all_editor_modes, k, select_char_up, { desc = "Select Line Up", silent = true })
+  map("n", k, "vk", { desc = "Select Line Up", silent = true })
+  map("i", k, "<Esc>vk", { desc = "Select Line Up", silent = true })
+  map({ "v", "x" }, k, "k", { desc = "Select Line Up", silent = true })
 end
 
 for _, k in ipairs(s_down_keys) do
-  map(all_editor_modes, k, select_char_down, { desc = "Select Line Down", silent = true })
+  map("n", k, "vj", { desc = "Select Line Down", silent = true })
+  map("i", k, "<Esc>vj", { desc = "Select Line Down", silent = true })
+  map({ "v", "x" }, k, "j", { desc = "Select Line Down", silent = true })
 end
 
 -- ============================================================================
@@ -787,8 +827,8 @@ local function resize_terminal_down()
   require("gowise.components.terminal").resize(-2)
 end
 
-local ctrl_up_keys = { "<C-Up>", "<Esc>[1;5A", "<Esc>[5A" }
-local ctrl_down_keys = { "<C-Down>", "<Esc>[1;5B", "<Esc>[5B" }
+local ctrl_up_keys = { "<C-Up>", "\27[1;5A", "\27[5A", "\27[57418;5u" }
+local ctrl_down_keys = { "<C-Down>", "\27[1;5B", "\27[5B", "\27[57420;5u" }
 
 for _, k in ipairs(ctrl_up_keys) do
   map("t", k, resize_terminal_up, { desc = "Expand Terminal Height (Ctrl+Up)", silent = true })
