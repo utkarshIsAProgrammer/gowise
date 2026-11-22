@@ -117,16 +117,26 @@ if [ "$1" = "--benchmark" ]; then
   exit 0
 fi
 
-# Smart Directory Creation Check for Arguments
+# Smart Directory & File Creation Check
 for arg in "$@"; do
   # Skip options starting with -
-  if [[ "$arg" != -* ]] && [[ ! -d "$arg" ]]; then
-    target_dir="$(dirname "$arg")"
-    if [ "$target_dir" != "." ] && [ ! -d "$target_dir" ]; then
-      mkdir -p "$target_dir"
+  if [[ "$arg" != -* ]]; then
+    if [[ "$arg" == */ ]]; then
+      mkdir -p "$arg"
+    else
+      target_dir="$(dirname "$arg")"
+      if [ "$target_dir" != "." ] && [ ! -d "$target_dir" ]; then
+        mkdir -p "$target_dir"
+      fi
     fi
   fi
 done
+
+# If single argument is a directory, change directory into it so Neovim opens cleanly
+if [ "$#" -eq 1 ] && [ -d "$1" ]; then
+  cd "$1"
+  exec nvim
+fi
 
 # Launch Gowise in Isolated Mode
 exec nvim "$@"

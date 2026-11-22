@@ -463,13 +463,52 @@ map({ "n", "i" }, "<C-S-CR>", "<Esc>O", opts)
 map("v", "<Tab>", ">gv", opts)
 map("v", "<S-Tab>", "<gv", opts)
 
--- Line & Block Commenting Handlers
+-- Line & Block Commenting Handlers (Safe execution with zero nil errors)
+local function ensure_comment()
+  local ok_c, comment = pcall(require, "Comment")
+  if ok_c and comment then
+    local ok_cfg, cfg = pcall(require, "Comment.config")
+    if ok_cfg and cfg and not cfg.state then
+      comment.setup({})
+    end
+  end
+end
+
+local function ensure_commentstring()
+  if vim.bo.commentstring == "" or not vim.bo.commentstring:find("%%s") then
+    local ft = vim.bo.filetype
+    local hash_fts = { python = true, sh = true, bash = true, yaml = true, toml = true, dockerfile = true, ruby = true, make = true }
+    local dash_fts = { lua = true, sql = true }
+    local html_fts = { html = true, xml = true, markdown = true }
+    local css_fts = { css = true, scss = true, less = true }
+
+    if hash_fts[ft] then
+      vim.bo.commentstring = "# %s"
+    elseif dash_fts[ft] then
+      vim.bo.commentstring = "-- %s"
+    elseif html_fts[ft] then
+      vim.bo.commentstring = "<!-- %s -->"
+    elseif css_fts[ft] then
+      vim.bo.commentstring = "/* %s */"
+    else
+      vim.bo.commentstring = "// %s"
+    end
+  end
+end
+
 local function toggle_line_comment_normal()
-  local ok, comment_api = pcall(require, "Comment.api")
-  if ok and comment_api then
-    comment_api.toggle.linewise.current()
+  ensure_comment()
+  ensure_commentstring()
+  local ok, Op = pcall(require, "Comment.opfunc")
+  local ok_cfg, Config = pcall(require, "Comment.config")
+  local ok_u, U = pcall(require, "Comment.utils")
+  if ok and ok_cfg and ok_u then
+    local run_ok = pcall(Op.opfunc, nil, Config:get(), U.cmode.toggle, U.ctype.linewise)
+    if not run_ok then
+      pcall(vim.cmd, "normal! gcc")
+    end
   else
-    vim.cmd("normal gcc")
+    pcall(vim.cmd, "normal! gcc")
   end
 end
 
@@ -479,12 +518,39 @@ local function toggle_line_comment_insert()
   pcall(vim.api.nvim_win_set_cursor, 0, pos)
 end
 
-local function toggle_block_comment_normal()
-  local ok, comment_api = pcall(require, "Comment.api")
-  if ok and comment_api then
-    comment_api.toggle.blockwise.current()
+local function toggle_line_comment_visual()
+  ensure_comment()
+  ensure_commentstring()
+  local mode = vim.fn.visualmode()
+  local esc = vim.api.nvim_replace_termcodes("<Esc>", true, true, true)
+  vim.api.nvim_feedkeys(esc, "nx", false)
+
+  local ok, Op = pcall(require, "Comment.opfunc")
+  local ok_cfg, Config = pcall(require, "Comment.config")
+  local ok_u, U = pcall(require, "Comment.utils")
+  if ok and ok_cfg and ok_u then
+    local run_ok = pcall(Op.opfunc, mode, Config:get(), U.cmode.toggle, U.ctype.linewise)
+    if not run_ok then
+      pcall(vim.cmd, "normal! gvgc")
+    end
   else
-    vim.cmd("normal gbc")
+    pcall(vim.cmd, "normal! gc")
+  end
+end
+
+local function toggle_block_comment_normal()
+  ensure_comment()
+  ensure_commentstring()
+  local ok, Op = pcall(require, "Comment.opfunc")
+  local ok_cfg, Config = pcall(require, "Comment.config")
+  local ok_u, U = pcall(require, "Comment.utils")
+  if ok and ok_cfg and ok_u then
+    local run_ok = pcall(Op.opfunc, nil, Config:get(), U.cmode.toggle, U.ctype.blockwise)
+    if not run_ok then
+      pcall(vim.cmd, "normal! gbc")
+    end
+  else
+    pcall(vim.cmd, "normal! gbc")
   end
 end
 
@@ -492,6 +558,26 @@ local function toggle_block_comment_insert()
   local pos = vim.api.nvim_win_get_cursor(0)
   toggle_block_comment_normal()
   pcall(vim.api.nvim_win_set_cursor, 0, pos)
+end
+
+local function toggle_block_comment_visual()
+  ensure_comment()
+  ensure_commentstring()
+  local mode = vim.fn.visualmode()
+  local esc = vim.api.nvim_replace_termcodes("<Esc>", true, true, true)
+  vim.api.nvim_feedkeys(esc, "nx", false)
+
+  local ok, Op = pcall(require, "Comment.opfunc")
+  local ok_cfg, Config = pcall(require, "Comment.config")
+  local ok_u, U = pcall(require, "Comment.utils")
+  if ok and ok_cfg and ok_u then
+    local run_ok = pcall(Op.opfunc, mode, Config:get(), U.cmode.toggle, U.ctype.blockwise)
+    if not run_ok then
+      pcall(vim.cmd, "normal! gvgb")
+    end
+  else
+    pcall(vim.cmd, "normal! gb")
+  end
 end
 
 -- Toggle Line Comment (Ctrl+/ and Ctrl+_)
@@ -503,9 +589,9 @@ map("i", "<C-/>", toggle_line_comment_insert, { desc = "Toggle Line Comment", si
 map("i", "<C-_>", toggle_line_comment_insert, { desc = "Toggle Line Comment", silent = true })
 map("i", "<C-7>", toggle_line_comment_insert, { desc = "Toggle Line Comment", silent = true })
 
-map("v", "<C-/>", "gc", { desc = "Toggle Line Comment", remap = true })
-map("v", "<C-_>", "gc", { desc = "Toggle Line Comment", remap = true })
-map("v", "<C-7>", "gc", { desc = "Toggle Line Comment", remap = true })
+map("v", "<C-/>", toggle_line_comment_visual, { desc = "Toggle Line Comment", silent = true })
+map("v", "<C-_>", toggle_line_comment_visual, { desc = "Toggle Line Comment", silent = true })
+map("v", "<C-7>", toggle_line_comment_visual, { desc = "Toggle Line Comment", silent = true })
 
 -- Toggle Block Comment (Shift+Alt+A / Alt+Shift+A)
 map("n", "<A-S-a>", toggle_block_comment_normal, { desc = "Toggle Block Comment", silent = true })
@@ -514,8 +600,8 @@ map("n", "<M-A>", toggle_block_comment_normal, { desc = "Toggle Block Comment", 
 map("i", "<A-S-a>", toggle_block_comment_insert, { desc = "Toggle Block Comment", silent = true })
 map("i", "<M-A>", toggle_block_comment_insert, { desc = "Toggle Block Comment", silent = true })
 
-map("v", "<A-S-a>", "gb", { desc = "Toggle Block Comment", remap = true })
-map("v", "<M-A>", "gb", { desc = "Toggle Block Comment", remap = true })
+map("v", "<A-S-a>", toggle_block_comment_visual, { desc = "Toggle Block Comment", silent = true })
+map("v", "<M-A>", toggle_block_comment_visual, { desc = "Toggle Block Comment", silent = true })
 
 -- Code Folding (Ctrl+Shift+[ and Ctrl+Shift+])
 map({ "n", "i", "v" }, "<C-S-[>", "<Esc>zc", { desc = "Fold Block", silent = true })

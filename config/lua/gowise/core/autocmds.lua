@@ -82,3 +82,30 @@ api.nvim_create_autocmd("VimResized", {
     vim.cmd("tabnext " .. current_tab)
   end,
 })
+
+-- 7. Seamless Workspace Directory Interception
+-- Automatically handles opening directories (gowise <folder>, :edit <dir>) without E17 errors
+api.nvim_create_autocmd({ "BufReadCmd", "BufEnter" }, {
+  group = gowise_group,
+  pattern = "*",
+  nested = true,
+  callback = function(args)
+    local target = args.file or api.nvim_buf_get_name(args.buf)
+    if target ~= "" and vim.fn.isdirectory(target) == 1 then
+      vim.fn.chdir(target)
+      pcall(function()
+        api.nvim_buf_set_name(args.buf, "")
+        vim.bo[args.buf].buftype = "nofile"
+        vim.bo[args.buf].bufhidden = "wipe"
+      end)
+      vim.schedule(function()
+        if api.nvim_buf_is_valid(args.buf) and api.nvim_buf_get_name(args.buf) == "" then
+          pcall(api.nvim_buf_delete, args.buf, { force = true })
+        end
+        if Snacks and Snacks.dashboard then
+          pcall(Snacks.dashboard)
+        end
+      end)
+    end
+  end,
+})

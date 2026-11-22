@@ -39,9 +39,6 @@ M.servers = {
 }
 
 function M.setup()
-  local ok, lspconfig = pcall(require, "lspconfig")
-  if not ok then return end
-
   -- Capabilities integration with blink.cmp
   local capabilities = vim.lsp.protocol.make_client_capabilities()
   local ok_blink, blink = pcall(require, "blink.cmp")
@@ -49,9 +46,25 @@ function M.setup()
     capabilities = blink.get_lsp_capabilities(capabilities)
   end
 
-  for server, config in pairs(M.servers) do
-    config.capabilities = capabilities
-    lspconfig[server].setup(config)
+  -- Use native Neovim 0.11+ / 0.12 vim.lsp.config & vim.lsp.enable if available
+  if vim.lsp.config and vim.lsp.enable then
+    for server, config in pairs(M.servers) do
+      local s_config = vim.deepcopy(config)
+      s_config.capabilities = capabilities
+      vim.lsp.config(server, s_config)
+      vim.lsp.enable(server)
+    end
+  else
+    local ok, lspconfig = pcall(require, "lspconfig")
+    if ok and lspconfig then
+      for server, config in pairs(M.servers) do
+        local s_config = vim.deepcopy(config)
+        s_config.capabilities = capabilities
+        pcall(function()
+          lspconfig[server].setup(s_config)
+        end)
+      end
+    end
   end
 end
 

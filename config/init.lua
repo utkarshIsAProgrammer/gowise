@@ -31,6 +31,15 @@ for _, plugin in ipairs(disabled_builtins) do
   vim.g["loaded_" .. plugin] = 1
 end
 
+-- Filter out third-party library deprecation notifications from popups
+local orig_notify = vim.notify
+vim.notify = function(msg, level, opts)
+  if type(msg) == "string" and (msg:find("deprecated") or msg:find("lspconfig")) then
+    return
+  end
+  return orig_notify(msg, level, opts)
+end
+
 -- Bootstrap lazy.nvim package manager
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not vim.uv.fs_stat(lazypath) then

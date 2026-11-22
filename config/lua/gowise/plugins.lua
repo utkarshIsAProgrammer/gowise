@@ -240,8 +240,35 @@ local plugins = {
   -- 11. Comment.nvim: Rock-solid Single-line (Ctrl+/) and Multi-line/Block (Shift+Alt+A) Comments
   {
     "numToStr/Comment.nvim",
-    event = { "BufReadPost", "BufNewFile" },
-    opts = {},
+    lazy = false,
+    opts = function()
+      return {
+        pre_hook = function(ctx)
+          local ok_ft, ft = pcall(require, "Comment.ft")
+          if not ok_ft or not ft then
+            return vim.bo.commentstring ~= "" and vim.bo.commentstring or "// %s"
+          end
+
+          local ok, parser = pcall(vim.treesitter.get_parser, 0)
+          if ok and parser then
+            local tree_ok, lang = pcall(function()
+              return ft.contains(parser, {
+                ctx.range.srow - 1,
+                ctx.range.scol,
+                ctx.range.erow - 1,
+                ctx.range.ecol,
+              }):lang()
+            end)
+            if tree_ok and lang then
+              return ft.get(lang, ctx.ctype)
+            end
+          end
+
+          return ft.get(vim.bo.filetype, ctx.ctype)
+            or (vim.bo.commentstring ~= "" and vim.bo.commentstring or "// %s")
+        end,
+      }
+    end,
   },
 
   -- 12. Conform.nvim: Universal High-Speed Code Formatter for All Files
