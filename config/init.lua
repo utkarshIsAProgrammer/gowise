@@ -76,6 +76,12 @@ if not vim.uv.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
+-- Prepend config bin to PATH so embedded terminals route 'gowise', 'nvim', 'code' to active instance
+local config_bin = vim.fn.stdpath("config") .. "/bin"
+if vim.fn.isdirectory(config_bin) == 1 then
+	vim.env.PATH = config_bin .. ":" .. vim.env.PATH
+end
+
 -- Set leader keys
 vim.g.mapleader = " "
 vim.g.maplocalleader = " "

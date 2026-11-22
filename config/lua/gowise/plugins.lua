@@ -236,7 +236,8 @@ local plugins = {
   -- 9. LSP Configuration & Mason Automated Installer
   {
     "neovim/nvim-lspconfig",
-    lazy = false,
+    event = { "BufReadPre", "BufNewFile" },
+    cmd = { "LspInfo", "LspInstall", "LspStart", "Mason", "MasonInstall", "MasonUpdate" },
     dependencies = {
       "williamboman/mason.nvim",
       "williamboman/mason-lspconfig.nvim",
@@ -286,7 +287,7 @@ local plugins = {
   -- 11. Comment.nvim: Rock-solid Single-line (Ctrl+/) and Multi-line/Block (Shift+Alt+A) Comments
   {
     "numToStr/Comment.nvim",
-    lazy = false,
+    event = { "BufReadPost", "BufNewFile" },
     opts = function()
       return {
         pre_hook = function(ctx)

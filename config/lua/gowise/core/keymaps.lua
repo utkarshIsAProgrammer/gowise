@@ -870,13 +870,155 @@ map({ "n", "i" }, "<C-S-o>", function()
 end, { desc = "Go to Symbol", silent = true })
 
 -- ============================================================================
--- 11. UI DOCKS: SIDEBAR & TERMINAL (Toggleable from ALL modes without Esc!)
+-- 11. UI DOCKS: SIDEBAR, EDITOR & TERMINAL (Toggle & Direct Focus Switching)
 -- ============================================================================
+
+-- Direct Focus Functions
+local function focus_sidebar()
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_is_valid(win) then
+      local buf = vim.api.nvim_win_get_buf(win)
+      local ft = vim.bo[buf].filetype
+      if ft:match("snacks_picker") or ft:match("snacks_explorer") or ft == "NvimTree" or ft == "neo-tree" then
+        vim.api.nvim_set_current_win(win)
+        return
+      end
+    end
+  end
+  require("gowise.components.tree").toggle()
+end
+
+local function focus_editor()
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_is_valid(win) then
+      local buf = vim.api.nvim_win_get_buf(win)
+      local bt = vim.bo[buf].buftype
+      local ft = vim.bo[buf].filetype
+      if bt == "" and not ft:match("snacks") and not ft:match("explorer") and not ft:match("NvimTree") and not ft:match("neo%-tree") then
+        vim.api.nvim_set_current_win(win)
+        if vim.bo[buf].modifiable then
+          pcall(vim.cmd, "startinsert")
+        end
+        return
+      end
+    end
+  end
+end
+
+local function focus_terminal()
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_is_valid(win) then
+      local buf = vim.api.nvim_win_get_buf(win)
+      local bt = vim.bo[buf].buftype
+      local ft = vim.bo[buf].filetype
+      if bt == "terminal" or ft == "snacks_terminal" or vim.b[buf].snacks_terminal then
+        vim.api.nvim_set_current_win(win)
+        pcall(vim.cmd, "startinsert")
+        return
+      end
+    end
+  end
+  require("gowise.components.terminal").toggle()
+end
+
+-- Keymaps for direct focus:
+-- Focus Sidebar: Ctrl+0, Ctrl+Shift+E, Alt+0
+local focus_sidebar_keys = { "<C-0>", "<C-S-e>", "<C-S-E>", "<A-0>", "\27[48;5u" }
+for _, k in ipairs(focus_sidebar_keys) do
+  map({ "n", "i", "t", "v", "x", "s" }, k, focus_sidebar, { desc = "Focus Sidebar (VS Code Ctrl+0 / Ctrl+Shift+E)", silent = true })
+end
+
+-- Focus Editor: Ctrl+1, Alt+1, Alt+E
+local focus_editor_keys = { "<C-1>", "<A-1>", "<A-e>", "<A-E>", "\27[49;5u" }
+for _, k in ipairs(focus_editor_keys) do
+  map({ "n", "i", "t", "v", "x", "s" }, k, focus_editor, { desc = "Focus Editor (VS Code Ctrl+1 / Alt+1)", silent = true })
+end
+
+-- Focus Terminal: Ctrl+2, Alt+2, Alt+T
+local focus_term_keys = { "<C-2>", "<A-2>", "<A-t>", "<A-T>", "\27[50;5u" }
+for _, k in ipairs(focus_term_keys) do
+  map({ "n", "i", "t", "v", "x", "s" }, k, focus_terminal, { desc = "Focus Terminal (Ctrl+2 / Alt+2)", silent = true })
+end
+
+vim.api.nvim_create_user_command("FocusSidebar", focus_sidebar, { desc = "Focus Sidebar File Tree" })
+vim.api.nvim_create_user_command("FocusEditor", focus_editor, { desc = "Focus Main Editor" })
+vim.api.nvim_create_user_command("FocusTerminal", focus_terminal, { desc = "Focus Integrated Terminal" })
 
 -- Toggle File Tree Sidebar (Ctrl+B across all modes: normal, insert, visual, terminal)
 map({ "n", "i", "v", "t" }, "<C-b>", function()
   require("gowise.components.tree").toggle()
 end, { desc = "Toggle Sidebar", silent = true })
+
+-- ============================================================================
+-- TERMINAL CLIENT RPC INTEGRATION (Zero Nested Instances)
+-- ============================================================================
+
+function _G.FocusEditorFromTerminal()
+  pcall(function()
+    if Snacks and Snacks.terminal then
+      for _, t in ipairs(Snacks.terminal.list()) do
+        if t:win_valid() then t:hide() end
+      end
+    end
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      if vim.api.nvim_win_is_valid(win) then
+        local buf = vim.api.nvim_win_get_buf(win)
+        if vim.bo[buf].buftype == "terminal" or vim.bo[buf].filetype == "snacks_terminal" then
+          pcall(vim.api.nvim_win_hide, win)
+        end
+      end
+    end
+  end)
+  focus_editor()
+  return "OK"
+end
+
+function _G.OpenFileFromTerminal(target_path)
+  if not target_path or target_path == "" then
+    return _G.FocusEditorFromTerminal()
+  end
+  local full = vim.fn.fnamemodify(vim.fn.expand(target_path), ":p")
+
+  -- If target is a directory, change workspace
+  if vim.fn.isdirectory(full) == 1 then
+    vim.fn.chdir(full)
+    pcall(function()
+      if Snacks and Snacks.terminal then
+        for _, t in ipairs(Snacks.terminal.list()) do
+          if t:win_valid() then t:hide() end
+        end
+      end
+      if Snacks and Snacks.explorer then
+        Snacks.explorer({ cwd = full })
+      end
+    end)
+    vim.notify("✓ Switched workspace: " .. full, vim.log.levels.INFO, { title = "Gowise Workspace" })
+    return "OK"
+  end
+
+  -- Target is a file: hide terminal drawer to reveal editor
+  pcall(function()
+    if Snacks and Snacks.terminal then
+      for _, t in ipairs(Snacks.terminal.list()) do
+        if t:win_valid() then t:hide() end
+      end
+    end
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      if vim.api.nvim_win_is_valid(win) then
+        local buf = vim.api.nvim_win_get_buf(win)
+        if vim.bo[buf].buftype == "terminal" or vim.bo[buf].filetype == "snacks_terminal" then
+          pcall(vim.api.nvim_win_hide, win)
+        end
+      end
+    end
+  end)
+
+  focus_editor()
+  vim.cmd("edit " .. vim.fn.fnameescape(full))
+  vim.cmd("startinsert")
+  vim.notify("✓ Opened: " .. vim.fn.fnamemodify(full, ":t"), vim.log.levels.INFO, { title = "Gowise Editor" })
+  return "OK"
+end
 
 -- Toggle Terminal Drawer (Ctrl+`, Ctrl+~, Ctrl+Shift+`, Ctrl+Shift+~, Ctrl+^, Ctrl+@, Ctrl+J across ALL modes)
 local term_toggle_keys = {
