@@ -224,17 +224,26 @@ _G.minimal_notify_saved = notify_saved
 
 local function close_active_buffer()
   local bufnr = vim.api.nvim_get_current_buf()
-  local modified = vim.bo[bufnr].modified
-  if modified then
-    local choice = vim.fn.confirm("Save changes before closing?", "&Yes\n&No\n&Cancel", 1)
-    if choice == 1 then
-      vim.cmd("silent! write")
-      vim.cmd("bdelete")
-    elseif choice == 2 then
-      vim.cmd("bdelete!")
-    end
+  if vim.bo[bufnr].buftype == "terminal" or vim.bo[bufnr].filetype == "snacks_terminal" then
+    pcall(vim.cmd, "close")
+    return
+  end
+  local ok_snacks, snacks = pcall(require, "snacks")
+  if ok_snacks and snacks and snacks.bufdelete then
+    snacks.bufdelete({ buf = bufnr })
   else
-    vim.cmd("bdelete")
+    local modified = vim.bo[bufnr].modified
+    if modified then
+      local choice = vim.fn.confirm("Save changes before closing?", "&Yes\n&No\n&Cancel", 1)
+      if choice == 1 then
+        vim.cmd("silent! write")
+        vim.cmd("bdelete")
+      elseif choice == 2 then
+        vim.cmd("bdelete!")
+      end
+    else
+      vim.cmd("bdelete")
+    end
   end
   if vim.bo.buftype == "" and vim.bo.modifiable then
     pcall(vim.cmd, "startinsert")
@@ -253,7 +262,7 @@ map({ "n", "v", "x", "s" }, "<C-S-s>", "<cmd>silent! wa<CR><cmd>lua vim.notify('
 map({ "n", "i", "v" }, "<C-n>", "<cmd>enew<CR><cmd>startinsert<CR>", { desc = "New File", silent = true })
 
 -- Close Current Tab / Buffer (Ctrl+W and Ctrl+Q)
-map({ "n", "v", "x" }, "<C-w>", close_active_buffer, { desc = "Close Tab", silent = true })
+map({ "n", "i", "v", "x" }, "<C-w>", close_active_buffer, { desc = "Close Tab", silent = true })
 map({ "n", "i", "v", "x" }, "<C-q>", close_active_buffer, { desc = "Close Tab", silent = true })
 
 -- Switch Tabs (Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+PageDown, Ctrl+PageUp)
@@ -494,7 +503,6 @@ end
 
 map({ "i", "n" }, "<C-BS>", delete_word_left, opts)
 map({ "i", "n" }, "<M-BS>", delete_word_left, opts)
-map({ "i", "n" }, "<C-w>", delete_word_left, { desc = "Delete Word Left", silent = true })
 
 -- Word Delete Right (Ctrl+Delete)
 local function delete_word_right()
