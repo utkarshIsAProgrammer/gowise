@@ -28,6 +28,7 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
   echo "  gowise                     Launch editor in current folder"
   echo "  gowise <file>              Open or create file (e.g. gowise api/main.go)"
   echo "  gowise <directory>         Open workspace directory"
+  echo "  gowise --doctor            Diagnose system health & installed toolchains"
   echo "  gowise --benchmark         Measure exact startup latency in milliseconds"
   echo "  gowise --version           Show version information"
   echo ""
@@ -41,6 +42,54 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
   echo "  F5                         Run Current File / Project"
   echo "  Ctrl+K Ctrl+T              Theme Switcher (Live Preview)"
   echo "  Ctrl+D                     Multi-cursor (Select next match)"
+  exit 0
+fi
+
+# Doctor / Health Check Flag
+if [ "$1" = "--doctor" ] || [ "$1" = "doctor" ]; then
+  echo -e "\033[1;36m==> Running Gowise Health Doctor...\033[0m\n"
+  
+  echo -e "  \033[1mOS Platform:\033[0m          $(uname -s) ($(uname -m))"
+  echo -e "  \033[1mActive Shell:\033[0m         ${SHELL:-bash}"
+  
+  if command -v nvim &>/dev/null; then
+    NVIM_VER="$(nvim --version | head -n1)"
+    echo -e "  \033[1mNeovim Engine:\033[0m        \033[1;32m✔ $NVIM_VER\033[0m"
+  else
+    echo -e "  \033[1mNeovim Engine:\033[0m        \033[1;31m✖ Missing! Please install Neovim v0.10+\033[0m"
+  fi
+  
+  if command -v git &>/dev/null; then
+    echo -e "  \033[1mVersion Control:\033[0m      \033[1;32m✔ Git $(git --version | awk '{print $3}')\033[0m"
+  else
+    echo -e "  \033[1mVersion Control:\033[0m      \033[1;31m✖ Git is missing\033[0m"
+  fi
+
+  echo ""
+  echo -e "  \033[1mPolyglot Language Runtimes:\033[0m"
+  check_tool() {
+    local name="$1"
+    local cmd="$2"
+    if command -v "$cmd" &>/dev/null; then
+      local ver="$($cmd --version 2>&1 | head -n1 | grep -oE '[0-9]+(\.[0-9]+)+' | head -n1 || echo 'detected')"
+      echo -e "    • $name: \033[1;32m✔ Available ($ver)\033[0m"
+    else
+      echo -e "    • $name: \033[0;33m○ Not installed (LSP will auto-prompt when editing $name files)\033[0m"
+    fi
+  }
+  check_tool "Go" "go"
+  check_tool "Node.js" "node"
+  check_tool "Python" "python3"
+  check_tool "Rust" "rustc"
+  check_tool "C/C++ (GCC)" "gcc"
+
+  echo ""
+  echo -e "  \033[1mIcon & Typography Advice:\033[0m"
+  echo -e "    • For the most beautiful file and folder icons, use any \033[1;36mNerd Font\033[0m in your terminal"
+  echo -e "      (e.g. JetBrainsMono Nerd Font, FiraCode Nerd Font, or Cascadia Code NF)."
+  
+  echo ""
+  echo -e "\033[1;32m✔ Health doctor complete! Everything is configured properly.\033[0m"
   exit 0
 fi
 

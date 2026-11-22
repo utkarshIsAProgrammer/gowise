@@ -20,33 +20,63 @@
 
 ---
 
-## 🚀 Installation & Launch
+## 🚀 Universal One-Line Installation
 
-### Linux & macOS
+Install Gowise on any OS in seconds with automatic dependency handling:
+
+### 🐧 Linux & 🍏 macOS (One-Liner)
 ```bash
-git clone https://github.com/your-username/gowise.git
-cd gowise
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/install.sh | bash
 ```
 
-### Windows (PowerShell)
+### 🪟 Windows (PowerShell One-Liner)
 ```powershell
-git clone https://github.com/your-username/gowise.git
+irm https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/install.ps1 | iex
+```
+
+---
+
+### Manual Git Installation (All Platforms)
+```bash
+git clone https://github.com/utkarshIsAProgrammer/gowise.git
 cd gowise
+
+# On Linux/macOS:
+./install.sh
+
+# On Windows (PowerShell):
 .\install.ps1
 ```
 
-### Running Gowise
+---
+
+## 💻 Running Gowise
+
 ```bash
 # Open current directory
 gowise .
 
-# Open or create a file anywhere (auto-creates missing parent directories on save)
+# Open or create a file anywhere (auto-creates parent directories on save)
 gowise src/api/routes/auth.go
 
-# Check startup latency
+# Check system health & installed language compilers
+gowise --doctor
+
+# Benchmark startup latency
 gowise --benchmark
 ```
+
+---
+
+## 🧹 Clean Uninstallation
+
+If you ever wish to remove Gowise, it cleans up all its data and leaves your system spotless:
+
+- **Linux / macOS**: Run `./uninstall.sh` from the repository, or:
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/uninstall.sh | bash
+  ```
+- **Windows**: Run `.\uninstall.ps1` in PowerShell.
 
 ---
 
