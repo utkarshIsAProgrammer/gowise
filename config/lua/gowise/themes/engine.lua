@@ -45,6 +45,7 @@ function M.set_transparency(enabled, notify)
   M.save_transparency(enabled)
   local cur = vim.g.colors_name or M.get_current_theme()
   pcall(vim.cmd, "colorscheme " .. cur)
+  M.apply_sidebar_and_terminal_bg()
   if notify ~= false then
     local state_str = enabled and "ON (Acrylic Glass / Terminal Pass-Through)" or "OFF (Rich Solid Theme Colors)"
     vim.notify("✓ Background Transparency: " .. state_str, vim.log.levels.INFO, { title = "Gowise Theme" })
@@ -120,12 +121,67 @@ function M.apply_indent_rainbow()
   vim.api.nvim_set_hl(0, "SnacksIndent", { fg = "#3b4252" })
 end
 
+-- Apply and sync sidebar and terminal bgcolor to strictly match the editor background
+function M.apply_sidebar_and_terminal_bg()
+  local normal_hl = vim.api.nvim_get_hl(0, { name = "Normal" })
+  local is_trans = (vim.g.minimal_transparent == true or vim.g.gowise_transparent == true)
+  local bg = is_trans and "NONE" or (normal_hl.bg and string.format("#%06x", normal_hl.bg) or "NONE")
+  local fg = normal_hl.fg and string.format("#%06x", normal_hl.fg) or nil
+
+  local border_hl = vim.api.nvim_get_hl(0, { name = "WinSeparator" })
+  local border_fg = border_hl.fg and string.format("#%06x", border_hl.fg) or "#20202e"
+
+  local sidebar_terminal_groups = {
+    -- Snacks Sidebar & Explorer
+    "SnacksNormal",
+    "SnacksNormalNC",
+    "SnacksPicker",
+    "SnacksPickerNormal",
+    "SnacksPickerList",
+    "SnacksPickerInput",
+    "SnacksPickerBox",
+    "SnacksPickerPreview",
+    "SnacksPickerBorder",
+    "SnacksPickerInputBorder",
+    "SnacksPickerListBorder",
+    "SnacksPickerBoxBorder",
+    -- NeoTree & NvimTree Sidebars
+    "NeoTreeNormal",
+    "NeoTreeNormalNC",
+    "NeoTreeEndOfBuffer",
+    "NvimTreeNormal",
+    "NvimTreeNormalNC",
+    "NvimTreeEndOfBuffer",
+    -- Terminal & Embedded Shells
+    "Terminal",
+    "TerminalNormal",
+    "TerminalNormalNC",
+    "StatusLineTerm",
+    "StatusLineTermNC",
+  }
+
+  for _, grp in ipairs(sidebar_terminal_groups) do
+    local existing = vim.api.nvim_get_hl(0, { name = grp })
+    local grp_fg = existing.fg and string.format("#%06x", existing.fg) or fg
+    vim.api.nvim_set_hl(0, grp, { fg = grp_fg, bg = bg })
+  end
+
+  vim.api.nvim_set_hl(0, "SnacksWinSeparator", { fg = border_fg, bg = bg })
+  vim.api.nvim_set_hl(0, "NeoTreeWinSeparator", { fg = border_fg, bg = bg })
+  vim.api.nvim_set_hl(0, "NvimTreeWinSeparator", { fg = border_fg, bg = bg })
+
+  if not is_trans and normal_hl.bg then
+    vim.g.terminal_color_0 = string.format("#%06x", normal_hl.bg)
+  end
+end
+
 -- Apply theme cleanly
 function M.set_theme(theme_name, notify)
   local ok, err = pcall(vim.cmd, "colorscheme " .. theme_name)
   if ok then
     M.save_theme(theme_name)
     M.apply_indent_rainbow()
+    M.apply_sidebar_and_terminal_bg()
     pcall(function()
       local lualine = require("lualine")
       lualine.setup({ options = { theme = "auto" } })
@@ -263,6 +319,7 @@ function M.setup()
   M.init_transparency()
   local initial_theme = M.get_current_theme()
   M.set_theme(initial_theme, false)
+  M.apply_sidebar_and_terminal_bg()
 end
 M.init = M.setup
 
@@ -273,8 +330,9 @@ vim.api.nvim_create_autocmd("ColorScheme", {
       M.save_theme(args.match)
     end
     M.apply_indent_rainbow()
+    M.apply_sidebar_and_terminal_bg()
   end,
-  desc = "Persist colorscheme selection and refresh indent rainbow highlights",
+  desc = "Persist colorscheme selection and refresh indent rainbow & sidebar/terminal highlights",
 })
 
 -- Global bridges & commands

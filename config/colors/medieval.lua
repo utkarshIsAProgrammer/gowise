@@ -309,6 +309,39 @@ hl("diffLine", { fg = c.comment })
 -- ===================================================================
 -- Snacks.nvim (Dashboard, Explorer, Indent, Pickers)
 -- ===================================================================
+hl("SnacksNormal", { fg = c.fg, bg = bg_main })
+hl("SnacksNormalNC", { fg = c.fg, bg = bg_main })
+hl("SnacksWinSeparator", { fg = c.border, bg = bg_main })
+hl("SnacksPicker", { fg = c.fg, bg = bg_main })
+hl("SnacksPickerNormal", { fg = c.fg, bg = bg_main })
+hl("SnacksPickerList", { fg = c.fg, bg = bg_main })
+hl("SnacksPickerBorder", { fg = c.border, bg = bg_main })
+hl("SnacksPickerInput", { fg = c.fg, bg = bg_main })
+hl("SnacksPickerInputBorder", { fg = c.border, bg = bg_main })
+hl("SnacksPickerListBorder", { fg = c.border, bg = bg_main })
+hl("SnacksPickerBox", { fg = c.fg, bg = bg_main })
+hl("SnacksPickerBoxBorder", { fg = c.border, bg = bg_main })
+hl("SnacksPickerPreview", { fg = c.fg, bg = bg_main })
+hl("SnacksPickerPrompt", { fg = c.gold, bg = bg_main })
+hl("SnacksPickerTitle", { fg = c.gold, bg = bg_main, bold = true })
+hl("SnacksPickerDirectory", { fg = c.amber, bold = true })
+hl("SnacksPickerDir", { fg = c.amber, bold = true })
+hl("SnacksPickerFile", { fg = c.fg })
+hl("SnacksPickerTree", { fg = c.border })
+hl("SnacksPickerSelected", { fg = c.gold, bg = c.bg_visual, bold = true })
+hl("SnacksPickerMatch", { fg = c.torch, bold = true })
+hl("SnacksPickerGitStatusAdded", { fg = c.git_add, bold = true })
+hl("SnacksPickerGitStatusModified", { fg = c.git_change, bold = true })
+hl("SnacksPickerGitStatusDeleted", { fg = c.git_delete, bold = true })
+hl("SnacksPickerGitStatusUntracked", { fg = c.torch, bold = true })
+hl("SnacksPickerGitStatusStaged", { fg = c.moss, bold = true })
+hl("SnacksPickerGitStatusUnmerged", { fg = c.crimson, bold = true })
+hl("SnacksPickerGitStatusRenamed", { fg = c.purple, bold = true })
+hl("SnacksPickerGitStatusCopied", { fg = c.gold, bold = true })
+hl("SnacksPickerGitStatusIgnored", { fg = c.comment })
+hl("SnacksPickerPathIgnored", { fg = c.comment })
+hl("SnacksPickerPathHidden", { fg = c.border })
+
 hl("SnacksDashboardHeader", { fg = c.gold, bold = true })
 hl("SnacksDashboardDesc", { fg = c.fg_dark })
 hl("SnacksDashboardIcon", { fg = c.amber })
@@ -317,11 +350,55 @@ hl("SnacksIndent", { fg = c.border })
 hl("SnacksIndentScope", { fg = c.gold })
 
 -- ===================================================================
--- File Explorer Sidebar
+-- Terminal & Embedded Shell Background (strictly identical to editor background)
 -- ===================================================================
-hl("SnacksPickerDirectory", { fg = c.amber, bold = true })
-hl("SnacksPickerFile", { fg = c.fg })
-hl("SnacksPickerMatch", { fg = c.gold, bold = true })
+hl("Terminal", { fg = c.fg, bg = bg_main })
+hl("TerminalNormal", { fg = c.fg, bg = bg_main })
+hl("TerminalNormalNC", { fg = c.fg, bg = bg_main })
+hl("StatusLineTerm", { fg = c.fg_muted, bg = bg_main })
+hl("StatusLineTermNC", { fg = c.fg_muted, bg = bg_main })
+
+-- Terminal ANSI Palette
+local term_bg = (bg_main ~= "NONE") and bg_main or c.bg
+vim.g.terminal_color_0 = term_bg
+vim.g.terminal_color_1 = c.crimson
+vim.g.terminal_color_2 = c.moss
+vim.g.terminal_color_3 = c.torch
+vim.g.terminal_color_4 = c.steel
+vim.g.terminal_color_5 = c.purple
+vim.g.terminal_color_6 = c.teal
+vim.g.terminal_color_7 = c.fg
+vim.g.terminal_color_8 = c.bg_highlight
+vim.g.terminal_color_9 = c.error
+vim.g.terminal_color_10 = c.git_add
+vim.g.terminal_color_11 = c.amber
+vim.g.terminal_color_12 = c.steel
+vim.g.terminal_color_13 = c.purple
+vim.g.terminal_color_14 = c.teal
+vim.g.terminal_color_15 = "#ffffff"
+
+-- ===================================================================
+-- NeoTree & NvimTree (Sidebar File Explorer)
+-- ===================================================================
+hl("NeoTreeNormal", { fg = c.fg, bg = bg_main })
+hl("NeoTreeNormalNC", { fg = c.fg, bg = bg_main })
+hl("NeoTreeEndOfBuffer", { fg = c.border, bg = bg_main })
+hl("NeoTreeWinSeparator", { fg = c.border, bg = bg_main })
+hl("NeoTreeDirectoryIcon", { fg = c.amber })
+hl("NeoTreeDirectoryName", { fg = c.amber, bold = true })
+hl("NeoTreeFileName", { fg = c.fg })
+hl("NeoTreeFileIcon", { fg = c.fg_dark })
+hl("NeoTreeRootName", { fg = c.gold, bold = true })
+hl("NeoTreeIndentMarker", { fg = c.border })
+hl("NeoTreeGitAdded", { fg = c.git_add })
+hl("NeoTreeGitModified", { fg = c.git_change })
+hl("NeoTreeGitDeleted", { fg = c.git_delete })
+hl("NeoTreeGitUntracked", { fg = c.torch })
+
+hl("NvimTreeNormal", { fg = c.fg, bg = bg_main })
+hl("NvimTreeNormalNC", { fg = c.fg, bg = bg_main })
+hl("NvimTreeEndOfBuffer", { fg = c.border, bg = bg_main })
+hl("NvimTreeWinSeparator", { fg = c.border, bg = bg_main })
 
 -- ===================================================================
 -- Cmp / Blink Completion Menu

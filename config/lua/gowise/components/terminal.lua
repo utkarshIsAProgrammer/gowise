@@ -171,6 +171,9 @@ function M.toggle()
       position = "bottom",
       height = M.height,
       border = "top",
+      wo = {
+        winhighlight = "Normal:SnacksNormal,NormalNC:SnacksNormalNC,WinBar:SnacksWinBar,WinBarNC:SnacksWinBarNC,FloatTitle:SnacksTitle,FloatFooter:SnacksFooter,WinSeparator:SnacksWinSeparator,StatusLine:StatusLineTerm,StatusLineNC:StatusLineTermNC",
+      },
     },
     interactive = true,
     env = {
@@ -209,6 +212,9 @@ function M.new_instance()
         position = "bottom",
         height = M.height,
         border = "top",
+        wo = {
+          winhighlight = "Normal:SnacksNormal,NormalNC:SnacksNormalNC,WinBar:SnacksWinBar,WinBarNC:SnacksWinBarNC,FloatTitle:SnacksTitle,FloatFooter:SnacksFooter,WinSeparator:SnacksWinSeparator,StatusLine:StatusLineTerm,StatusLineNC:StatusLineTermNC",
+        },
       },
       interactive = true,
       env = {
@@ -255,6 +261,16 @@ function M.setup()
   pcall(vim.fn.mkdir, vim.fn.stdpath("cache") .. "/luac", "p")
   pcall(require, "snacks.win")
   pcall(require, "snacks.terminal")
+
+  -- Autocommand to ensure all terminal windows strictly inherit editor background
+  vim.api.nvim_create_autocmd("TermOpen", {
+    group = vim.api.nvim_create_augroup("GowiseTermColors", { clear = true }),
+    callback = function()
+      pcall(function()
+        vim.wo.winhighlight = "Normal:SnacksNormal,NormalNC:SnacksNormalNC,WinBar:SnacksWinBar,WinBarNC:SnacksWinBarNC,FloatTitle:SnacksTitle,FloatFooter:SnacksFooter,WinSeparator:SnacksWinSeparator,StatusLine:StatusLineTerm,StatusLineNC:StatusLineTermNC"
+      end)
+    end,
+  })
 
   -- Autocommand to track any resize (mouse drag, :resize, split adjustments)
   vim.api.nvim_create_autocmd("WinResized", {

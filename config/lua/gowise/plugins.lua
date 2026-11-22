@@ -100,6 +100,13 @@ local plugins = {
       explorer = {
         enabled = true,
       },
+      styles = {
+        terminal = {
+          wo = {
+            winhighlight = "Normal:SnacksNormal,NormalNC:SnacksNormalNC,WinBar:SnacksWinBar,WinBarNC:SnacksWinBarNC,FloatTitle:SnacksTitle,FloatFooter:SnacksFooter,WinSeparator:SnacksWinSeparator,StatusLine:StatusLineTerm,StatusLineNC:StatusLineTermNC",
+          },
+        },
+      },
     },
   },
 

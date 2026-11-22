@@ -317,6 +317,7 @@ hl("SnacksPickerInput", { fg = c.fg, bg = bg_main })
 hl("SnacksPickerInputBorder", { fg = c.border, bg = bg_main })
 hl("SnacksPickerListBorder", { fg = c.border, bg = bg_main })
 hl("SnacksPickerBox", { fg = c.fg, bg = bg_main })
+hl("SnacksPickerBoxBorder", { fg = c.border, bg = bg_main })
 hl("SnacksPickerPreview", { fg = c.fg, bg = bg_main })
 hl("SnacksPickerPrompt", { fg = c.cyan, bg = bg_main })
 hl("SnacksPickerTitle", { fg = c.cyan, bg = bg_main, bold = true })
@@ -326,6 +327,32 @@ hl("SnacksPickerFile", { fg = c.fg })
 hl("SnacksPickerTree", { fg = c.border })
 hl("SnacksPickerSelected", { fg = c.cyan, bg = c.bg_visual, bold = true })
 hl("SnacksPickerMatch", { fg = c.orange, bold = true })
+
+-- Terminal & Embedded Shell Background (strictly identical to editor background)
+hl("Terminal", { fg = c.fg, bg = bg_main })
+hl("TerminalNormal", { fg = c.fg, bg = bg_main })
+hl("TerminalNormalNC", { fg = c.fg, bg = bg_main })
+hl("StatusLineTerm", { fg = c.fg_muted, bg = bg_main })
+hl("StatusLineTermNC", { fg = c.fg_muted, bg = bg_main })
+
+-- Terminal ANSI Palette
+local term_bg = (bg_main ~= "NONE") and bg_main or c.bg
+vim.g.terminal_color_0 = term_bg
+vim.g.terminal_color_1 = c.coral or c.error
+vim.g.terminal_color_2 = c.mint or c.git_add
+vim.g.terminal_color_3 = c.gold
+vim.g.terminal_color_4 = c.cyan
+vim.g.terminal_color_5 = c.purple
+vim.g.terminal_color_6 = c.teal
+vim.g.terminal_color_7 = c.fg
+vim.g.terminal_color_8 = c.bg_highlight
+vim.g.terminal_color_9 = c.pink
+vim.g.terminal_color_10 = c.mint or c.git_add
+vim.g.terminal_color_11 = c.orange
+vim.g.terminal_color_12 = c.cyan
+vim.g.terminal_color_13 = c.purple
+vim.g.terminal_color_14 = c.teal
+vim.g.terminal_color_15 = "#ffffff"
 hl("SnacksPickerGitStatusAdded", { fg = c.git_add, bold = true })
 hl("SnacksPickerGitStatusModified", { fg = c.git_change, bold = true })
 hl("SnacksPickerGitStatusDeleted", { fg = c.git_delete, bold = true })
@@ -370,6 +397,12 @@ hl("NeoTreeGitAdded", { fg = c.git_add })
 hl("NeoTreeGitModified", { fg = c.git_change })
 hl("NeoTreeGitDeleted", { fg = c.git_delete })
 hl("NeoTreeGitUntracked", { fg = c.orange })
+
+-- NvimTree (File Tree Sidebar)
+hl("NvimTreeNormal", { fg = c.fg, bg = bg_main })
+hl("NvimTreeNormalNC", { fg = c.fg, bg = bg_main })
+hl("NvimTreeEndOfBuffer", { fg = c.border, bg = bg_main })
+hl("NvimTreeWinSeparator", { fg = c.border, bg = bg_main })
 
 -- Telescope
 hl("TelescopeNormal", { fg = c.fg, bg = bg_float })
