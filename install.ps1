@@ -14,12 +14,12 @@ $ErrorActionPreference = "Stop"
 
 function Write-Banner {
     Write-Host ""
-    Write-Host "   ██████╗  ██████╗ ██╗    ██╗██╗███████╗███████╗" -ForegroundColor Cyan
-    Write-Host "  ██╔════╝ ██╔═══██╗██║    ██║██║██╔════╝██╔════╝" -ForegroundColor Cyan
-    Write-Host "  ██║  ███╗██║   ██║██║ █╗ ██║██║███████╗█████╗  " -ForegroundColor Cyan
-    Write-Host "  ██║   ██║██║   ██║██║███╗██║██║╚════██║██╔══╝  " -ForegroundColor Cyan
-    Write-Host "  ╚██████╔╝╚██████╔╝╚███╔███╔╝██║███████║███████╗" -ForegroundColor Cyan
-    Write-Host "   ╚═════╝  ╚═════╝  ╚══╝╚══╝ ╚═╝╚══════╝╚══════╝" -ForegroundColor Cyan
+    Write-Host "  ███╗   ███╗██╗███╗   ██╗██╗███╗   ███╗ █████╗ ██╗     " -ForegroundColor Cyan
+    Write-Host "  ████╗ ████║██║████╗  ██║██║████╗ ████║██╔══██╗██║     " -ForegroundColor Cyan
+    Write-Host "  ██╔████╔██║██║██╔██╗ ██║██║██╔████╔██║███████║██║     " -ForegroundColor Cyan
+    Write-Host "  ██║╚██╔╝██║██║██║╚██╗██║██║██║╚██╔╝██║██╔══██║██║     " -ForegroundColor Cyan
+    Write-Host "  ██║ ╚═╝ ██║██║██║ ╚████║██║██║ ╚═╝ ██║██║  ██║███████╗" -ForegroundColor Cyan
+    Write-Host "  ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  The Fluent, Modeless Terminal Code Editor for Windows" -ForegroundColor White
     Write-Host ""
