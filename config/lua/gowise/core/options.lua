@@ -23,16 +23,17 @@ opt.winblend = 5           -- Subtle transparency for floating windows
 -- Modeless Editing & Fluid Navigation
 opt.mouse = "a"            -- Full mouse support (click, scroll, drag)
 opt.clipboard = "unnamedplus" -- Sync with system clipboard seamlessly
-opt.virtualedit = "onemore,block" -- Free visual block selection & one-past-line-end
+opt.virtualedit = "onemore" -- One-past-line-end (pure modeless cursor freedom)
 opt.scrolloff = 8          -- Keep 8 lines of context vertically
 opt.sidescrolloff = 8      -- Keep 8 columns of context horizontally
 opt.wrap = false           -- No jarring line wraps by default
 opt.linebreak = true       -- If wrap is enabled, break cleanly on words
 opt.updatetime = 150       -- 150ms for responsive git signs, hover, and error lens
 opt.timeoutlen = 300       -- Snappy key combo resolution
-opt.keymodel = "startsel,stopsel" -- Native modeless Shift-selection (VS Code / Zed parity)
-opt.selection = "inclusive"       -- Selection includes cursor endpoint
+opt.keymodel = "startsel,stopsel" -- Native modeless Shift-selection (VS Code / PC standard)
 opt.selectmode = "mouse,key"      -- Typing immediately replaces selection
+opt.selection = "exclusive"       -- Exclusive selection prevents selecting an extra letter or quote at cursor
+opt.whichwrap:append("<,>,[,],h,l")
 
 -- Code Spell Checker Configuration (CamelCase code identifiers & user dictionary)
 opt.spell = true

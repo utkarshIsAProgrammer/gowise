@@ -50,6 +50,9 @@ M.spec = {
       default = { "lsp", "path", "snippets", "buffer" },
     },
     completion = {
+      accept = {
+        dot_repeat = false,
+      },
       trigger = {
         show_on_keyword = true,
         show_on_trigger_character = true,

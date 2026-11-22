@@ -591,58 +591,52 @@ for _, k in ipairs(s_down_keys) do
   map({ "i", "n", "v", "x", "s" }, k, "<S-Down>", { remap = true, silent = true })
 end
 
+-- Select Mode (<s-mode>) deselect on unshifted arrow keys and Home/End
+map("s", "<Left>", "<Esc><cmd>startinsert<cr><Left>", { desc = "Deselect Left (Modeless)", silent = true })
+map("s", "<Right>", "<Esc><cmd>startinsert<cr><Right>", { desc = "Deselect Right (Modeless)", silent = true })
+map("s", "<Up>", "<Esc><cmd>startinsert<cr><Up>", { desc = "Deselect Up (Modeless)", silent = true })
+map("s", "<Down>", "<Esc><cmd>startinsert<cr><Down>", { desc = "Deselect Down (Modeless)", silent = true })
+map("s", "<Home>", "<Esc><cmd>startinsert<cr><C-o>^", { desc = "Start of Line Text", silent = true })
+map("s", "<End>", "<Esc><cmd>startinsert<cr><C-o>$", { desc = "End of Line", silent = true })
+
 -- ============================================================================
 -- 8. AUTO-SURROUND SELECTION WITH QUOTES OR BRACKETS (VS Code style)
 -- ============================================================================
 
-local function wrap_selection(open_delim, close_delim)
-  local mode = vim.fn.visualmode()
-  if mode == "" then mode = vim.fn.mode() end
-  local vpos = vim.fn.getpos("v")
-  local dotpos = vim.fn.getpos(".")
+local function wrap_selection(left, right)
+  local reg_save = vim.fn.getreg('"')
+  local regtype_save = vim.fn.getregtype('"')
+  vim.cmd('normal! \x1bgv""y')
+  local text = vim.fn.getreg('"')
+  if not text or text == "" then
+    vim.fn.setreg('"', reg_save, regtype_save)
+    vim.cmd("startinsert")
+    return
+  end
 
-  local esc = vim.api.nvim_replace_termcodes("<Esc>", true, true, true)
-  vim.api.nvim_feedkeys(esc, "nx", false)
+  -- Intelligent Whitespace Handling:
+  -- If text was selected with leading or trailing whitespace (e.g. from mouse drag,
+  -- word selection, or double click), keep the whitespace OUTSIDE the quotes/brackets!
+  local leading_ws = text:match("^(%s*)") or ""
+  local trailing_ws = text:match("(%s*)$") or ""
+  local trimmed = text:sub(#leading_ws + 1, #text - #trailing_ws)
 
-  local s_row, s_col, e_row, e_col
-  if vpos[2] < dotpos[2] or (vpos[2] == dotpos[2] and vpos[3] <= dotpos[3]) then
-    s_row, s_col = vpos[2] - 1, vpos[3] - 1
-    e_row, e_col = dotpos[2] - 1, dotpos[3]
+  local wrapped
+  if trimmed == "" then
+    wrapped = left .. text .. right
   else
-    s_row, s_col = dotpos[2] - 1, dotpos[3] - 1
-    e_row, e_col = vpos[2] - 1, vpos[3]
+    wrapped = leading_ws .. left .. trimmed .. right .. trailing_ws
   end
 
-  if mode == "V" then
-    s_col = 0
-    local last_line = vim.api.nvim_buf_get_lines(0, e_row, e_row + 1, false)[1] or ""
-    e_col = #last_line
-  end
+  vim.fn.setreg('"', wrapped)
+  vim.cmd('normal! gv""p')
+  vim.fn.setreg('"', reg_save, regtype_save)
 
-  local start_line = vim.api.nvim_buf_get_lines(0, s_row, s_row + 1, false)[1] or ""
-  local end_line = vim.api.nvim_buf_get_lines(0, e_row, e_row + 1, false)[1] or ""
-  s_col = math.max(0, math.min(s_col, #start_line))
-  e_col = math.max(0, math.min(e_col, #end_line))
-
-  if s_row > e_row or (s_row == e_row and s_col >= e_col) then return end
-
-  local lines = vim.api.nvim_buf_get_text(0, s_row, s_col, e_row, e_col, {})
-  if #lines == 0 then return end
-
-  if #lines == 1 then
-    lines[1] = open_delim .. lines[1] .. close_delim
-  else
-    lines[1] = open_delim .. lines[1]
-    lines[#lines] = lines[#lines] .. close_delim
-  end
-
-  vim.api.nvim_buf_set_text(0, s_row, s_col, e_row, e_col, lines)
-
-  if #lines == 1 then
-    vim.api.nvim_win_set_cursor(0, { e_row + 1, e_col + #open_delim + #close_delim - 1 })
-  else
-    vim.api.nvim_win_set_cursor(0, { e_row + 1, #lines[#lines] - 1 })
-  end
+  -- Place cursor right after the closing quote/bracket in insert mode
+  local cur = vim.api.nvim_win_get_cursor(0)
+  local line_len = #vim.api.nvim_get_current_line()
+  local target_col = math.min(cur[2] + 1, line_len)
+  vim.api.nvim_win_set_cursor(0, { cur[1], target_col })
   vim.cmd("startinsert")
 end
 
@@ -661,7 +655,7 @@ local wrap_pairs = {
 }
 
 for trigger_key, pair in pairs(wrap_pairs) do
-  map({ "v", "x" }, trigger_key, function()
+  map({ "v", "x", "s" }, trigger_key, function()
     wrap_selection(pair[1], pair[2])
   end, { desc = "Wrap selection with " .. pair[1] .. pair[2], silent = true })
 end
