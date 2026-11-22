@@ -16,12 +16,26 @@ function M.render()
   local rel_path = vim.fn.expand("%:~:.")
   local parts = vim.split(rel_path, "[/\\]")
 
+  local ok_mini, mini_icons = pcall(require, "mini.icons")
+
   local breadcrumbs = {}
   for i, part in ipairs(parts) do
     if i == #parts then
-      table.insert(breadcrumbs, "%#FloatTitle#" .. part .. "%*")
+      local file_icon, file_hl = "󰈔 ", "FloatTitle"
+      if ok_mini and mini_icons.get then
+        local ic, hl = mini_icons.get("file", part)
+        if ic and ic ~= "" then file_icon = ic end
+        if hl and hl ~= "" then file_hl = hl end
+      end
+      table.insert(breadcrumbs, "%#" .. file_hl .. "#" .. file_icon .. "%#FloatTitle#" .. part .. "%*")
     else
-      table.insert(breadcrumbs, "%#Comment#" .. part .. "%*")
+      local dir_icon, dir_hl = "󰉍 ", "Directory"
+      if ok_mini and mini_icons.get then
+        local ic, hl = mini_icons.get("directory", part)
+        if ic and ic ~= "" then dir_icon = ic end
+        if hl and hl ~= "" then dir_hl = hl end
+      end
+      table.insert(breadcrumbs, "%#" .. dir_hl .. "#" .. dir_icon .. "%#Comment#" .. part .. "%*")
     end
   end
 

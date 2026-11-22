@@ -22,14 +22,22 @@ function M.render()
     local name = vim.fn.fnamemodify(b.name, ":t")
     if name == "" then name = "[Untitled]" end
 
+    -- Resolve big, related file icon & color
+    local icon, icon_hl = "󰈔 ", (is_active and "TabLineSel" or "TabLine")
+    if name ~= "[Untitled]" then
+      local ok_mini, mini_icons = pcall(require, "mini.icons")
+      if ok_mini and mini_icons.get then
+        local ic, hl = mini_icons.get("file", name)
+        if ic and ic ~= "" then icon = ic end
+        if hl and hl ~= "" then icon_hl = hl end
+      end
+    end
+
     -- Rainbow accent color for tab index
     local rainbow_hl = rainbow_colors[((i - 1) % #rainbow_colors) + 1]
+    local tab_hl = is_active and "%#TabLineSel#" or "%#TabLine#"
 
-    if is_active then
-      s = s .. "%#TabLineSel# " .. rainbow_hl .. "▎%#TabLineSel# " .. name
-    else
-      s = s .. "%#TabLine# " .. rainbow_hl .. "▏%#TabLine# " .. name
-    end
+    s = s .. tab_hl .. " " .. rainbow_hl .. (is_active and "▎" or "▏") .. tab_hl .. " %#" .. icon_hl .. "#" .. icon .. tab_hl .. " " .. name
 
     if b.changed == 1 then
       s = s .. " %#GowiseFluentGreen#●%*"

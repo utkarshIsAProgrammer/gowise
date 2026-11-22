@@ -358,3 +358,16 @@ hl("BufferLineBackground", { fg = c.fg_muted, bg = c.bg_status })
 hl("BufferLineBufferSelected", { fg = c.fn, bg = c.bg, bold = true })
 hl("BufferLineIndicatorSelected", { fg = c.fn, bg = c.bg })
 hl("BufferLineSeparator", { fg = c.bg_status, bg = c.bg_status })
+
+-- ===================================================================
+-- Mini.icons (Vibrant Crimson Nocturne Palette)
+-- ===================================================================
+hl("MiniIconsAzure", { fg = "#7eb6ff" })
+hl("MiniIconsBlue", { fg = "#5a98d6" })
+hl("MiniIconsCyan", { fg = c.str })
+hl("MiniIconsGreen", { fg = c.git_add })
+hl("MiniIconsGrey", { fg = c.fg_dark })
+hl("MiniIconsOrange", { fg = c.const })
+hl("MiniIconsPurple", { fg = c.preproc })
+hl("MiniIconsRed", { fg = c.kw })
+hl("MiniIconsYellow", { fg = c.fn })

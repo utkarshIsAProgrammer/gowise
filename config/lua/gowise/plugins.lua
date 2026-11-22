@@ -23,15 +23,15 @@ local plugins = {
 
         ⚡ The Fluent, Modeless Terminal IDE]],
           keys = {
-            { icon = " ", key = "n", desc = "New File", action = ":ene | startinsert" },
-            { icon = " ", key = "p", desc = "Quick Open File (Ctrl+P)", action = ":lua Snacks.picker.files()" },
-            { icon = " ", key = "f", desc = "Find Text / Grep (Ctrl+Shift+F)", action = ":lua Snacks.picker.grep()" },
-            { icon = " ", key = "r", desc = "Recent Files", action = ":lua Snacks.picker.recent()" },
+            { icon = "󰈔 ", key = "n", desc = "New File", action = ":ene | startinsert" },
+            { icon = "󰍉 ", key = "p", desc = "Quick Open File (Ctrl+P)", action = ":lua Snacks.picker.files()" },
+            { icon = "󰈭 ", key = "f", desc = "Find Text / Grep (Ctrl+Shift+F)", action = ":lua Snacks.picker.grep()" },
+            { icon = "󱋡 ", key = "r", desc = "Recent Files", action = ":lua Snacks.picker.recent()" },
             { icon = " ", key = "t", desc = "Change Theme (Ctrl+K Ctrl+T)", action = ":lua require('gowise.themes.engine').theme_picker()" },
-            { icon = " ", key = "b", desc = "File Explorer (Ctrl+B)", action = ":lua require('gowise.components.tree').toggle()" },
+            { icon = "󰉍 ", key = "b", desc = "File Explorer (Ctrl+B)", action = ":lua require('gowise.components.tree').toggle()" },
             { icon = " ", key = "j", desc = "Terminal Drawer (Ctrl+`)", action = ":lua require('gowise.components.terminal').toggle()" },
-            { icon = "🩺", key = "d", desc = "Health Doctor", action = ":!gowise --doctor" },
-            { icon = " ", key = "q", desc = "Quit Editor", action = ":qa" },
+            { icon = "󰓅 ", key = "d", desc = "Health Doctor", action = ":!gowise --doctor" },
+            { icon = "󰈆 ", key = "q", desc = "Quit Editor", action = ":qa" },
           },
         },
         sections = {
@@ -65,6 +65,37 @@ local plugins = {
       picker = {
         enabled = true,
         ui_select = true,
+        icons = {
+          files = {
+            enabled = true,
+            dir = "󰉍 ",
+            dir_open = "󰉋 ",
+            file = "󰈔 ",
+          },
+          tree = {
+            vertical = "│ ",
+            middle   = "├─",
+            last     = "└─",
+          },
+          git = {
+            enabled   = true,
+            commit    = "󰜘 ",
+            staged    = "●",
+            added     = " ",
+            deleted   = " ",
+            ignored   = "◌ ",
+            modified  = "󰝥 ",
+            renamed   = "➜ ",
+            unmerged  = "󰀦 ",
+            untracked = "★ ",
+          },
+          diagnostics = {
+            Error = " ",
+            Warn  = " ",
+            Hint  = " ",
+            Info  = " ",
+          },
+        },
       },
       explorer = {
         enabled = true,
@@ -153,14 +184,22 @@ local plugins = {
     },
   },
 
-  -- 7. Mini.icons: Fast HD icons for files and folders
+  -- 7. Mini.icons: Fast HD icons for files and folders (Curated Big & Related Icons)
   {
     "echasnovski/mini.icons",
-    lazy = true,
-    opts = {},
+    lazy = false,
+    opts = function()
+      return require("gowise.ui.icons").opts
+    end,
+    config = function(_, opts)
+      local icons = require("mini.icons")
+      icons.setup(opts)
+      icons.mock_nvim_web_devicons()
+    end,
     init = function()
       package.preload["nvim-web-devicons"] = function()
-        require("mini.icons").mock_nvim_web_devicons()
+        local icons = require("mini.icons")
+        icons.mock_nvim_web_devicons()
         return package.loaded["nvim-web-devicons"]
       end
     end,

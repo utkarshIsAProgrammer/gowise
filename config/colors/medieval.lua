@@ -353,3 +353,16 @@ hl("BufferLineBackground", { fg = c.fg_muted, bg = c.bg_status })
 hl("BufferLineBufferSelected", { fg = c.gold, bg = c.bg, bold = true })
 hl("BufferLineIndicatorSelected", { fg = c.gold, bg = c.bg })
 hl("BufferLineSeparator", { fg = c.bg_status, bg = c.bg_status })
+
+-- ===================================================================
+-- Mini.icons (Vibrant Medieval Manuscript Palette)
+-- ===================================================================
+hl("MiniIconsAzure", { fg = c.steel })
+hl("MiniIconsBlue", { fg = c.steel })
+hl("MiniIconsCyan", { fg = c.teal })
+hl("MiniIconsGreen", { fg = c.moss })
+hl("MiniIconsGrey", { fg = c.fg_dark })
+hl("MiniIconsOrange", { fg = c.torch })
+hl("MiniIconsPurple", { fg = c.purple })
+hl("MiniIconsRed", { fg = c.crimson })
+hl("MiniIconsYellow", { fg = c.gold })
