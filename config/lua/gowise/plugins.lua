@@ -196,7 +196,7 @@ local plugins = {
     config = function()
       require("mason").setup({ ui = { border = "rounded" } })
       require("mason-lspconfig").setup({
-        ensure_installed = { "gopls", "ts_ls", "pyright", "rust_analyzer", "clangd", "bashls" },
+        ensure_installed = { "gopls", "ts_ls", "pyright", "rust_analyzer", "clangd", "bashls", "emmet_language_server", "html", "cssls" },
         automatic_installation = true,
       })
       require("gowise.lsp.servers").setup()
@@ -233,6 +233,13 @@ local plugins = {
         end
       end)
     end,
+  },
+
+  -- 11. Comment.nvim: Rock-solid Single-line (Ctrl+/) and Multi-line/Block (Shift+Alt+A) Comments
+  {
+    "numToStr/Comment.nvim",
+    event = { "BufReadPost", "BufNewFile" },
+    opts = {},
   },
 }
 

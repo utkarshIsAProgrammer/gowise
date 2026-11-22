@@ -28,6 +28,14 @@ M.servers = {
   jsonls = {},
   html = {},
   cssls = {},
+  emmet_language_server = {
+    filetypes = {
+      "html", "css", "sass", "scss", "less",
+      "javascript", "javascriptreact",
+      "typescript", "typescriptreact",
+      "vue", "svelte", "markdown",
+    },
+  },
 }
 
 function M.setup()

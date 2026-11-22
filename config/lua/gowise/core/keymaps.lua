@@ -210,6 +210,14 @@ map("i", "<C-S-Right>", "<Esc>ve", opts)
 map("v", "<C-S-Left>", "b", opts)
 map("v", "<C-S-Right>", "e", opts)
 
+-- Delete Selection with Backspace or Delete (VS Code Standard)
+map({ "v", "x" }, "<BS>", '"_c', { desc = "Delete Selection", silent = true })
+map({ "v", "x" }, "<Del>", '"_c', { desc = "Delete Selection", silent = true })
+map({ "v", "x" }, "<C-BS>", '"_c', { desc = "Delete Selection", silent = true })
+map({ "v", "x" }, "<M-BS>", '"_c', { desc = "Delete Selection", silent = true })
+map({ "v", "x" }, "<C-w>", '"_c', { desc = "Delete Selection", silent = true })
+map({ "v", "x" }, "<C-h>", '"_c', { desc = "Delete Selection", silent = true })
+
 -- Line & Document Selection (Shift+Home, Shift+End, Ctrl+Shift+Home/End)
 map({ "n", "i" }, "<S-Home>", "<Esc>v^", opts)
 map({ "n", "i" }, "<S-End>", "<Esc>v$", opts)
@@ -249,15 +257,59 @@ map({ "n", "i" }, "<C-S-CR>", "<Esc>O", opts)
 map("v", "<Tab>", ">gv", opts)
 map("v", "<S-Tab>", "<gv", opts)
 
--- Toggle Line Comment (Ctrl+/ and Ctrl+_)
-map({ "n", "i" }, "<C-/>", "<Esc>gccgi", { desc = "Toggle Comment", remap = true })
-map({ "n", "i" }, "<C-_>", "<Esc>gccgi", { desc = "Toggle Comment", remap = true })
-map("v", "<C-/>", "gc", { desc = "Toggle Comment", remap = true })
-map("v", "<C-_>", "gc", { desc = "Toggle Comment", remap = true })
+-- Line & Block Commenting Handlers
+local function toggle_line_comment_normal()
+  local ok, comment_api = pcall(require, "Comment.api")
+  if ok and comment_api then
+    comment_api.toggle.linewise.current()
+  else
+    vim.cmd("normal gcc")
+  end
+end
 
--- Toggle Block Comment (Shift+Alt+A)
-map("v", "<A-S-a>", "gc", { desc = "Block Comment", remap = true })
-map({ "n", "i" }, "<A-S-a>", "<Esc>gcapgi", { desc = "Block Comment", remap = true })
+local function toggle_line_comment_insert()
+  local pos = vim.api.nvim_win_get_cursor(0)
+  toggle_line_comment_normal()
+  pcall(vim.api.nvim_win_set_cursor, 0, pos)
+end
+
+local function toggle_block_comment_normal()
+  local ok, comment_api = pcall(require, "Comment.api")
+  if ok and comment_api then
+    comment_api.toggle.blockwise.current()
+  else
+    vim.cmd("normal gbc")
+  end
+end
+
+local function toggle_block_comment_insert()
+  local pos = vim.api.nvim_win_get_cursor(0)
+  toggle_block_comment_normal()
+  pcall(vim.api.nvim_win_set_cursor, 0, pos)
+end
+
+-- Toggle Line Comment (Ctrl+/ and Ctrl+_)
+map("n", "<C-/>", toggle_line_comment_normal, { desc = "Toggle Line Comment", silent = true })
+map("n", "<C-_>", toggle_line_comment_normal, { desc = "Toggle Line Comment", silent = true })
+map("n", "<C-7>", toggle_line_comment_normal, { desc = "Toggle Line Comment", silent = true })
+
+map("i", "<C-/>", toggle_line_comment_insert, { desc = "Toggle Line Comment", silent = true })
+map("i", "<C-_>", toggle_line_comment_insert, { desc = "Toggle Line Comment", silent = true })
+map("i", "<C-7>", toggle_line_comment_insert, { desc = "Toggle Line Comment", silent = true })
+
+map("v", "<C-/>", "gc", { desc = "Toggle Line Comment", remap = true })
+map("v", "<C-_>", "gc", { desc = "Toggle Line Comment", remap = true })
+map("v", "<C-7>", "gc", { desc = "Toggle Line Comment", remap = true })
+
+-- Toggle Block Comment (Shift+Alt+A / Alt+Shift+A)
+map("n", "<A-S-a>", toggle_block_comment_normal, { desc = "Toggle Block Comment", silent = true })
+map("n", "<M-A>", toggle_block_comment_normal, { desc = "Toggle Block Comment", silent = true })
+
+map("i", "<A-S-a>", toggle_block_comment_insert, { desc = "Toggle Block Comment", silent = true })
+map("i", "<M-A>", toggle_block_comment_insert, { desc = "Toggle Block Comment", silent = true })
+
+map("v", "<A-S-a>", "gb", { desc = "Toggle Block Comment", remap = true })
+map("v", "<M-A>", "gb", { desc = "Toggle Block Comment", remap = true })
 
 -- Code Folding (Ctrl+Shift+[ and Ctrl+Shift+])
 map({ "n", "i", "v" }, "<C-S-[>", "<Esc>zc", { desc = "Fold Block", silent = true })

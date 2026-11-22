@@ -13,6 +13,9 @@ CONFIG_DIR="$PROJECT_ROOT/config"
 # Ensure isolated NVIM_APPNAME
 export NVIM_APPNAME="gowise"
 
+# Invalidate stale bytecode cache so updates take effect immediately
+rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/gowise/luac" 2>/dev/null || true
+
 # Check if ~/.config/gowise exists or link it
 USER_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/gowise"
 if [ ! -e "$USER_CONFIG" ]; then

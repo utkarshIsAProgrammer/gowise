@@ -6,7 +6,8 @@ local opt = vim.opt
 -- Appearance & Theme Foundations
 opt.termguicolors = true
 opt.number = true
-opt.relativenumber = false
+opt.relativenumber = true  -- Vim-style relative + absolute line numbering
+opt.fillchars = { eob = " " } -- Hides the '~' characters at the end of the buffer!
 opt.cursorline = true
 opt.cursorlineopt = "both" -- Highlights the entire active line and number
 opt.signcolumn = "yes:1"   -- Fixed sign column to prevent layout shifts
