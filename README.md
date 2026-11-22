@@ -1,5 +1,9 @@
 # Minimal Code Editor
 
+<p align="center">
+  <img src="assets/banner.png" alt="Minimal Code Editor Promo Banner" width="100%" />
+</p>
+
 > **The Fluent, Modeless Terminal Code Editor for All Operating Systems.**  
 > Blends the blazing speed (<50ms startup) and low resource footprint of the terminal with the modeless editing, rich aesthetics, and polyglot power of modern graphical IDEs like VS Code and Zed.
 
@@ -84,8 +88,19 @@ minimal --benchmark
 
 ## 🧹 Clean Uninstallation
 
-If you ever wish to remove Minimal, it cleans up all its symlinks, cache, and state, leaving your system completely untouched:
+If you ever wish to remove Minimal, it cleans up all its symlinks, cache, state, and desktop entries, leaving your system completely untouched:
 
+### From Cloned Repository:
+- **Linux / macOS**:
+  ```bash
+  ./uninstall.sh
+  ```
+- **Windows**:
+  ```powershell
+  .\uninstall.ps1
+  ```
+
+### Via One-Liner (Without Cloning):
 - **Linux / macOS**:
   ```bash
   curl -fsSL https://raw.githubusercontent.com/utkarshIsAProgrammer/minimal/main/uninstall.sh | bash -s -- -y
