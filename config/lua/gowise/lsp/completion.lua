@@ -50,6 +50,11 @@ M.spec = {
       default = { "lsp", "path", "snippets", "buffer" },
     },
     completion = {
+      trigger = {
+        show_on_keyword = true,
+        show_on_trigger_character = true,
+        show_on_insert_on_trigger_character = true,
+      },
       menu = {
         border = "rounded",
         draw = {

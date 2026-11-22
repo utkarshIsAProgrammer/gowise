@@ -229,11 +229,11 @@ local plugins = {
   -- 9. LSP Configuration & Mason Automated Installer
   {
     "neovim/nvim-lspconfig",
+    lazy = false,
     dependencies = {
       "williamboman/mason.nvim",
       "williamboman/mason-lspconfig.nvim",
     },
-    event = { "BufReadPre", "BufNewFile" },
     config = function()
       require("mason").setup({ ui = { border = "rounded" } })
       require("mason-lspconfig").setup({

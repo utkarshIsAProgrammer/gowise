@@ -84,8 +84,8 @@ api.nvim_create_autocmd("VimResized", {
 })
 
 -- 7. Seamless Workspace Directory Interception
--- Automatically handles opening directories (gowise <folder>, :edit <dir>) without E17 errors
-api.nvim_create_autocmd({ "BufReadCmd", "BufEnter" }, {
+-- Automatically handles opening directories (gowise <folder>, :edit <dir>)
+api.nvim_create_autocmd("BufEnter", {
   group = gowise_group,
   pattern = "*",
   nested = true,

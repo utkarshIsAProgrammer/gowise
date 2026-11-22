@@ -77,13 +77,41 @@ function M.sync_height()
   end
 end
 
+function M.get_target_dir()
+  local buf = vim.api.nvim_get_current_buf()
+  local buf_name = vim.api.nvim_buf_get_name(buf)
+  if buf_name and buf_name ~= "" then
+    local path = vim.fs.normalize(buf_name)
+    if vim.fn.isdirectory(path) == 1 then
+      return path
+    end
+    local root = vim.fs.root(path, { ".git", "package.json", "go.mod", "Cargo.toml", "Makefile", ".root" })
+    if root and root ~= "" and vim.fn.isdirectory(root) == 1 then
+      return root
+    end
+    local parent = vim.fs.dirname(path)
+    if parent and parent ~= "" and vim.fn.isdirectory(parent) == 1 then
+      return parent
+    end
+  end
+
+  local cwd = vim.fn.getcwd()
+  local root = vim.fs.root(cwd, { ".git", "package.json", "go.mod", "Cargo.toml", "Makefile", ".root" })
+  if root and root ~= "" and vim.fn.isdirectory(root) == 1 then
+    return root
+  end
+  return cwd
+end
+
 function M.toggle()
   pcall(vim.fn.mkdir, vim.fn.stdpath("cache") .. "/luac", "p")
   if Snacks and Snacks.terminal then
     M.sync_height()
 
     local shell = get_shell()
+    local target_dir = M.get_target_dir()
     local term = Snacks.terminal.toggle(shell, {
+      cwd = target_dir,
       win = {
         position = "bottom",
         height = M.height,
@@ -96,8 +124,20 @@ function M.toggle()
       },
     })
 
+    if term and term.buf and vim.api.nvim_buf_is_valid(term.buf) then
+      local chan = vim.b[term.buf].terminal_job_id
+      local current_term_cwd = vim.b[term.buf].gowise_term_cwd
+      if chan and current_term_cwd and current_term_cwd ~= target_dir then
+        pcall(vim.api.nvim_chan_send, chan, string.format(" cd %q && clear\r", target_dir))
+        vim.b[term.buf].gowise_term_cwd = target_dir
+      elseif chan and not current_term_cwd then
+        vim.b[term.buf].gowise_term_cwd = target_dir
+      end
+    end
+
     if term and term.opts then
       term.opts.height = M.height
+      term.opts.cwd = target_dir
     end
 
     vim.schedule(function()
@@ -120,7 +160,9 @@ function M.new_instance()
   if Snacks and Snacks.terminal then
     M.sync_height()
     local shell = get_shell()
+    local target_dir = M.get_target_dir()
     local term = Snacks.terminal.open(shell, {
+      cwd = target_dir,
       win = {
         position = "bottom",
         height = M.height,
@@ -134,6 +176,7 @@ function M.new_instance()
     })
     if term and term.opts then
       term.opts.height = M.height
+      term.opts.cwd = target_dir
     end
   end
 end
