@@ -9,7 +9,38 @@ local plugins = {
     lazy = false,
     opts = {
       bigfile = { enabled = true },
-      dashboard = { enabled = false },
+      dashboard = {
+        enabled = true,
+        width = 62,
+        preset = {
+          header = [[
+   ██████╗  ██████╗ ██╗    ██╗██╗███████╗███████╗
+  ██╔════╝ ██╔═══██╗██║    ██║██║██╔════╝██╔════╝
+  ██║  ███╗██║   ██║██║ █╗ ██║██║███████╗█████╗  
+  ██║   ██║██║   ██║██║███╗██║██║╚════██║██╔══╝  
+  ╚██████╔╝╚██████╔╝╚███╔███╔╝██║███████║███████╗
+   ╚═════╝  ╚═════╝  ╚══╝╚══╝ ╚═╝╚══════╝╚══════╝
+
+        ⚡ The Fluent, Modeless Terminal IDE]],
+          keys = {
+            { icon = " ", key = "n", desc = "New File", action = ":ene | startinsert" },
+            { icon = " ", key = "p", desc = "Quick Open File (Ctrl+P)", action = ":lua Snacks.picker.files()" },
+            { icon = " ", key = "f", desc = "Find Text / Grep (Ctrl+Shift+F)", action = ":lua Snacks.picker.grep()" },
+            { icon = " ", key = "r", desc = "Recent Files", action = ":lua Snacks.picker.recent()" },
+            { icon = " ", key = "t", desc = "Change Theme (Ctrl+K Ctrl+T)", action = ":lua require('gowise.themes.engine').theme_picker()" },
+            { icon = " ", key = "b", desc = "File Explorer (Ctrl+B)", action = ":lua require('gowise.components.tree').toggle()" },
+            { icon = " ", key = "j", desc = "Terminal Drawer (Ctrl+`)", action = ":lua require('gowise.components.terminal').toggle()" },
+            { icon = "🩺", key = "d", desc = "Health Doctor", action = ":!gowise --doctor" },
+            { icon = " ", key = "q", desc = "Quit Editor", action = ":qa" },
+          },
+        },
+        sections = {
+          { section = "header" },
+          { section = "keys", gap = 1, padding = 1 },
+          { section = "recent_files", icon = " ", title = "Recent Files", indent = 2, padding = 1 },
+          { section = "startup" },
+        },
+      },
       notifier = { enabled = true, timeout = 3000 },
       quickfile = { enabled = true },
       statuscolumn = { enabled = false },

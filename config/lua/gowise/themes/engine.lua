@@ -43,6 +43,22 @@ function M.apply(theme_name)
   local theme = M.themes[theme_name] or M.themes["obsidian"]
   theme.apply()
   vim.g.gowise_active_theme = theme.name
+
+  local p = theme.palette
+  local set = vim.api.nvim_set_hl
+
+  -- Dashboard highlights tuned to active theme
+  local primary = p.cyan or p.emerald or p.magenta or p.blue or p.tangerine or "#00E5FF"
+  local accent = p.fluent_green or p.mint or p.lime or "#00E676"
+  local key_color = p.yellow or p.amber or p.cyan or "#FFD600"
+  local title_color = p.purple or p.violet or p.indigo or "#9D4EDD"
+
+  set(0, "SnacksDashboardHeader", { fg = primary, bold = true })
+  set(0, "SnacksDashboardIcon", { fg = accent, bold = true })
+  set(0, "SnacksDashboardKey", { fg = key_color, bold = true })
+  set(0, "SnacksDashboardDesc", { fg = p.fg })
+  set(0, "SnacksDashboardTitle", { fg = title_color, bold = true })
+  set(0, "SnacksDashboardFooter", { fg = p.fg_muted, italic = true })
 end
 
 function M.setup()

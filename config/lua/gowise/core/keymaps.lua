@@ -31,8 +31,12 @@ map({ "n", "i", "v", "x" }, "<C-s>", "<Esc>:w<CR>", { desc = "Save File", silent
 -- Save All (Ctrl+Shift+S)
 map({ "n", "i", "v", "x" }, "<C-S-s>", "<Esc>:wa<CR>", { desc = "Save All Files", silent = true })
 
--- Close Current Tab / Buffer (Ctrl+W)
-map({ "n", "i", "v" }, "<C-w>", function()
+-- Close Current Tab / Buffer (Ctrl+W in Normal/Visual, Ctrl+Q in all modes)
+map({ "n", "v" }, "<C-w>", function()
+  close_active_buffer()
+end, { desc = "Close Tab", silent = true })
+
+map({ "n", "i", "v" }, "<C-q>", function()
   close_active_buffer()
 end, { desc = "Close Tab", silent = true })
 
@@ -77,7 +81,7 @@ map("c", "<C-v>", '<C-r>+', { noremap = true })
 map({ "n", "i" }, "<C-Left>", "<C-o>b", opts)
 map({ "n", "i" }, "<C-Right>", "<C-o>e<Right>", opts)
 
--- Word Delete Left (Ctrl+Backspace)
+-- Word Delete Left (Ctrl+Backspace, Alt+Backspace, Ctrl+W, Ctrl+H in insert mode)
 local function delete_word_left()
   local col = vim.fn.col(".")
   if col <= 1 then
@@ -101,8 +105,12 @@ local function delete_word_left()
   vim.api.nvim_win_set_cursor(0, { vim.fn.line("."), col - len })
 end
 
+-- Map all possible terminal variations of Ctrl+Backspace to delete_word_left
 map("i", "<C-BS>", delete_word_left, opts)
 map("i", "<M-BS>", delete_word_left, opts)
+map("i", "<C-w>", delete_word_left, { desc = "Delete Word Left", silent = true })
+map("i", "<C-h>", delete_word_left, { desc = "Delete Word Left", silent = true })
+map("i", "<M-h>", delete_word_left, { desc = "Delete Word Left", silent = true })
 map("n", "<C-BS>", "db", opts)
 map("n", "<M-BS>", "db", opts)
 
