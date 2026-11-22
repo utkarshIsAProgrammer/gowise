@@ -15,6 +15,12 @@ if not vim.tbl_contains(vim.opt.rtp:get(), config_dir) then
   vim.opt.rtp:prepend(config_dir)
 end
 
+-- Prepend Mason bin directory to PATH so formatters and language servers are immediately available
+local mason_bin = vim.fn.stdpath("data") .. "/mason/bin"
+if vim.fn.isdirectory(mason_bin) == 1 then
+  vim.env.PATH = mason_bin .. ":" .. vim.env.PATH
+end
+
 -- Disable unused Vim internal plugins for maximum startup speed
 local disabled_builtins = {
   "gzip", "zip", "zipPlugin", "tar", "tarPlugin", "getscript", "getscriptPlugin",

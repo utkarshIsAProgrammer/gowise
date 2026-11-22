@@ -241,6 +241,44 @@ local plugins = {
     event = { "BufReadPost", "BufNewFile" },
     opts = {},
   },
+
+  -- 12. Conform.nvim: Universal High-Speed Code Formatter for All Files
+  {
+    "stevearc/conform.nvim",
+    event = { "BufWritePre" },
+    cmd = { "ConformInfo" },
+    opts = {
+      formatters_by_ft = {
+        lua = { "stylua" },
+        python = { "ruff_format", "black", stop_after_first = true },
+        javascript = { "prettier", stop_after_first = true },
+        typescript = { "prettier", stop_after_first = true },
+        javascriptreact = { "prettier", stop_after_first = true },
+        typescriptreact = { "prettier", stop_after_first = true },
+        html = { "prettier", stop_after_first = true },
+        css = { "prettier", stop_after_first = true },
+        scss = { "prettier", stop_after_first = true },
+        less = { "prettier", stop_after_first = true },
+        json = { "prettier", stop_after_first = true },
+        jsonc = { "prettier", stop_after_first = true },
+        yaml = { "prettier", stop_after_first = true },
+        markdown = { "prettier", stop_after_first = true },
+        go = { "gofmt", "goimports" },
+        rust = { "rustfmt" },
+        c = { "clang-format" },
+        cpp = { "clang-format" },
+        sh = { "shfmt" },
+        bash = { "shfmt" },
+      },
+      default_format_opts = {
+        lsp_format = "fallback",
+      },
+      format_on_save = {
+        timeout_ms = 1500,
+        lsp_format = "fallback",
+      },
+    },
+  },
 }
 
 -- Initialize Lazy package manager

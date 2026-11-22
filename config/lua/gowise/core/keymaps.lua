@@ -450,8 +450,17 @@ map({ "n", "i" }, "<C-.>", vim.lsp.buf.code_action, { desc = "Code Action" })
 
 -- Format Document (Shift+Alt+F)
 map({ "n", "i", "v" }, "<A-S-f>", function()
-  vim.lsp.buf.format({ async = true })
-end, { desc = "Format Document" })
+  local ok, conform = pcall(require, "conform")
+  if ok and conform then
+    conform.format({ async = true, lsp_format = "fallback" }, function(err)
+      if not err then
+        vim.notify("Formatted document successfully", vim.log.levels.INFO, { title = "Gowise Formatter" })
+      end
+    end)
+  else
+    vim.lsp.buf.format({ async = true })
+  end
+end, { desc = "Format Document", silent = true })
 
 -- Parameter Hints / Signature Help (Ctrl+Shift+Space)
 map("i", "<C-S-Space>", vim.lsp.buf.signature_help, { desc = "Signature Help" })

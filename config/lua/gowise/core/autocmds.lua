@@ -52,16 +52,21 @@ api.nvim_create_autocmd("TermOpen", {
   end,
 })
 
--- 5. Auto Format on Save (If LSP Formatter is Available)
+-- 5. Auto Format on Save (Handled cleanly by conform.nvim or LSP fallback)
 api.nvim_create_autocmd("BufWritePre", {
   group = gowise_group,
   callback = function(args)
     if vim.g.gowise_format_on_save ~= false then
-      local clients = vim.lsp.get_clients({ bufnr = args.buf })
-      for _, client in ipairs(clients) do
-        if client:supports_method("textDocument/formatting") then
-          vim.lsp.buf.format({ bufnr = args.buf, timeout_ms = 1000 })
-          break
+      local ok, conform = pcall(require, "conform")
+      if ok and conform then
+        conform.format({ bufnr = args.buf, timeout_ms = 1500, lsp_format = "fallback" })
+      else
+        local clients = vim.lsp.get_clients({ bufnr = args.buf })
+        for _, client in ipairs(clients) do
+          if client:supports_method("textDocument/formatting") then
+            vim.lsp.buf.format({ bufnr = args.buf, timeout_ms = 1000 })
+            break
+          end
         end
       end
     end
