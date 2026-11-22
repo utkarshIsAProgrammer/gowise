@@ -3,6 +3,22 @@
 
 local M = {}
 
+local function make_root_dir_fn(custom_markers)
+  local markers = custom_markers or { ".git", "package.json", "go.mod", "Cargo.toml", "index.html" }
+  return function(bufnr, on_dir)
+    local fname = type(bufnr) == "number" and vim.api.nvim_buf_get_name(bufnr) or bufnr or ""
+    local root = nil
+    if fname ~= "" then
+      root = vim.fs.root(fname, markers) or vim.fs.dirname(fname)
+    end
+    root = root or vim.fn.getcwd()
+    if type(on_dir) == "function" then
+      on_dir(root)
+    end
+    return root
+  end
+end
+
 M.servers = {
   gopls = {
     settings = {
@@ -36,11 +52,8 @@ M.servers = {
       "typescript", "typescriptreact",
       "vue", "svelte", "markdown",
     },
-    root_dir = function(fname)
-      return vim.fs.root(fname, { ".git", "package.json", "index.html" })
-        or vim.fs.dirname(fname)
-        or vim.fn.getcwd()
-    end,
+    root_markers = { ".git", "package.json", "index.html" },
+    root_dir = make_root_dir_fn({ ".git", "package.json", "index.html" }),
   },
 }
 
@@ -52,27 +65,27 @@ function M.setup()
     capabilities = blink.get_lsp_capabilities(capabilities)
   end
 
-  local ok_lspconfig, lspconfig = pcall(require, "lspconfig")
+  local is_native_lsp = (vim.lsp.config ~= nil and vim.lsp.enable ~= nil)
 
   for server, user_config in pairs(M.servers) do
     local s_config = vim.deepcopy(user_config)
     s_config.capabilities = vim.tbl_deep_extend("force", {}, capabilities, s_config.capabilities or {})
 
-    if not s_config.root_dir then
-      s_config.root_dir = function(fname)
-        return vim.fs.root(fname, { ".git", "package.json", "go.mod", "Cargo.toml", "index.html" })
-          or vim.fs.dirname(fname)
-          or vim.fn.getcwd()
-      end
+    if not s_config.root_dir and not s_config.root_markers then
+      s_config.root_markers = { ".git", "package.json", "go.mod", "Cargo.toml", "index.html" }
+      s_config.root_dir = make_root_dir_fn()
     end
 
-    if ok_lspconfig and lspconfig and lspconfig[server] then
-      pcall(function()
-        lspconfig[server].setup(s_config)
-      end)
-    elseif vim.lsp.config and vim.lsp.enable then
+    if is_native_lsp then
       vim.lsp.config(server, s_config)
       vim.lsp.enable(server)
+    else
+      local ok_lspconfig, lspconfig = pcall(require, "lspconfig")
+      if ok_lspconfig and lspconfig and lspconfig[server] then
+        pcall(function()
+          lspconfig[server].setup(s_config)
+        end)
+      end
     end
   end
 end
