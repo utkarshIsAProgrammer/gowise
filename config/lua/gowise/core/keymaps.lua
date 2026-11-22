@@ -780,20 +780,28 @@ map({ "n", "i", "v", "t" }, "<C-b>", function()
   require("gowise.components.tree").toggle()
 end, { desc = "Toggle Sidebar", silent = true })
 
--- Toggle Terminal Drawer (Ctrl+`, Ctrl+~, Ctrl+^, Ctrl+@, Ctrl+J across ALL modes)
-local term_toggle_keys = { "<C-`>", "<C-~>", "<C-^>", "<C-@>", "<C-j>" }
+-- Toggle Terminal Drawer (Ctrl+`, Ctrl+~, Ctrl+Shift+`, Ctrl+Shift+~, Ctrl+^, Ctrl+@, Ctrl+J across ALL modes)
+local term_toggle_keys = {
+  "<C-`>",
+  "<C-~>",
+  "<C-S-`>",
+  "<C-S-~>",
+  "<C-^>",
+  "<C-@>",
+  "<C-j>",
+  "\27[96;5u",
+  "\27[96;6u",
+  "\27[126;5u",
+  "\27[126;6u",
+}
 for _, key in ipairs(term_toggle_keys) do
   map({ "n", "i", "t", "v" }, key, function()
     require("gowise.components.terminal").toggle()
   end, { desc = "Toggle Terminal Drawer", silent = true })
 end
 
--- New Terminal Tab (Ctrl+Shift+` and Ctrl+Shift+~)
-map({ "n", "i", "t", "v" }, "<C-S-`>", function()
-  require("gowise.components.terminal").new_instance()
-end, { desc = "New Terminal Instance", silent = true })
-
-map({ "n", "i", "t", "v" }, "<C-S-~>", function()
+-- New Terminal Instance (dedicated shortcut, preventing Ctrl+~ accidental split)
+map({ "n", "i", "t", "v" }, "<leader>tn", function()
   require("gowise.components.terminal").new_instance()
 end, { desc = "New Terminal Instance", silent = true })
 

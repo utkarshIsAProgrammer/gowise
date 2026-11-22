@@ -77,8 +77,17 @@ function M.sync_height()
   end
 end
 
+M.current_term = nil
+
 function M.get_target_dir()
   local buf = vim.api.nvim_get_current_buf()
+  if vim.bo[buf].buftype == "terminal" or vim.bo[buf].filetype == "snacks_terminal" or vim.b[buf].snacks_terminal then
+    if vim.b[buf].gowise_term_cwd and vim.b[buf].gowise_term_cwd ~= "" then
+      return vim.b[buf].gowise_term_cwd
+    end
+    return vim.fn.getcwd()
+  end
+
   local buf_name = vim.api.nvim_buf_get_name(buf)
   if buf_name and buf_name ~= "" then
     local path = vim.fs.normalize(buf_name)
@@ -105,55 +114,88 @@ end
 
 function M.toggle()
   pcall(vim.fn.mkdir, vim.fn.stdpath("cache") .. "/luac", "p")
-  if Snacks and Snacks.terminal then
-    M.sync_height()
-
-    local shell = get_shell()
-    local target_dir = M.get_target_dir()
-    local term = Snacks.terminal.toggle(shell, {
-      cwd = target_dir,
-      win = {
-        position = "bottom",
-        height = M.height,
-        border = "top",
-      },
-      interactive = true,
-      env = {
-        TERM_PROGRAM = "gowise",
-        GOWISE_TERMINAL = "1",
-      },
-    })
-
-    if term and term.buf and vim.api.nvim_buf_is_valid(term.buf) then
-      local chan = vim.b[term.buf].terminal_job_id
-      local current_term_cwd = vim.b[term.buf].gowise_term_cwd
-      if chan and current_term_cwd and current_term_cwd ~= target_dir then
-        pcall(vim.api.nvim_chan_send, chan, string.format(" cd %q && clear\r", target_dir))
-        vim.b[term.buf].gowise_term_cwd = target_dir
-      elseif chan and not current_term_cwd then
-        vim.b[term.buf].gowise_term_cwd = target_dir
-      end
-    end
-
-    if term and term.opts then
-      term.opts.height = M.height
-      term.opts.cwd = target_dir
-    end
-
-    vim.schedule(function()
-      for _, win in ipairs(vim.api.nvim_list_wins()) do
-        if vim.api.nvim_win_is_valid(win) then
-          local buf = vim.api.nvim_win_get_buf(win)
-          if vim.bo[buf].buftype == "terminal" or vim.bo[buf].filetype == "snacks_terminal" or vim.b[buf].snacks_terminal then
-            if vim.api.nvim_win_get_height(win) ~= M.height then
-              pcall(vim.api.nvim_win_set_height, win, M.height)
-            end
-            break
-          end
-        end
-      end
-    end)
+  if not (Snacks and Snacks.terminal) then
+    return
   end
+
+  M.sync_height()
+
+  -- Check if any terminal window is currently visible in active tabpage
+  local visible_terms = {}
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_is_valid(win) then
+      local buf = vim.api.nvim_win_get_buf(win)
+      if vim.bo[buf].buftype == "terminal" or vim.bo[buf].filetype == "snacks_terminal" or vim.b[buf].snacks_terminal then
+        table.insert(visible_terms, { win = win, buf = buf })
+      end
+    end
+  end
+
+  -- If any terminal is currently open and visible: HIDE IT (Single drawer toggle)
+  if #visible_terms > 0 then
+    if M.current_term and M.current_term:valid() then
+      M.current_term:hide()
+    end
+    for _, item in ipairs(visible_terms) do
+      if vim.api.nvim_win_is_valid(item.win) then
+        pcall(vim.api.nvim_win_close, item.win, false)
+      end
+    end
+    return
+  end
+
+  -- Terminal is closed/hidden: open or reveal the existing terminal instance
+  local shell = get_shell()
+  local target_dir = M.get_target_dir()
+
+  if M.current_term and M.current_term:buf_valid() then
+    M.current_term:show():focus()
+    if M.current_term.win and vim.api.nvim_win_is_valid(M.current_term.win) then
+      pcall(vim.api.nvim_win_set_height, M.current_term.win, M.height)
+    end
+    local chan = vim.b[M.current_term.buf].terminal_job_id
+    local current_term_cwd = vim.b[M.current_term.buf].gowise_term_cwd
+    if chan and current_term_cwd and current_term_cwd ~= target_dir then
+      pcall(vim.api.nvim_chan_send, chan, string.format(" cd %q && clear\r", target_dir))
+      vim.b[M.current_term.buf].gowise_term_cwd = target_dir
+    elseif chan and not current_term_cwd then
+      vim.b[M.current_term.buf].gowise_term_cwd = target_dir
+    end
+    return
+  end
+
+  -- Create brand new terminal instance
+  local term = Snacks.terminal.get(shell, {
+    cwd = target_dir,
+    win = {
+      position = "bottom",
+      height = M.height,
+      border = "top",
+    },
+    interactive = true,
+    env = {
+      TERM_PROGRAM = "gowise",
+      GOWISE_TERMINAL = "1",
+    },
+  })
+
+  M.current_term = term
+
+  if term and not term:valid() then
+    term:show():focus()
+  elseif term and term:valid() then
+    term:focus()
+  end
+
+  if term and term.buf and vim.api.nvim_buf_is_valid(term.buf) then
+    vim.b[term.buf].gowise_term_cwd = target_dir
+  end
+
+  vim.schedule(function()
+    if term and term.win and vim.api.nvim_win_is_valid(term.win) then
+      pcall(vim.api.nvim_win_set_height, term.win, M.height)
+    end
+  end)
 end
 
 function M.new_instance()
@@ -174,9 +216,9 @@ function M.new_instance()
         GOWISE_TERMINAL = "1",
       },
     })
-    if term and term.opts then
-      term.opts.height = M.height
-      term.opts.cwd = target_dir
+    M.current_term = term
+    if term and term.buf and vim.api.nvim_buf_is_valid(term.buf) then
+      vim.b[term.buf].gowise_term_cwd = target_dir
     end
   end
 end
@@ -226,6 +268,11 @@ function M.setup()
   vim.api.nvim_create_user_command("Terminal", function()
     M.toggle()
   end, { desc = "Toggle Gowise Integrated Bash Terminal" })
+
+  -- User command: :TerminalNew to create a new instance
+  vim.api.nvim_create_user_command("TerminalNew", function()
+    M.new_instance()
+  end, { desc = "Open New Gowise Bash Terminal Instance" })
 end
 
 return M
