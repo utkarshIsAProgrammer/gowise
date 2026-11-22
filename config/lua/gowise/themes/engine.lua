@@ -1,122 +1,310 @@
--- Gowise Theme Engine & Live Preview Switcher
--- Manages custom signature themes with persistent settings and live previews
+-- ===================================================================
+-- Gowise Theme Engine (Imported from Minimal Code Editor)
+-- Curated Bespoke Themes: Dark Magic, Cyber Aurora, Medieval Scriptorium, Crimson Nocturne
+-- ===================================================================
 
 local M = {}
 
+local theme_file = vim.fn.stdpath("state") .. "/active_theme.txt"
+local transparency_file = vim.fn.stdpath("state") .. "/transparency.txt"
+
+-- Transparency configuration and persistence
+function M.is_transparent()
+  if vim.fn.filereadable(transparency_file) == 1 then
+    local lines = vim.fn.readfile(transparency_file)
+    if lines and lines[1] and lines[1]:match("%S") then
+      local val = vim.trim(lines[1]):lower()
+      return (val == "true" or val == "1" or val == "on")
+    end
+  end
+  -- Default to true for acrylic frosted glass terminal look
+  return true
+end
+
+function M.save_transparency(enabled)
+  pcall(vim.fn.mkdir, vim.fn.fnamemodify(transparency_file, ":p:h"), "p")
+  vim.fn.writefile({ enabled and "true" or "false" }, transparency_file)
+end
+
+function M.apply_transparency_globals(enabled)
+  vim.g.minimal_transparent = enabled
+  vim.g.gowise_transparent = enabled
+  vim.g.darkmagic_transparent = enabled
+  vim.g.cyberaurora_transparent = enabled
+  vim.g.medieval_transparent = enabled
+  vim.g.nocturne_transparent = enabled
+end
+
+function M.init_transparency()
+  local trans = M.is_transparent()
+  M.apply_transparency_globals(trans)
+end
+
+function M.set_transparency(enabled, notify)
+  M.apply_transparency_globals(enabled)
+  M.save_transparency(enabled)
+  local cur = vim.g.colors_name or M.get_current_theme()
+  pcall(vim.cmd, "colorscheme " .. cur)
+  if notify ~= false then
+    local state_str = enabled and "ON (Acrylic Glass / Terminal Pass-Through)" or "OFF (Rich Solid Theme Colors)"
+    vim.notify("✓ Background Transparency: " .. state_str, vim.log.levels.INFO, { title = "Gowise Theme" })
+  end
+end
+
+function M.toggle_transparency()
+  local current = (vim.g.minimal_transparent ~= false)
+  M.set_transparency(not current, true)
+end
+
+-- Curated list of bespoke themes from Minimal Code Editor
 M.themes = {
-  obsidian = require("gowise.themes.obsidian"),
-  aurora   = require("gowise.themes.aurora"),
-  cyber    = require("gowise.themes.cyber"),
-  titanium = require("gowise.themes.titanium"),
-  espresso = require("gowise.themes.espresso"),
-  nebula   = require("gowise.themes.nebula"),
+  {
+    name = "darkmagic",
+    label = "Dark Magic",
+    desc = "Neon Synthwave & Cyberpunk (#07070f)",
+    icon = "🔮 ",
+  },
+  {
+    name = "cyberaurora",
+    label = "Cyber Aurora",
+    desc = "High-contrast Electric Aurora on Deep Midnight",
+    icon = "🌌 ",
+  },
+  {
+    name = "medieval",
+    label = "Medieval Scriptorium",
+    desc = "Illuminated Manuscript, Dragon Gold & Castle Stone (#0e0d0b)",
+    icon = "📜 ",
+  },
+  {
+    name = "nocturne",
+    label = "Crimson Nocturne",
+    desc = "Gothic Black Velvet, Mahogany & Dragon Ruby (#0b0709)",
+    icon = "🩸 ",
+  },
 }
 
-local settings_path = vim.fn.stdpath("config") .. "/settings.json"
-
-function M.get_current_theme_name()
-  if vim.fn.filereadable(settings_path) == 1 then
-    local content = vim.fn.readfile(settings_path)
-    local ok, parsed = pcall(vim.fn.json_decode, table.concat(content, ""))
-    if ok and parsed and parsed.theme and M.themes[parsed.theme] then
-      return parsed.theme
+-- Load saved theme or fallback to darkmagic
+function M.get_current_theme()
+  if vim.fn.filereadable(theme_file) == 1 then
+    local lines = vim.fn.readfile(theme_file)
+    if lines and lines[1] and lines[1]:match("%S") then
+      local saved = vim.trim(lines[1])
+      for _, t in ipairs(M.themes) do
+        if t.name == saved then
+          return saved
+        end
+      end
     end
   end
-  return "obsidian"
+  return "darkmagic"
 end
 
+-- Save theme to disk
 function M.save_theme(theme_name)
-  local data = { theme = theme_name }
-  if vim.fn.filereadable(settings_path) == 1 then
-    local content = vim.fn.readfile(settings_path)
-    local ok, parsed = pcall(vim.fn.json_decode, table.concat(content, ""))
-    if ok and type(parsed) == "table" then
-      data = parsed
-      data.theme = theme_name
+  pcall(vim.fn.mkdir, vim.fn.fnamemodify(theme_file, ":p:h"), "p")
+  vim.fn.writefile({ theme_name }, theme_file)
+end
+
+-- Apply indent rainbow highlights matching the active color scheme
+function M.apply_indent_rainbow()
+  vim.api.nvim_set_hl(0, "SnacksIndent1", { fg = "#e06c75" })
+  vim.api.nvim_set_hl(0, "SnacksIndent2", { fg = "#e5c07b" })
+  vim.api.nvim_set_hl(0, "SnacksIndent3", { fg = "#98c379" })
+  vim.api.nvim_set_hl(0, "SnacksIndent4", { fg = "#56b6c2" })
+  vim.api.nvim_set_hl(0, "SnacksIndent5", { fg = "#61afef" })
+  vim.api.nvim_set_hl(0, "SnacksIndent6", { fg = "#c678dd" })
+  vim.api.nvim_set_hl(0, "SnacksIndentScope", { fg = "#a6e3a1", bold = true })
+  vim.api.nvim_set_hl(0, "SnacksIndentChunk", { fg = "#a6e3a1", bold = true })
+  vim.api.nvim_set_hl(0, "MiniIndentscopeSymbol", { fg = "#a6e3a1", bold = true })
+  vim.api.nvim_set_hl(0, "SnacksIndent", { fg = "#3b4252" })
+end
+
+-- Apply theme cleanly
+function M.set_theme(theme_name, notify)
+  local ok, err = pcall(vim.cmd, "colorscheme " .. theme_name)
+  if ok then
+    M.save_theme(theme_name)
+    M.apply_indent_rainbow()
+    pcall(function()
+      local lualine = require("lualine")
+      lualine.setup({ options = { theme = "auto" } })
+    end)
+    if notify ~= false then
+      local label = theme_name
+      for _, t in ipairs(M.themes) do
+        if t.name == theme_name then
+          label = t.icon .. t.label .. " — " .. t.desc
+          break
+        end
+      end
+      vim.notify("✓ Switched to " .. label, vim.log.levels.INFO, { title = "Gowise Theme" })
+    end
+    return true
+  else
+    vim.notify("Failed to apply theme '" .. theme_name .. "': " .. tostring(err), vim.log.levels.ERROR, { title = "Gowise Theme" })
+    return false
+  end
+end
+
+-- Cycle through all handcrafted themes
+function M.toggle()
+  local current = vim.g.colors_name or M.get_current_theme()
+  local cycle = {
+    "darkmagic",
+    "cyberaurora",
+    "medieval",
+    "nocturne",
+  }
+  local next_theme = cycle[1]
+  for i, name in ipairs(cycle) do
+    if name == current then
+      next_theme = cycle[(i % #cycle) + 1]
+      break
     end
   end
-  local encoded = vim.fn.json_encode(data)
-  vim.fn.writefile({ encoded }, settings_path)
+  M.set_theme(next_theme, true)
 end
 
-function M.apply(theme_name)
-  local theme = M.themes[theme_name] or M.themes["obsidian"]
-  theme.apply()
-  vim.g.gowise_active_theme = theme.name
-
-  local p = theme.palette
-  local set = vim.api.nvim_set_hl
-
-  -- Dashboard highlights tuned to active theme
-  local primary = p.cyan or p.emerald or p.magenta or p.blue or p.tangerine or "#00E5FF"
-  local accent = p.fluent_green or p.mint or p.lime or "#00E676"
-  local key_color = p.yellow or p.amber or p.cyan or "#FFD600"
-  local title_color = p.purple or p.violet or p.indigo or "#9D4EDD"
-
-  set(0, "SnacksDashboardHeader", { fg = primary, bold = true })
-  set(0, "SnacksDashboardIcon", { fg = accent, bold = true })
-  set(0, "SnacksDashboardKey", { fg = key_color, bold = true })
-  set(0, "SnacksDashboardDesc", { fg = p.fg })
-  set(0, "SnacksDashboardTitle", { fg = title_color, bold = true })
-  set(0, "SnacksDashboardFooter", { fg = p.fg_muted, italic = true })
-end
-
-function M.setup()
-  local active = M.get_current_theme_name()
-  M.apply(active)
-end
-
--- Live Interactive Theme Picker
+-- Interactive theme picker with active selection tracking & live preview
 function M.theme_picker()
-  local original = M.get_current_theme_name()
-  local items = {
-    { text = "Gowise Obsidian Void (Deep Space & Cyan)", theme = "obsidian" },
-    { text = "Gowise Aurora Teal (Glacier & Emerald)", theme = "aurora" },
-    { text = "Gowise Cyber Synth (Laser Magenta & Lime)", theme = "cyber" },
-    { text = "Gowise Monolith Titanium (Graphite & Cobalt)", theme = "titanium" },
-    { text = "Gowise Velvet Espresso (Roasted Mocha & Tangerine)", theme = "espresso" },
-    { text = "Gowise Cobalt Nebula (Deep Cosmic Navy & Indigo)", theme = "nebula" },
-  }
+  local current_theme = vim.g.colors_name or M.get_current_theme()
+  local active_idx = 1
+  local items = {}
 
-  if Snacks and Snacks.picker then
-    Snacks.picker({
-      title = "Gowise Color Themes",
+  local current_buf_file = vim.api.nvim_buf_get_name(0)
+  local preview_target = (current_buf_file ~= "" and vim.fn.filereadable(current_buf_file) == 1) and current_buf_file or nil
+
+  for idx, t in ipairs(M.themes) do
+    local is_active = (t.name == current_theme)
+    if is_active then
+      active_idx = idx
+    end
+    table.insert(items, {
+      text = t.name,
+      name = t.name,
+      label = t.label,
+      desc = t.desc,
+      icon = t.icon,
+      is_active = is_active,
+      file = preview_target,
+    })
+  end
+
+  local ok_snacks, snacks = pcall(require, "snacks")
+  if ok_snacks and snacks.picker then
+    snacks.picker({
+      title = "🎨 Color Themes",
       items = items,
-      format = "text",
-      preview = function(ctx)
-        local item = ctx.item
-        if item and item.theme then
-          M.apply(item.theme)
+      preview = "colorscheme",
+      preset = "vertical",
+      format = function(item)
+        if item.is_active then
+          return {
+            { item.icon or " ", "Special" },
+            { item.label .. "  ", "Bold" },
+            { "✓ Active  ", "DiagnosticOk" },
+            { "(" .. item.desc .. ")", "Comment" },
+          }
+        else
+          return {
+            { item.icon or " ", "Special" },
+            { item.label .. "  ", "Normal" },
+            { "          ", "Normal" },
+            { "(" .. item.desc .. ")", "Comment" },
+          }
+        end
+      end,
+      on_show = function(picker)
+        if active_idx and active_idx > 1 then
+          picker.list:set_target(active_idx)
+          picker.list:view(active_idx, 1, true)
         end
       end,
       confirm = function(picker, item)
         picker:close()
-        if item and item.theme then
-          M.apply(item.theme)
-          M.save_theme(item.theme)
-          vim.notify("Theme set to: " .. item.text, vim.log.levels.INFO, { title = "Gowise Themes" })
+        if item and (item.name or item.text) then
+          if picker.preview and picker.preview.state then
+            picker.preview.state.colorscheme = nil
+          end
+          local theme_name = item.name or item.text
+          vim.schedule(function()
+            M.set_theme(theme_name, true)
+            if vim.bo.buftype == "" and vim.bo.modifiable then
+              pcall(vim.cmd, "startinsert")
+            end
+          end)
         end
-      end,
-      cancel = function()
-        M.apply(original)
       end,
     })
   else
-    -- Fallback simple UI select
-    local names = {}
-    for _, it in ipairs(items) do table.insert(names, it.text) end
-    vim.ui.select(names, { prompt = "Select Gowise Theme:" }, function(choice, idx)
-      if idx and items[idx] then
-        M.apply(items[idx].theme)
-        M.save_theme(items[idx].theme)
-      else
-        M.apply(original)
+    local options = {}
+    for _, t in ipairs(M.themes) do
+      local tag = (t.name == current_theme) and " [Active ✓]" or ""
+      table.insert(options, t.icon .. t.label .. tag .. " (" .. t.desc .. ")")
+    end
+    vim.ui.select(options, { prompt = "🎨 Select Color Theme: ", default = options[active_idx] }, function(choice, idx)
+      if idx and M.themes[idx] then
+        local chosen = M.themes[idx].name
+        vim.schedule(function()
+          M.set_theme(chosen, true)
+          if vim.bo.buftype == "" and vim.bo.modifiable then
+            pcall(vim.cmd, "startinsert")
+          end
+        end)
       end
     end)
   end
 end
 
--- Bind Theme Switcher to Ctrl+K Ctrl+T (VS Code standard)
-vim.keymap.set({ "n", "i" }, "<C-k><C-t>", M.theme_picker, { desc = "Preferences: Color Theme" })
+M.picker = M.theme_picker
+
+function M.setup()
+  M.init_transparency()
+  local initial_theme = M.get_current_theme()
+  M.set_theme(initial_theme, false)
+end
+M.init = M.setup
+
+-- Listen to any external colorscheme changes and persist them
+vim.api.nvim_create_autocmd("ColorScheme", {
+  callback = function(args)
+    if args.match and args.match ~= "" then
+      M.save_theme(args.match)
+    end
+    M.apply_indent_rainbow()
+  end,
+  desc = "Persist colorscheme selection and refresh indent rainbow highlights",
+})
+
+-- Global bridges & commands
+_G.ToggleTheme = M.toggle
+_G.SelectThemePicker = M.theme_picker
+_G.SetTheme = M.set_theme
+_G.ToggleTransparency = M.toggle_transparency
+_G.SetTransparency = M.set_transparency
+
+vim.api.nvim_create_user_command("Transparency", function(opts)
+  local arg = opts.args and vim.trim(opts.args):lower() or ""
+  if arg == "on" or arg == "1" or arg == "true" then
+    M.set_transparency(true, true)
+  elseif arg == "off" or arg == "0" or arg == "false" then
+    M.set_transparency(false, true)
+  else
+    M.toggle_transparency()
+  end
+end, {
+  nargs = "?",
+  complete = function() return { "on", "off", "toggle" } end,
+  desc = "Toggle or set background transparency (on/off)",
+})
+
+vim.api.nvim_create_user_command("Transparent", function()
+  M.toggle_transparency()
+end, { desc = "Toggle background transparency" })
+
+vim.api.nvim_create_user_command("Theme", function()
+  M.theme_picker()
+end, { desc = "Open Theme Picker" })
 
 return M
