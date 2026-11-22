@@ -1,4 +1,4 @@
--- Gowise Universal Keymaps (VS Code & Zed Parity)
+-- Gowise Universal Keymaps (Full VS Code & Zed Parity)
 -- Complete modeless editing experience across Linux, macOS, and Windows
 
 local map = vim.keymap.set
@@ -22,7 +22,7 @@ local function close_active_buffer()
 end
 
 -- ============================================================================
--- 1. BASIC EDITING, CLIPBOARD & UNDO/REDO (VS Code Standard)
+-- 1. FILE, BUFFER & TAB MANAGEMENT
 -- ============================================================================
 
 -- Save File (Ctrl+S)
@@ -31,14 +31,30 @@ map({ "n", "i", "v", "x" }, "<C-s>", "<Esc>:w<CR>", { desc = "Save File", silent
 -- Save All (Ctrl+Shift+S)
 map({ "n", "i", "v", "x" }, "<C-S-s>", "<Esc>:wa<CR>", { desc = "Save All Files", silent = true })
 
+-- New File (Ctrl+N)
+map({ "n", "i", "v" }, "<C-n>", "<Esc>:ene<CR>:startinsert<CR>", { desc = "New File", silent = true })
+
 -- Close Current Tab / Buffer (Ctrl+W in Normal/Visual, Ctrl+Q in all modes)
-map({ "n", "v" }, "<C-w>", function()
+map({ "n", "v", "x" }, "<C-w>", function()
   close_active_buffer()
 end, { desc = "Close Tab", silent = true })
 
-map({ "n", "i", "v" }, "<C-q>", function()
+map({ "n", "i", "v", "x" }, "<C-q>", function()
   close_active_buffer()
 end, { desc = "Close Tab", silent = true })
+
+-- Switch Tabs (Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+PageDown, Ctrl+PageUp)
+map({ "n", "i", "v" }, "<C-Tab>", ":bnext<CR>", opts)
+map({ "n", "i", "v" }, "<C-S-Tab>", ":bprevious<CR>", opts)
+map({ "n", "i", "v" }, "<C-PageDown>", ":bnext<CR>", opts)
+map({ "n", "i", "v" }, "<C-PageUp>", ":bprevious<CR>", opts)
+
+-- Split Editor (Ctrl+\)
+map({ "n", "i", "v" }, "<C-\\>", "<Esc>:vsplit<CR>", opts)
+
+-- ============================================================================
+-- 2. CLIPBOARD, SELECT ALL & UNDO/REDO
+-- ============================================================================
 
 -- Select All (Ctrl+A)
 map({ "n", "i", "x" }, "<C-a>", "<Esc>ggVG", { desc = "Select All", silent = true })
@@ -54,34 +70,60 @@ map("i", "<C-y>", "<C-o><C-r>", opts)
 map("n", "<C-S-z>", "<C-r>", opts)
 map("i", "<C-S-z>", "<C-o><C-r>", opts)
 
--- Cut (Ctrl+X)
+-- Copy (Ctrl+C and Ctrl+Insert)
+map("v", "<C-c>", '"+y', opts)
+map("x", "<C-c>", '"+y', opts)
+map("n", "<C-c>", '"+yy', opts)
+map("i", "<C-c>", '<C-o>"+yy', opts)
+map({ "n", "v", "x" }, "<C-Insert>", '"+y', opts)
+map("i", "<C-Insert>", '<C-o>"+yy', opts)
+
+-- Cut (Ctrl+X and Shift+Delete)
 map("v", "<C-x>", '"+d', opts)
 map("x", "<C-x>", '"+d', opts)
 map("n", "<C-x>", '"+dd', opts)
 map("i", "<C-x>", '<C-o>"+dd', opts)
 
--- Copy (Ctrl+C)
-map("v", "<C-c>", '"+y', opts)
-map("x", "<C-c>", '"+y', opts)
-map("n", "<C-c>", '"+yy', opts)
-map("i", "<C-c>", '<C-o>"+yy', opts)
+map({ "v", "x" }, "<S-Del>", '"+d', { desc = "Cut Selection", silent = true })
+map("n", "<S-Del>", '"+dd', { desc = "Cut Current Line", silent = true })
+map("i", "<S-Del>", '<Esc>"+ddi', { desc = "Cut Current Line", silent = true })
 
--- Paste (Ctrl+V)
+-- Paste (Ctrl+V and Shift+Insert)
 map("n", "<C-v>", '"+P', opts)
 map("i", "<C-v>", '<C-r>+', opts)
 map("v", "<C-v>", '"+p', opts)
 map("x", "<C-v>", '"+p', opts)
 map("c", "<C-v>", '<C-r>+', { noremap = true })
 
+map("n", "<S-Insert>", '"+P', opts)
+map("i", "<S-Insert>", '<C-r>+', opts)
+map("v", "<S-Insert>", '"+p', opts)
+
 -- ============================================================================
--- 2. WORD NAVIGATION & WORD DELETION (Exact Word Boundaries)
+-- 3. WORD NAVIGATION & WORD/LINE DELETIONS
 -- ============================================================================
 
--- Word Left / Right
-map({ "n", "i" }, "<C-Left>", "<C-o>b", opts)
-map({ "n", "i" }, "<C-Right>", "<C-o>e<Right>", opts)
+-- Word Left / Right (Ctrl+Left / Ctrl+Right)
+map("n", "<C-Left>", "b", opts)
+map("n", "<C-Right>", "w", opts)
+map("i", "<C-Left>", "<C-o>b", opts)
+map("i", "<C-Right>", "<C-o>w", opts)
+map("v", "<C-Left>", "b", opts)
+map("v", "<C-Right>", "w", opts)
 
--- Word Delete Left (Ctrl+Backspace, Alt+Backspace, Ctrl+W, Ctrl+H in insert mode)
+-- Home & End (Line Start / End)
+map({ "n", "v" }, "<Home>", "^", opts)
+map("i", "<Home>", "<C-o>^", opts)
+map({ "n", "v" }, "<End>", "$", opts)
+map("i", "<End>", "<C-o>$", opts)
+
+-- Ctrl+Home & Ctrl+End (File Start / End)
+map({ "n", "v" }, "<C-Home>", "gg", opts)
+map("i", "<C-Home>", "<C-o>gg", opts)
+map({ "n", "v" }, "<C-End>", "G", opts)
+map("i", "<C-End>", "<C-o>G", opts)
+
+-- Word Delete Left (Ctrl+Backspace)
 local function delete_word_left()
   local col = vim.fn.col(".")
   if col <= 1 then
@@ -105,25 +147,82 @@ local function delete_word_left()
   vim.api.nvim_win_set_cursor(0, { vim.fn.line("."), col - len })
 end
 
--- Map all possible terminal variations of Ctrl+Backspace to delete_word_left
 map("i", "<C-BS>", delete_word_left, opts)
 map("i", "<M-BS>", delete_word_left, opts)
 map("i", "<C-w>", delete_word_left, { desc = "Delete Word Left", silent = true })
-map("i", "<C-h>", delete_word_left, { desc = "Delete Word Left", silent = true })
-map("i", "<M-h>", delete_word_left, { desc = "Delete Word Left", silent = true })
 map("n", "<C-BS>", "db", opts)
 map("n", "<M-BS>", "db", opts)
 
 -- Word Delete Right (Ctrl+Delete)
-map("i", "<C-Del>", "<C-o>de", opts)
-map("i", "<M-Del>", "<C-o>de", opts)
-map("n", "<C-Del>", "de", opts)
+local function delete_word_right()
+  local line = vim.api.nvim_get_current_line()
+  local col = vim.fn.col(".")
+  if col > #line then
+    return
+  end
+  local right = line:sub(col)
+  local space_match = right:match("^(%s+)")
+  local len = 0
+  if space_match then
+    local trimmed = right:sub(#space_match + 1)
+    local word_match = trimmed:match("^([%w_]+)") or trimmed:match("^([^%w_%s]+)")
+    len = #space_match + (word_match and #word_match or 0)
+  else
+    local word_match = right:match("^([%w_]+)") or right:match("^([^%w_%s]+)")
+    len = word_match and #word_match or 1
+  end
+  local new_line = line:sub(1, col - 1) .. line:sub(col + len)
+  vim.api.nvim_set_current_line(new_line)
+end
 
--- Delete Current Line (Ctrl+Shift+K)
-map({ "n", "i" }, "<C-S-k>", "<Esc>ddi", opts)
+map("i", "<C-Del>", delete_word_right, opts)
+map("i", "<M-Del>", delete_word_right, opts)
+map("n", "<C-Del>", delete_word_right, opts)
+
+-- Delete Line (Ctrl+Shift+K)
+map("n", "<C-S-k>", "dd", opts)
+map("i", "<C-S-k>", "<Esc>ddi", opts)
+map("v", "<C-S-k>", "d", opts)
 
 -- ============================================================================
--- 3. LINE MOVEMENT & DUPLICATION (VS Code & Zed)
+-- 4. SELECTION (Shift+Arrows & Ctrl+Shift+Arrows Word Selection)
+-- ============================================================================
+
+-- Character-by-character selection (Shift+Arrows)
+map("n", "<S-Left>", "v<Left>", opts)
+map("n", "<S-Right>", "v<Right>", opts)
+map("n", "<S-Up>", "v<Up>", opts)
+map("n", "<S-Down>", "v<Down>", opts)
+map("i", "<S-Left>", "<Esc>v<Left>", opts)
+map("i", "<S-Right>", "<Esc>v<Right>", opts)
+map("i", "<S-Up>", "<Esc>v<Up>", opts)
+map("i", "<S-Down>", "<Esc>v<Down>", opts)
+map("v", "<S-Left>", "<Left>", opts)
+map("v", "<S-Right>", "<Right>", opts)
+map("v", "<S-Up>", "<Up>", opts)
+map("v", "<S-Down>", "<Down>", opts)
+
+-- Whole Word Selection (Ctrl+Shift+Left & Ctrl+Shift+Right)
+map("n", "<C-S-Left>", "vb", opts)
+map("n", "<C-S-Right>", "ve", opts)
+map("i", "<C-S-Left>", "<Esc>vb", opts)
+map("i", "<C-S-Right>", "<Esc>ve", opts)
+map("v", "<C-S-Left>", "b", opts)
+map("v", "<C-S-Right>", "e", opts)
+
+-- Line & Document Selection (Shift+Home, Shift+End, Ctrl+Shift+Home/End)
+map({ "n", "i" }, "<S-Home>", "<Esc>v^", opts)
+map({ "n", "i" }, "<S-End>", "<Esc>v$", opts)
+map("v", "<S-Home>", "^", opts)
+map("v", "<S-End>", "$", opts)
+
+map({ "n", "i" }, "<C-S-Home>", "<Esc>vgg", opts)
+map({ "n", "i" }, "<C-S-End>", "<Esc>vG", opts)
+map("v", "<C-S-Home>", "gg", opts)
+map("v", "<C-S-End>", "G", opts)
+
+-- ============================================================================
+-- 5. LINE MOVEMENT, DUPLICATION & COMMENTS
 -- ============================================================================
 
 -- Move Line Up / Down (Alt+Up / Alt+Down)
@@ -146,10 +245,6 @@ map("v", "<A-S-Up>", ":t'<-1<CR>gv=gv", opts)
 map({ "n", "i" }, "<C-CR>", "<Esc>o", opts)
 map({ "n", "i" }, "<C-S-CR>", "<Esc>O", opts)
 
--- ============================================================================
--- 4. INDENTATION & COMMENTS
--- ============================================================================
-
 -- Indent / Unindent with Tab and Shift+Tab
 map("v", "<Tab>", ">gv", opts)
 map("v", "<S-Tab>", "<gv", opts)
@@ -160,36 +255,45 @@ map({ "n", "i" }, "<C-_>", "<Esc>gccgi", { desc = "Toggle Comment", remap = true
 map("v", "<C-/>", "gc", { desc = "Toggle Comment", remap = true })
 map("v", "<C-_>", "gc", { desc = "Toggle Comment", remap = true })
 
+-- Toggle Block Comment (Shift+Alt+A)
+map("v", "<A-S-a>", "gc", { desc = "Block Comment", remap = true })
+map({ "n", "i" }, "<A-S-a>", "<Esc>gcapgi", { desc = "Block Comment", remap = true })
+
 -- Code Folding (Ctrl+Shift+[ and Ctrl+Shift+])
 map({ "n", "i", "v" }, "<C-S-[>", "<Esc>zc", { desc = "Fold Block", silent = true })
 map({ "n", "i", "v" }, "<C-S-]>", "<Esc>zo", { desc = "Unfold Block", silent = true })
 
 -- ============================================================================
--- 5. SHIFT-SELECTION (Standard PC Selection)
+-- 6. SEARCH, REPLACE & NAVIGATION PICKERS
 -- ============================================================================
 
-map("n", "<S-Left>", "v<Left>", opts)
-map("n", "<S-Right>", "v<Right>", opts)
-map("n", "<S-Up>", "v<Up>", opts)
-map("n", "<S-Down>", "v<Down>", opts)
-map("i", "<S-Left>", "<Esc>v<Left>", opts)
-map("i", "<S-Right>", "<Esc>v<Right>", opts)
-map("i", "<S-Up>", "<Esc>v<Up>", opts)
-map("i", "<S-Down>", "<Esc>v<Down>", opts)
-map("v", "<S-Left>", "<Left>", opts)
-map("v", "<S-Right>", "<Right>", opts)
-map("v", "<S-Up>", "<Up>", opts)
-map("v", "<S-Down>", "<Down>", opts)
+-- Find in File (Ctrl+F)
+map({ "n", "i", "v" }, "<C-f>", function()
+  if Snacks and Snacks.picker then
+    Snacks.picker.lines()
+  else
+    vim.cmd("/")
+  end
+end, { desc = "Find in File", silent = true })
 
--- Shift+Home / Shift+End
-map({ "n", "i" }, "<S-Home>", "<Esc>v^", opts)
-map({ "n", "i" }, "<S-End>", "<Esc>v$", opts)
-map("v", "<S-Home>", "^", opts)
-map("v", "<S-End>", "$", opts)
+-- Replace in File (Ctrl+H)
+map("n", "<C-h>", function()
+  local search = vim.fn.input("Find: ")
+  if search and search ~= "" then
+    local replace = vim.fn.input("Replace with: ")
+    if replace then
+      vim.cmd(string.format("%%s/%s/%s/gc", vim.fn.escape(search, "/"), vim.fn.escape(replace, "/")))
+    end
+  end
+end, { desc = "Replace in File", silent = true })
 
--- ============================================================================
--- 6. NAVIGATION & PICKERS (VS Code Standards)
--- ============================================================================
+-- Go to Line (Ctrl+G)
+map({ "n", "i" }, "<C-g>", function()
+  local line = vim.fn.input("Go to Line: ")
+  if line and tonumber(line) then
+    vim.cmd(":" .. tonumber(line))
+  end
+end, { desc = "Go to Line", silent = true })
 
 -- Quick Open File (Ctrl+P)
 map({ "n", "i" }, "<C-p>", function()
@@ -214,14 +318,16 @@ map({ "n", "i" }, "<C-S-f>", function()
   end
 end, { desc = "Global Live Grep", silent = true })
 
--- Find in File (Ctrl+F)
-map({ "n", "i", "v" }, "<C-f>", function()
+-- Go to Symbol in File (Ctrl+Shift+O)
+map({ "n", "i" }, "<C-S-o>", function()
   if Snacks and Snacks.picker then
-    Snacks.picker.lines()
-  else
-    vim.cmd("/")
+    Snacks.picker.lsp_symbols()
   end
-end, { desc = "Find in File", silent = true })
+end, { desc = "Go to Symbol", silent = true })
+
+-- ============================================================================
+-- 7. UI DOCKS: SIDEBAR & TERMINAL (Toggleable from ALL modes without Esc!)
+-- ============================================================================
 
 -- Toggle File Tree Sidebar (Ctrl+B across all modes: normal, insert, visual, terminal)
 map({ "n", "i", "v", "t" }, "<C-b>", function()
@@ -254,16 +360,10 @@ map({ "n", "i" }, "<S-F5>", function()
   require("gowise.components.runner").stop()
 end, { desc = "Stop Code (Shift+F5)", silent = true })
 
--- ============================================================================
--- 7. TAB & SPLIT WINDOW MANAGEMENT
--- ============================================================================
-
--- Switch Tabs (Ctrl+Tab and Ctrl+Shift+Tab)
-map({ "n", "i" }, "<C-Tab>", ":bnext<CR>", opts)
-map({ "n", "i" }, "<C-S-Tab>", ":bprevious<CR>", opts)
-
--- Split Panes (Ctrl+\ vertical split, Ctrl+K Ctrl+\ horizontal split)
-map({ "n", "i" }, "<C-\\>", "<Esc>:vsplit<CR>", opts)
+-- Theme Switcher (Ctrl+K Ctrl+T)
+map({ "n", "i" }, "<C-k><C-t>", function()
+  require("gowise.themes.engine").theme_picker()
+end, { desc = "Preferences: Color Theme", silent = true })
 
 -- ============================================================================
 -- 8. LANGUAGE SERVER (LSP) SHORTCUTS
@@ -333,5 +433,5 @@ map("t", "<C-Down>", function()
   require("gowise.components.terminal").resize(2)
 end, opts)
 
--- Escape terminal mode with Esc
+-- Escape terminal mode with Esc Esc
 map("t", "<Esc><Esc>", "<C-\\><C-n>", opts)

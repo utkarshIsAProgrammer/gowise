@@ -100,9 +100,12 @@ Open the live theme previewer anytime with <kbd>Ctrl+K Ctrl+T</kbd> or through t
 |---|---|
 | **Save File** | <kbd>Ctrl+S</kbd> |
 | **Save All Files** | <kbd>Ctrl+Shift+S</kbd> |
-| **Close Tab** | <kbd>Ctrl+W</kbd> |
+| **New File** | <kbd>Ctrl+N</kbd> |
+| **Close Tab** | <kbd>Ctrl+W</kbd> or <kbd>Ctrl+Q</kbd> |
 | **Select All** | <kbd>Ctrl+A</kbd> |
-| **Copy / Cut / Paste** | <kbd>Ctrl+C</kbd> / <kbd>Ctrl+X</kbd> / <kbd>Ctrl+V</kbd> |
+| **Copy** | <kbd>Ctrl+C</kbd> or <kbd>Ctrl+Insert</kbd> |
+| **Cut (Selection or Line)** | <kbd>Ctrl+X</kbd> or <kbd>Shift+Delete</kbd> |
+| **Paste** | <kbd>Ctrl+V</kbd> or <kbd>Shift+Insert</kbd> |
 | **Undo / Redo** | <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> (or <kbd>Ctrl+Shift+Z</kbd>) |
 | **Delete Line** | <kbd>Ctrl+Shift+K</kbd> |
 | **Move Line Up / Down** | <kbd>Alt+Up</kbd> / <kbd>Alt+Down</kbd> |
@@ -112,18 +115,26 @@ Open the live theme previewer anytime with <kbd>Ctrl+K Ctrl+T</kbd> or through t
 | **Fold / Unfold Block** | <kbd>Ctrl+Shift+[</kbd> / <kbd>Ctrl+Shift+]</kbd> |
 | **Multi-Cursor (Next Match)** | <kbd>Ctrl+D</kbd> |
 
-### 2. Navigation & Exact Word Movement
+### 2. Navigation & Precise Selection
 | Action | Shortcut |
 |---|---|
 | **Jump Word Left / Right** | <kbd>Ctrl+Left</kbd> / <kbd>Ctrl+Right</kbd> |
-| **Delete Word Left / Right** | <kbd>Ctrl+Backspace</kbd> / <kbd>Ctrl+Delete</kbd> |
+| **Select Whole Word Left / Right** | <kbd>Ctrl+Shift+Left</kbd> / <kbd>Ctrl+Shift+Right</kbd> |
 | **Select by Character** | <kbd>Shift+Left</kbd> / <kbd>Shift+Right</kbd> / <kbd>Shift+Up/Down</kbd> |
 | **Select to Line Start / End** | <kbd>Shift+Home</kbd> / <kbd>Shift+End</kbd> |
+| **Select to File Start / End** | <kbd>Ctrl+Shift+Home</kbd> / <kbd>Ctrl+Shift+End</kbd> |
+| **Jump to Line Start / End** | <kbd>Home</kbd> / <kbd>End</kbd> |
+| **Jump to File Start / End** | <kbd>Ctrl+Home</kbd> / <kbd>Ctrl+End</kbd> |
+| **Delete Word Left / Right** | <kbd>Ctrl+Backspace</kbd> / <kbd>Ctrl+Delete</kbd> |
+| **Find in Current File** | <kbd>Ctrl+F</kbd> |
+| **Replace in Current File** | <kbd>Ctrl+H</kbd> |
+| **Go to Line Number** | <kbd>Ctrl+G</kbd> |
 | **Quick Open File** | <kbd>Ctrl+P</kbd> |
 | **Command Palette** | <kbd>Ctrl+Shift+P</kbd> |
-| **Find in Current File** | <kbd>Ctrl+F</kbd> |
+| **Go to Symbol in File** | <kbd>Ctrl+Shift+O</kbd> |
 | **Global Search (Live Grep)** | <kbd>Ctrl+Shift+F</kbd> |
-| **Toggle File Explorer Sidebar** | <kbd>Ctrl+B</kbd> |
+| **Toggle File Explorer Sidebar** | <kbd>Ctrl+B</kbd> *(works everywhere without Esc)* |
+| **Toggle Terminal Drawer** | <kbd>Ctrl+\`</kbd> / <kbd>Ctrl+~</kbd> / <kbd>Ctrl+J</kbd> *(works everywhere without Esc)* |
 
 ### 3. Integrated Terminal Drawer & F5 Runner
 | Action | Shortcut |

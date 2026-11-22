@@ -213,12 +213,12 @@ local plugins = {
       mc.setup()
 
       -- Ctrl+D: Select next match
-      vim.keymap.set({ "n", "v" }, "<C-d>", function()
+      vim.keymap.set({ "n", "v", "i" }, "<C-d>", function()
         mc.matchAddCursor(1)
       end, { desc = "Add Cursor to Next Match" })
 
       -- Skip match
-      vim.keymap.set({ "n", "v" }, "<C-S-d>", function()
+      vim.keymap.set({ "n", "v", "i" }, "<C-S-d>", function()
         mc.matchSkipCursor(1)
       end, { desc = "Skip Match" })
 
