@@ -90,7 +90,6 @@ vim.g.maplocalleader = " "
 require("minimal.core.options")
 require("minimal.core.autocmds")
 require("minimal.core.keymaps")
-require("minimal.lsp.errorlens").setup()
 
 -- Load Plugins and Theme Engine
 require("minimal.plugins")

@@ -1069,7 +1069,7 @@ end, { desc = "Toggle Transparency", silent = true })
 -- ============================================================================
 
 -- Go to Definition (F12)
-map({ "n", "i" }, "<F12>", vim.lsp.buf.definition, { desc = "Go to Definition" })
+map({ "n", "i" }, "<F12>", function() vim.lsp.buf.definition() end, { desc = "Go to Definition" })
 
 -- Peek Definition (Alt+F12)
 map({ "n", "i" }, "<A-F12>", function()
@@ -1090,7 +1090,7 @@ map({ "n", "i" }, "<S-F12>", function()
 end, { desc = "Find References" })
 
 -- Rename Symbol (F2)
-map({ "n", "i" }, "<F2>", vim.lsp.buf.rename, { desc = "Rename Symbol" })
+map({ "n", "i" }, "<F2>", function() vim.lsp.buf.rename() end, { desc = "Rename Symbol" })
 
 -- Quick Fix / Solutions (Ctrl+., Alt+Enter, Cmd+.) - Unified with Code Spell Checker & LSP Code Actions
 local quick_fix_keys = { "<C-.>", "<M-CR>", "\27[46;5u", "<D-.>" }
@@ -1139,7 +1139,7 @@ map({ "n", "i", "v" }, "<A-S-f>", function()
 end, { desc = "Format Document", silent = true })
 
 -- Parameter Hints / Signature Help (Ctrl+Shift+Space)
-map("i", "<C-S-Space>", vim.lsp.buf.signature_help, { desc = "Signature Help" })
+map("i", "<C-S-Space>", function() vim.lsp.buf.signature_help() end, { desc = "Signature Help" })
 
 -- Toggle Diagnostics / Problems Panel (Ctrl+Shift+M)
 map({ "n", "i" }, "<C-S-m>", function()

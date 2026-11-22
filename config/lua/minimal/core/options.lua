@@ -22,7 +22,10 @@ opt.winblend = 5           -- Subtle transparency for floating windows
 
 -- Modeless Editing & Fluid Navigation
 opt.mouse = "a"            -- Full mouse support (click, scroll, drag)
-opt.clipboard = "unnamedplus" -- Sync with system clipboard seamlessly
+-- Defer system clipboard toolchain probe to UIEnter for 20ms faster startup
+vim.schedule(function()
+  vim.opt.clipboard = "unnamedplus"
+end)
 opt.virtualedit = "onemore" -- One-past-line-end (pure modeless cursor freedom)
 opt.scrolloff = 8          -- Keep 8 lines of context vertically
 opt.sidescrolloff = 8      -- Keep 8 columns of context horizontally
@@ -36,7 +39,7 @@ opt.selection = "exclusive"       -- Exclusive selection prevents selecting an e
 opt.whichwrap:append("<,>,[,],h,l")
 
 -- Code Spell Checker Configuration (CamelCase code identifiers & user dictionary)
-opt.spell = true
+opt.spell = false          -- Defer spell dictionary loading to buffer events
 opt.spelllang = { "en" }
 opt.spelloptions = "camel"
 opt.spellfile = vim.fn.stdpath("config") .. "/spell/en.utf-8.add"

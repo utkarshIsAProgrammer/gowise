@@ -194,7 +194,7 @@ local plugins = {
   -- 7. Mini.icons: Fast HD icons for files and folders (Curated Big & Related Icons)
   {
     "echasnovski/mini.icons",
-    lazy = false,
+    lazy = true,
     opts = function()
       return require("minimal.ui.icons").opts
     end,

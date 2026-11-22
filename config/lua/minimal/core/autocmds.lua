@@ -19,12 +19,13 @@ api.nvim_create_autocmd("BufWritePre", {
   end,
 })
 
--- 2. Ensure Regular Document Buffers are Always Modifiable
+-- 2. Ensure Regular Document Buffers are Always Modifiable & Spell Checked
 api.nvim_create_autocmd({ "BufEnter", "BufReadPost", "BufNewFile" }, {
   group = minimal_group,
   callback = function(args)
     if vim.bo[args.buf].buftype == "" and not vim.bo[args.buf].readonly then
       pcall(function() vim.bo[args.buf].modifiable = true end)
+      pcall(function() vim.opt_local.spell = true end)
     end
   end,
   desc = "Guarantee document buffers remain modifiable in modeless editing",
