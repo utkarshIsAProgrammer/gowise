@@ -15,23 +15,30 @@ _G.skip_insert_autocmd = false
 local function ensure_insert_mode(buf)
   if _G.skip_insert_autocmd then return end
   buf = buf or vim.api.nvim_get_current_buf()
-  if not (vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].buftype == "" and vim.bo[buf].modifiable) then
+  if not (vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].buftype == "") then
     return
   end
   local ft = vim.bo[buf].filetype
   if ft == "snacks_dashboard" or ft:find("dashboard") or ft:find("picker") or ft:find("snacks") then
     return
   end
+  if not vim.bo[buf].modifiable and not vim.bo[buf].readonly then
+    pcall(function() vim.bo[buf].modifiable = true end)
+  end
   vim.schedule(function()
     if vim.api.nvim_buf_is_valid(buf)
       and vim.bo[buf].buftype == ""
-      and vim.bo[buf].modifiable
       and vim.bo[buf].filetype ~= "snacks_dashboard"
       and not vim.bo[buf].filetype:find("picker")
       and not vim.bo[buf].filetype:find("explorer")
       and vim.fn.mode() ~= "i"
     then
-      pcall(vim.cmd, "startinsert")
+      if not vim.bo[buf].modifiable and not vim.bo[buf].readonly then
+        pcall(function() vim.bo[buf].modifiable = true end)
+      end
+      if vim.bo[buf].modifiable then
+        pcall(vim.cmd, "startinsert")
+      end
     end
   end)
 end
@@ -80,15 +87,36 @@ local function bind_normal_mode_typing()
     end
     map("n", key_repr, function()
       local cur_buf = vim.api.nvim_get_current_buf()
-      if vim.bo[cur_buf].buftype == ""
-        and vim.bo[cur_buf].modifiable
-        and vim.bo[cur_buf].filetype ~= "snacks_dashboard"
-        and not vim.bo[cur_buf].filetype:find("picker")
-        and not vim.bo[cur_buf].filetype:find("explorer")
-      then
+      local ft = vim.bo[cur_buf].filetype
+      local bt = vim.bo[cur_buf].buftype
+
+      -- If on dashboard and user starts typing (not a menu hotkey), open new buffer and type immediately
+      if ft == "snacks_dashboard" then
+        local dashboard_keys = { n = 1, p = 1, f = 1, r = 1, t = 1, b = 1, j = 1, d = 1, q = 1 }
+        if not dashboard_keys[char:lower()] then
+          vim.cmd("ene")
+          pcall(vim.cmd, "startinsert")
+          return "i" .. char
+        end
+        return char
+      end
+
+      -- If inside picker, explorer, or terminal, preserve their keys
+      if ft:find("picker") or ft:find("explorer") or bt == "terminal" then
+        return char
+      end
+
+      -- If regular buffer is not modifiable, ensure modifiable if not readonly
+      if bt == "" and not vim.bo[cur_buf].modifiable and not vim.bo[cur_buf].readonly then
+        pcall(function() vim.bo[cur_buf].modifiable = true end)
+      end
+
+      if bt == "" and vim.bo[cur_buf].modifiable then
         return "i" .. char
       end
-      return char
+
+      -- In any other non-modifiable buffer (help, floating docs, etc.), never execute destructive normal commands like 'c'/'d'/'x'
+      return ""
     end, { expr = true, silent = true, desc = "Type " .. char .. " (100% Modeless)" })
   end
 end
@@ -96,22 +124,43 @@ bind_normal_mode_typing()
 
 -- Normal Mode Enter & Backspace: behave like a normal editor
 map("n", "<CR>", function()
-  if vim.bo.buftype == "" and vim.bo.modifiable and vim.bo.filetype ~= "snacks_dashboard" then
-    return "o"
+  local bt = vim.bo.buftype
+  local ft = vim.bo.filetype
+  if bt == "" and ft ~= "snacks_dashboard" then
+    if not vim.bo.modifiable and not vim.bo.readonly then
+      pcall(function() vim.bo.modifiable = true end)
+    end
+    if vim.bo.modifiable then
+      return "o"
+    end
   end
   return "<CR>"
 end, { expr = true, silent = true })
 
 map("n", "<BS>", function()
-  if vim.bo.buftype == "" and vim.bo.modifiable and vim.bo.filetype ~= "snacks_dashboard" then
-    return "i<BS>"
+  local bt = vim.bo.buftype
+  local ft = vim.bo.filetype
+  if bt == "" and ft ~= "snacks_dashboard" then
+    if not vim.bo.modifiable and not vim.bo.readonly then
+      pcall(function() vim.bo.modifiable = true end)
+    end
+    if vim.bo.modifiable then
+      return "i<BS>"
+    end
   end
   return "<BS>"
 end, { expr = true, silent = true })
 
 map("n", "<Del>", function()
-  if vim.bo.buftype == "" and vim.bo.modifiable and vim.bo.filetype ~= "snacks_dashboard" then
-    return '"_x'
+  local bt = vim.bo.buftype
+  local ft = vim.bo.filetype
+  if bt == "" and ft ~= "snacks_dashboard" then
+    if not vim.bo.modifiable and not vim.bo.readonly then
+      pcall(function() vim.bo.modifiable = true end)
+    end
+    if vim.bo.modifiable then
+      return '"_x'
+    end
   end
   return "<Del>"
 end, { expr = true, silent = true })

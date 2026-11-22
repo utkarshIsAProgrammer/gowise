@@ -19,7 +19,18 @@ api.nvim_create_autocmd("BufWritePre", {
   end,
 })
 
--- 2. Restore Cursor Position on File Open
+-- 2. Ensure Regular Document Buffers are Always Modifiable
+api.nvim_create_autocmd({ "BufEnter", "BufReadPost", "BufNewFile" }, {
+  group = gowise_group,
+  callback = function(args)
+    if vim.bo[args.buf].buftype == "" and not vim.bo[args.buf].readonly then
+      pcall(function() vim.bo[args.buf].modifiable = true end)
+    end
+  end,
+  desc = "Guarantee document buffers remain modifiable in modeless editing",
+})
+
+-- 3. Restore Cursor Position on File Open
 api.nvim_create_autocmd("BufReadPost", {
   group = gowise_group,
   callback = function(args)

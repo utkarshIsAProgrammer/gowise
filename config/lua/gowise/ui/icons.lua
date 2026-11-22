@@ -157,9 +157,9 @@ M.opts = {
     ["svelte.config.js"]    = { glyph = " ", hl = "MiniIconsOrange" },
 
     -- Polyglot Package Manifests
-    ["go.mod"]              = { glyph = "󰟓 ", hl = "MiniIconsCyan" },
-    ["go.sum"]              = { glyph = "󰟓 ", hl = "MiniIconsCyan" },
-    ["go.work"]             = { glyph = "󰟓 ", hl = "MiniIconsCyan" },
+    ["go.mod"]              = { glyph = " ", hl = "MiniIconsCyan" },
+    ["go.sum"]              = { glyph = " ", hl = "MiniIconsCyan" },
+    ["go.work"]             = { glyph = " ", hl = "MiniIconsCyan" },
     ["Cargo.toml"]          = { glyph = "󰏗 ", hl = "MiniIconsOrange" },
     ["Cargo.lock"]          = { glyph = "󰏗 ", hl = "MiniIconsGrey" },
     ["requirements.txt"]    = { glyph = "󰌠 ", hl = "MiniIconsYellow" },
@@ -202,7 +202,7 @@ M.opts = {
     astro      = { glyph = " ", hl = "MiniIconsOrange" },
 
     -- Systems & Compilers
-    go         = { glyph = "󰟓 ", hl = "MiniIconsCyan" },
+    go         = { glyph = " ", hl = "MiniIconsCyan" },
     py         = { glyph = "󰌠 ", hl = "MiniIconsYellow" },
     pyi        = { glyph = "󰌠 ", hl = "MiniIconsYellow" },
     rs         = { glyph = "󱘗 ", hl = "MiniIconsOrange" },
@@ -282,7 +282,7 @@ M.opts = {
     typescriptreact = { glyph = " ", hl = "MiniIconsBlue" },
     javascript      = { glyph = "󰌞 ", hl = "MiniIconsYellow" },
     javascriptreact = { glyph = " ", hl = "MiniIconsBlue" },
-    go              = { glyph = "󰟓 ", hl = "MiniIconsCyan" },
+    go              = { glyph = " ", hl = "MiniIconsCyan" },
     python          = { glyph = "󰌠 ", hl = "MiniIconsYellow" },
     rust            = { glyph = "󱘗 ", hl = "MiniIconsOrange" },
     markdown        = { glyph = "󰍔 ", hl = "MiniIconsCyan" },
