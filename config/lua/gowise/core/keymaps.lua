@@ -103,13 +103,33 @@ map("v", "<S-Insert>", '"+p', opts)
 -- 3. WORD NAVIGATION & WORD/LINE DELETIONS
 -- ============================================================================
 
--- Word Left / Right (Ctrl+Left / Ctrl+Right)
-map("n", "<C-Left>", "b", opts)
-map("n", "<C-Right>", "w", opts)
-map("i", "<C-Left>", "<C-o>b", opts)
-map("i", "<C-Right>", "<C-o>w", opts)
-map("v", "<C-Left>", "b", opts)
-map("v", "<C-Right>", "w", opts)
+-- Word Left / Right (Ctrl+Left / Ctrl+Right & ANSI terminal sequences)
+local function move_word_left_insert()
+  vim.cmd("stopinsert")
+  vim.cmd("normal! b")
+  vim.cmd("startinsert")
+end
+
+local function move_word_right_insert()
+  vim.cmd("stopinsert")
+  vim.cmd("normal! w")
+  vim.cmd("startinsert")
+end
+
+local ctrl_left_keys = { "<C-Left>", "<Esc>[1;5D", "<Esc>[5D" }
+local ctrl_right_keys = { "<C-Right>", "<Esc>[1;5C", "<Esc>[5C" }
+
+for _, k in ipairs(ctrl_left_keys) do
+  map("n", k, "b", opts)
+  map("v", k, "b", opts)
+  map("i", k, move_word_left_insert, opts)
+end
+
+for _, k in ipairs(ctrl_right_keys) do
+  map("n", k, "w", opts)
+  map("v", k, "w", opts)
+  map("i", k, move_word_right_insert, opts)
+end
 
 -- Home & End (Line Start / End)
 map({ "n", "v" }, "<Home>", "^", opts)
@@ -188,27 +208,213 @@ map("v", "<C-S-k>", "d", opts)
 -- 4. SELECTION (Shift+Arrows & Ctrl+Shift+Arrows Word Selection)
 -- ============================================================================
 
--- Character-by-character selection (Shift+Arrows)
-map("n", "<S-Left>", "v<Left>", opts)
-map("n", "<S-Right>", "v<Right>", opts)
-map("n", "<S-Up>", "v<Up>", opts)
-map("n", "<S-Down>", "v<Down>", opts)
-map("i", "<S-Left>", "<Esc>v<Left>", opts)
-map("i", "<S-Right>", "<Esc>v<Right>", opts)
-map("i", "<S-Up>", "<Esc>v<Up>", opts)
-map("i", "<S-Down>", "<Esc>v<Down>", opts)
-map("v", "<S-Left>", "<Left>", opts)
-map("v", "<S-Right>", "<Right>", opts)
-map("v", "<S-Up>", "<Up>", opts)
-map("v", "<S-Down>", "<Down>", opts)
+-- Whole Word Selection Functions (VS Code Parity across all modes)
+local function select_word_right()
+  local mode = vim.fn.mode()
+  if mode == "i" then
+    local cur = vim.api.nvim_win_get_cursor(0)
+    vim.cmd("stopinsert")
+    local line = vim.api.nvim_get_current_line()
+    if cur[2] < #line then
+      vim.api.nvim_win_set_cursor(0, { cur[1], cur[2] })
+      vim.cmd("normal! ve")
+    end
+  elseif mode == "v" or mode == "V" or mode == "\22" then
+    vim.cmd("normal! e")
+  else
+    vim.cmd("normal! ve")
+  end
+end
 
--- Whole Word Selection (Ctrl+Shift+Left & Ctrl+Shift+Right)
-map("n", "<C-S-Left>", "vb", opts)
-map("n", "<C-S-Right>", "ve", opts)
-map("i", "<C-S-Left>", "<Esc>vb", opts)
-map("i", "<C-S-Right>", "<Esc>ve", opts)
-map("v", "<C-S-Left>", "b", opts)
-map("v", "<C-S-Right>", "e", opts)
+local function select_word_left()
+  local mode = vim.fn.mode()
+  if mode == "i" then
+    local cur = vim.api.nvim_win_get_cursor(0)
+    vim.cmd("stopinsert")
+    if cur[2] > 0 then
+      vim.api.nvim_win_set_cursor(0, { cur[1], cur[2] - 1 })
+      vim.cmd("normal! vb")
+    end
+  elseif mode == "v" or mode == "V" or mode == "\22" then
+    vim.cmd("normal! b")
+  else
+    vim.cmd("normal! vb")
+  end
+end
+
+-- Character-by-Character Selection Functions (Shift+Arrows across all modes)
+local function select_char_right()
+  local mode = vim.fn.mode()
+  if mode == "i" then
+    local cur = vim.api.nvim_win_get_cursor(0)
+    vim.cmd("stopinsert")
+    local line = vim.api.nvim_get_current_line()
+    if cur[2] < #line then
+      vim.api.nvim_win_set_cursor(0, { cur[1], cur[2] })
+      vim.cmd("normal! v")
+    end
+  elseif mode == "v" or mode == "V" or mode == "\22" then
+    vim.cmd("normal! l")
+  else
+    vim.cmd("normal! vl")
+  end
+end
+
+local function select_char_left()
+  local mode = vim.fn.mode()
+  if mode == "i" then
+    local cur = vim.api.nvim_win_get_cursor(0)
+    vim.cmd("stopinsert")
+    if cur[2] > 0 then
+      vim.api.nvim_win_set_cursor(0, { cur[1], cur[2] - 1 })
+      vim.cmd("normal! v")
+    end
+  elseif mode == "v" or mode == "V" or mode == "\22" then
+    vim.cmd("normal! h")
+  else
+    vim.cmd("normal! vh")
+  end
+end
+
+local function select_char_up()
+  local mode = vim.fn.mode()
+  if mode == "i" then
+    vim.cmd("stopinsert")
+    vim.cmd("normal! vk")
+  elseif mode == "v" or mode == "V" or mode == "\22" then
+    vim.cmd("normal! k")
+  else
+    vim.cmd("normal! vk")
+  end
+end
+
+local function select_char_down()
+  local mode = vim.fn.mode()
+  if mode == "i" then
+    vim.cmd("stopinsert")
+    vim.cmd("normal! vj")
+  elseif mode == "v" or mode == "V" or mode == "\22" then
+    vim.cmd("normal! j")
+  else
+    vim.cmd("normal! vj")
+  end
+end
+
+-- Key codes for terminal compatibility (standard termcodes + xterm CSI escape sequences)
+local c_s_left_keys = { "<C-S-Left>", "<Esc>[1;6D", "<Esc>[6D" }
+local c_s_right_keys = { "<C-S-Right>", "<Esc>[1;6C", "<Esc>[6C" }
+local s_left_keys = { "<S-Left>", "<Esc>[1;2D", "<Esc>[2D" }
+local s_right_keys = { "<S-Right>", "<Esc>[1;2C", "<Esc>[2C" }
+local s_up_keys = { "<S-Up>", "<Esc>[1;2A", "<Esc>[2A" }
+local s_down_keys = { "<S-Down>", "<Esc>[1;2B", "<Esc>[2B" }
+
+local all_editor_modes = { "n", "i", "v", "x" }
+
+for _, k in ipairs(c_s_left_keys) do
+  map(all_editor_modes, k, select_word_left, { desc = "Select Word Left", silent = true })
+end
+
+for _, k in ipairs(c_s_right_keys) do
+  map(all_editor_modes, k, select_word_right, { desc = "Select Word Right", silent = true })
+end
+
+for _, k in ipairs(s_left_keys) do
+  map(all_editor_modes, k, select_char_left, { desc = "Select Left Character", silent = true })
+end
+
+for _, k in ipairs(s_right_keys) do
+  map(all_editor_modes, k, select_char_right, { desc = "Select Right Character", silent = true })
+end
+
+for _, k in ipairs(s_up_keys) do
+  map(all_editor_modes, k, select_char_up, { desc = "Select Line Up", silent = true })
+end
+
+for _, k in ipairs(s_down_keys) do
+  map(all_editor_modes, k, select_char_down, { desc = "Select Line Down", silent = true })
+end
+
+-- ============================================================================
+-- 4.1 VISUAL SELECTION SURROUND / WRAPPING (VS Code Parity)
+-- When text is selected, typing quotes or brackets wraps both sides!
+-- ============================================================================
+local function wrap_selection(open_delim, close_delim)
+  local mode = vim.fn.visualmode()
+  if mode == "" then
+    mode = vim.fn.mode()
+  end
+  local vpos = vim.fn.getpos("v")
+  local dotpos = vim.fn.getpos(".")
+
+  local esc = vim.api.nvim_replace_termcodes("<Esc>", true, true, true)
+  vim.api.nvim_feedkeys(esc, "nx", false)
+
+  local s_row, s_col, e_row, e_col
+  if vpos[2] < dotpos[2] or (vpos[2] == dotpos[2] and vpos[3] <= dotpos[3]) then
+    s_row, s_col = vpos[2] - 1, vpos[3] - 1
+    e_row, e_col = dotpos[2] - 1, dotpos[3]
+  else
+    s_row, s_col = dotpos[2] - 1, dotpos[3] - 1
+    e_row, e_col = vpos[2] - 1, vpos[3]
+  end
+
+  if mode == "V" then
+    s_col = 0
+    local last_line = vim.api.nvim_buf_get_lines(0, e_row, e_row + 1, false)[1] or ""
+    e_col = #last_line
+  end
+
+  local start_line = vim.api.nvim_buf_get_lines(0, s_row, s_row + 1, false)[1] or ""
+  local end_line = vim.api.nvim_buf_get_lines(0, e_row, e_row + 1, false)[1] or ""
+  s_col = math.max(0, math.min(s_col, #start_line))
+  e_col = math.max(0, math.min(e_col, #end_line))
+
+  if s_row > e_row or (s_row == e_row and s_col >= e_col) then
+    return
+  end
+
+  local lines = vim.api.nvim_buf_get_text(0, s_row, s_col, e_row, e_col, {})
+  if #lines == 0 then
+    return
+  end
+
+  if #lines == 1 then
+    lines[1] = open_delim .. lines[1] .. close_delim
+  else
+    lines[1] = open_delim .. lines[1]
+    lines[#lines] = lines[#lines] .. close_delim
+  end
+
+  vim.api.nvim_buf_set_text(0, s_row, s_col, e_row, e_col, lines)
+
+  -- Move cursor to closing delimiter in normal mode
+  if #lines == 1 then
+    vim.api.nvim_win_set_cursor(0, { e_row + 1, e_col + #open_delim + #close_delim - 1 })
+  else
+    vim.api.nvim_win_set_cursor(0, { e_row + 1, #lines[#lines] - 1 })
+  end
+end
+
+-- Delimiters auto-surround mappings in visual / selection mode
+local wrap_pairs = {
+  ['"'] = { '"', '"' },
+  ["'"] = { "'", "'" },
+  ["`"] = { "`", "`" },
+  ["("] = { "(", ")" },
+  [")"] = { "(", ")" },
+  ["["] = { "[", "]" },
+  ["]"] = { "[", "]" },
+  ["{"] = { "{", "}" },
+  ["}"] = { "{", "}" },
+  ["<"] = { "<", ">" },
+  [">"] = { "<", ">" },
+}
+
+for trigger_key, pair in pairs(wrap_pairs) do
+  map({ "v", "x" }, trigger_key, function()
+    wrap_selection(pair[1], pair[2])
+  end, { desc = "Wrap selection with " .. pair[1] .. pair[2], silent = true })
+end
 
 -- Delete Selection with Backspace or Delete (VS Code Standard)
 map({ "v", "x" }, "<BS>", '"_c', { desc = "Delete Selection", silent = true })

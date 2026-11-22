@@ -147,8 +147,10 @@ local plugins = {
   -- 6. Mini.pairs: Ultra-lightweight Auto-pairs
   {
     "echasnovski/mini.pairs",
-    event = "InsertEnter",
-    opts = {},
+    lazy = false,
+    opts = {
+      modes = { insert = true, command = false, terminal = false },
+    },
   },
 
   -- 7. Mini.icons: Fast HD icons for files and folders
