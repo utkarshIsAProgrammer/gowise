@@ -4,12 +4,17 @@
 local M = {}
 
 M.tree_win = nil
-M.tree_buf = nil
 M.width = 32
 
 function M.toggle()
-  -- Check if snacks picker explorer is available
-  if Snacks and Snacks.explorer then
+  if Snacks and Snacks.picker then
+    local active = Snacks.picker.get({ source = "explorer" })
+    if #active > 0 then
+      for _, p in ipairs(active) do
+        p:close()
+      end
+      return
+    end
     Snacks.explorer()
     return
   end

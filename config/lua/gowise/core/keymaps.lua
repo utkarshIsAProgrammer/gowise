@@ -223,22 +223,25 @@ map({ "n", "i", "v" }, "<C-f>", function()
   end
 end, { desc = "Find in File", silent = true })
 
--- Toggle File Tree Sidebar (Ctrl+B)
-map({ "n", "i" }, "<C-b>", function()
+-- Toggle File Tree Sidebar (Ctrl+B across all modes: normal, insert, visual, terminal)
+map({ "n", "i", "v", "t" }, "<C-b>", function()
   require("gowise.components.tree").toggle()
 end, { desc = "Toggle Sidebar", silent = true })
 
--- Toggle Terminal Drawer (Ctrl+` or Ctrl+J)
-map({ "n", "i", "t" }, "<C-`>", function()
-  require("gowise.components.terminal").toggle()
-end, { desc = "Toggle Terminal Drawer", silent = true })
+-- Toggle Terminal Drawer (Ctrl+`, Ctrl+~, Ctrl+^, Ctrl+@, Ctrl+J across ALL modes)
+local term_toggle_keys = { "<C-`>", "<C-~>", "<C-^>", "<C-@>", "<C-j>" }
+for _, key in ipairs(term_toggle_keys) do
+  map({ "n", "i", "t", "v" }, key, function()
+    require("gowise.components.terminal").toggle()
+  end, { desc = "Toggle Terminal Drawer", silent = true })
+end
 
-map({ "n", "i", "t" }, "<C-j>", function()
-  require("gowise.components.terminal").toggle()
-end, { desc = "Toggle Terminal Drawer", silent = true })
+-- New Terminal Tab (Ctrl+Shift+` and Ctrl+Shift+~)
+map({ "n", "i", "t", "v" }, "<C-S-`>", function()
+  require("gowise.components.terminal").new_instance()
+end, { desc = "New Terminal Instance", silent = true })
 
--- New Terminal Tab (Ctrl+Shift+`)
-map({ "n", "i", "t" }, "<C-S-`>", function()
+map({ "n", "i", "t", "v" }, "<C-S-~>", function()
   require("gowise.components.terminal").new_instance()
 end, { desc = "New Terminal Instance", silent = true })
 
