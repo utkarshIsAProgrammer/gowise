@@ -1,10 +1,14 @@
 ﻿# ==============================================================================
-# Gowise Universal Installer for Windows (PowerShell)
-# Handles all permissions, PATH registration, and dependency checks
+# Gowise Universal Zero-Setup Installer for Windows (PowerShell)
+# Handles all permissions, PATH registration, dependency auto-provisioning,
+# and Start Menu application integration
 # ==============================================================================
 
 [CmdletBinding()]
-param()
+param(
+    [switch]$Clean,
+    [switch]$Force
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -23,42 +27,91 @@ function Write-Banner {
 
 Write-Banner
 
-# 1. Check Dependencies
-Write-Host "==> Checking dependencies..." -ForegroundColor Cyan
+# 1. Dependency Checks & Auto-Provisioning
+Write-Host "==> Checking and provisioning dependencies..." -ForegroundColor Cyan
 
 # Check Git
 $gitCmd = Get-Command git -ErrorAction SilentlyContinue
 if (-not $gitCmd) {
-    Write-Host "✖ Git is required to download and maintain Gowise." -ForegroundColor Red
-    Write-Host "  Please install Git using winget:" -ForegroundColor Yellow
-    Write-Host "    winget install --id Git.Git -e --source winget" -ForegroundColor White
-    exit 1
+    Write-Host "▲ Git was not found. Attempting automatic installation via winget..." -ForegroundColor Yellow
+    $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
+    if ($wingetCmd) {
+        try {
+            winget install --id Git.Git -e --source winget --accept-source-agreements --accept-package-agreements
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+        } catch {
+            Write-Host "✖ Could not automatically install Git." -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        Write-Host "✖ Git is required. Please install Git from https://git-scm.com and rerun." -ForegroundColor Red
+        exit 1
+    }
 }
 Write-Host "✔ Git is available." -ForegroundColor Green
 
-# Check Neovim
+# Check Neovim (v0.10+ required)
 $nvimCmd = Get-Command nvim -ErrorAction SilentlyContinue
 if (-not $nvimCmd) {
-    Write-Host "▲ Neovim (v0.10+) was not found on your system." -ForegroundColor Yellow
-    Write-Host "  You can easily install Neovim using winget:" -ForegroundColor Cyan
-    Write-Host "    winget install --id Neovim.Neovim -e" -ForegroundColor White
-    Write-Host "  Continuing installation... Install Neovim before launching 'gowise'." -ForegroundColor Yellow
-} else {
+    Write-Host "▲ Neovim was not found. Attempting automatic installation..." -ForegroundColor Yellow
+    $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
+    if ($wingetCmd) {
+        try {
+            Write-Host "  Installing Neovim via winget..." -ForegroundColor Cyan
+            winget install --id Neovim.Neovim -e --accept-source-agreements --accept-package-agreements
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+        } catch {
+            Write-Host "▲ Winget install failed, falling back to portable download..." -ForegroundColor Yellow
+        }
+    }
+    
+    # Standalone portable fallback if still missing
+    $nvimCmd = Get-Command nvim -ErrorAction SilentlyContinue
+    if (-not $nvimCmd) {
+        $nvimZipDir = "$env:LOCALAPPDATA\gowise-nvim"
+        Write-Host "  Downloading portable Neovim runtime to $nvimZipDir..." -ForegroundColor Cyan
+        New-Item -ItemType Directory -Path $nvimZipDir -Force | Out-Null
+        $zipFile = "$env:TEMP\nvim-win64.zip"
+        Invoke-WebRequest -Uri "https://github.com/neovim/neovim/releases/latest/download/nvim-win64.zip" -OutFile $zipFile
+        Expand-Archive -Path $zipFile -DestinationPath $nvimZipDir -Force
+        Remove-Item $zipFile -Force
+        
+        $portableBin = "$nvimZipDir\nvim-win64\bin"
+        if (Test-Path "$portableBin\nvim.exe") {
+            $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+            [Environment]::SetEnvironmentVariable("Path", "$userPath;$portableBin", "User")
+            $env:Path += ";$portableBin"
+        }
+    }
+}
+
+if (Get-Command nvim -ErrorAction SilentlyContinue) {
     $nvimVer = & nvim --version | Select-Object -First 1
-    Write-Host "✔ Neovim is available ($nvimVer)." -ForegroundColor Green
+    Write-Host "✔ Neovim engine is active ($nvimVer)." -ForegroundColor Green
+} else {
+    Write-Host "✖ Neovim could not be installed. Please install Neovim from https://neovim.io" -ForegroundColor Red
+    exit 1
 }
 
 # 2. Setup Paths
 $installDir = "$env:LOCALAPPDATA\gowise-repo"
 $configDir  = "$env:LOCALAPPDATA\gowise"
+$dataDir    = "$env:LOCALAPPDATA\gowise-data"
 $binDir     = "$installDir\bin"
 
-# 3. Clone or Update
+if ($Clean) {
+    Write-Host "==> Clean install requested: Purging old runtime files..." -ForegroundColor Yellow
+    if (Test-Path $configDir)  { Remove-Item -Path $configDir -Force -Recurse -ErrorAction SilentlyContinue }
+    if (Test-Path $installDir) { Remove-Item -Path $installDir -Force -Recurse -ErrorAction SilentlyContinue }
+    if (Test-Path $dataDir)    { Remove-Item -Path $dataDir -Force -Recurse -ErrorAction SilentlyContinue }
+}
+
+# 3. Clone or Copy Repository
 Write-Host "==> Syncing Gowise files..." -ForegroundColor Cyan
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 if (Test-Path "$scriptDir\config\init.lua") {
-    Write-Host "  Installing from local folder..." -ForegroundColor Gray
+    Write-Host "  Installing from local workspace: $scriptDir" -ForegroundColor Gray
     if (-not (Test-Path $installDir)) { New-Item -ItemType Directory -Path $installDir -Force | Out-Null }
     Copy-Item -Path "$scriptDir\*" -Destination $installDir -Recurse -Force
 } else {
@@ -67,14 +120,14 @@ if (Test-Path "$scriptDir\config\init.lua") {
         Write-Host "  Updating existing installation..." -ForegroundColor Gray
         git -C $installDir pull --quiet
     } else {
-        Write-Host "  Cloning repository..." -ForegroundColor Gray
+        Write-Host "  Cloning repository from GitHub..." -ForegroundColor Gray
         git clone --depth 1 $repoUrl $installDir --quiet
     }
 }
 Write-Host "✔ Files synced to $installDir." -ForegroundColor Green
 
-# 4. Link Config
-Write-Host "==> Setting up isolated config..." -ForegroundColor Cyan
+# 4. Link Isolated Configuration (Directory Junction)
+Write-Host "==> Configuring isolated environment..." -ForegroundColor Cyan
 if (Test-Path $configDir) {
     $isJunction = (Get-Item $configDir).Attributes.HasFlag([System.IO.FileAttributes]::ReparsePoint)
     if (-not $isJunction) {
@@ -99,22 +152,43 @@ if ($userPath -notlike "*$binDir*") {
     Write-Host "✔ 'gowise' is already in your PATH." -ForegroundColor Green
 }
 
-# 6. Preheat if nvim exists
-if ($nvimCmd) {
-    Write-Host "==> Preheating plugins for instant startup..." -ForegroundColor Cyan
-    $env:NVIM_APPNAME = "gowise"
-    Start-Process -FilePath "nvim" -ArgumentList "--headless", "+Lazy! sync", "+qa" -NoNewWindow -Wait -ErrorAction SilentlyContinue
-    Write-Host "✔ Startup latency pre-warmed." -ForegroundColor Green
+# 6. Windows Start Menu Shortcut Integration
+Write-Host "==> Registering Windows Start Menu shortcut..." -ForegroundColor Cyan
+try {
+    $wshShell = New-Object -ComObject WScript.Shell
+    $programsFolder = [Environment]::GetFolderPath("Programs")
+    $shortcutPath = "$programsFolder\Gowise.lnk"
+    $shortcut = $wshShell.CreateShortcut($shortcutPath)
+    $shortcut.TargetPath = "$binDir\gowise.cmd"
+    $shortcut.WorkingDirectory = [Environment]::GetFolderPath("UserProfile")
+    $shortcut.Description = "Gowise - The Fluent, Modeless Terminal Code Editor"
+    $shortcut.Save()
+    Write-Host "✔ Created Start Menu shortcut: Gowise" -ForegroundColor Green
+} catch {
+    Write-Host "▲ Could not create Start Menu shortcut (optional)." -ForegroundColor Gray
 }
 
-# 7. Success Banner
+# 7. Preheat Lazy plugins
+Write-Host "==> Pre-compiling plugin cache..." -ForegroundColor Cyan
+$lazyDir = "$dataDir\lazy\lazy.nvim"
+if (-not (Test-Path $lazyDir)) {
+    git clone --filter=blob:none --branch=stable https://github.com/folke/lazy.nvim.git $lazyDir --quiet
+}
+$env:NVIM_APPNAME = "gowise"
+& nvim --headless "+Lazy! sync" +qa 2>$null
+Write-Host "✔ Preheat complete. Startup optimized." -ForegroundColor Green
+
+# 8. Friendly Finish Summary
 Write-Host ""
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
-Write-Host "✔ Gowise installed successfully on Windows!" -ForegroundColor Green
+Write-Host "✔ Gowise installed successfully and ready to use!" -ForegroundColor Green
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
 Write-Host ""
-Write-Host "  To launch the editor, open a new terminal and type:" -ForegroundColor White
-Write-Host "    gowise .                    # Open current workspace" -ForegroundColor Cyan
-Write-Host "    gowise path\to\file.ts       # Open or create file" -ForegroundColor Cyan
+Write-Host "  To launch the editor, run:" -ForegroundColor White
+Write-Host "    gowise .                    # Open current folder / project" -ForegroundColor Cyan
+Write-Host "    gowise src\main.go          # Open or create a file" -ForegroundColor Cyan
 Write-Host "    gowise --doctor             # Check system health" -ForegroundColor Cyan
+Write-Host "    gowise --benchmark          # Measure cold startup latency" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  Or search for 'Gowise' in the Windows Start Menu!" -ForegroundColor Yellow
 Write-Host ""

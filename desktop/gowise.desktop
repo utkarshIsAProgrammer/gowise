@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Gowise
+Comment=The Fluent, Modeless Terminal Code Editor
+GenericName=Code Editor
+Exec=gowise %F
+Icon=gowise
+Terminal=true
+Type=Application
+Categories=Development;TextEditor;IDE;Utility;
+MimeType=text/plain;text/x-go;text/x-python;text/x-c;text/x-c++;text/javascript;text/x-typescript;application/json;text/markdown;
+Keywords=editor;code;terminal;gowise;ide;neovim;modeless;
+StartupNotify=true

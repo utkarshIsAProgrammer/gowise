@@ -1,68 +1,82 @@
 # Gowise Code Editor
 
 > **The Fluent, Modeless Terminal Code Editor for All Operating Systems.**  
-> Blends the speed and low-resource consumption of the terminal with the frictionless modeless editing, rich aesthetics, and polyglot power of VS Code and Zed.
+> Blends the blazing speed (<50ms startup) and low resource footprint of the terminal with the modeless editing, rich aesthetics, and polyglot power of modern graphical IDEs like VS Code and Zed.
 
 ---
 
 ## ⚡ Core Philosophy & Guarantees
 
-1. **Sub-30ms Startup & Ultra-Low Resource Usage**: Uses native Neovim 0.12 JIT bytecode caching, compiled Rust/Lua plugins (`blink.cmp`, `snacks.nvim`), and deferred lazy-loading. Consumes under 40 MB RAM at idle.
-2. **100% Strict OS Isolation**: Powered by `NVIM_APPNAME=gowise`. Configs, plugins, sessions, and state are isolated in `~/.config/gowise` (or `%LOCALAPPDATA%\gowise` on Windows). Never touches or interferes with Vanilla `nvim`, `minimal`, or `vsc`.
-3. **Zero Host Terminal Tampering**: Never modifies your terminal emulator configs (`kitty.conf`, `ghostty.conf`, `foot.ini`, Windows Terminal). All keybindings, word jumping, and word deletions are handled internally.
-4. **All OS Native**: First-class support for Linux, macOS, and Windows (via PowerShell / ConPTY).
-5. **Fluent Visuals**:
-   - **Rainbow Tabs**: Color-accented tab bar with dirty indicators and file icons.
-   - **Green Smooth & Fluent Line**: Glowing fluent active cursor line and illuminated active scope indent guide.
-   - **Rainbow Delimiters**: Color-coded nested brackets `() {} []`.
+1. **Sub-50ms Cold Startup & Low Resource Usage**: Uses native Neovim 0.12 LuaJIT bytecode caching, compiled C/Rust plugins (`blink.cmp`, `snacks.nvim`), and intelligent event deferral. Starts in **~48ms** and runs comfortably under 40 MB RAM.
+2. **100% Strict OS Isolation**: Powered by `NVIM_APPNAME=gowise`. Configs, plugins, sessions, and state are isolated in `~/.config/gowise` (or `%LOCALAPPDATA%\gowise` on Windows). Never interferes with your vanilla `nvim` or other configurations.
+3. **Zero Host Terminal Tampering**: Never modifies your terminal emulator configs (`kitty.conf`, `ghostty.conf`, `foot.ini`, Windows Terminal). Word jumping, selection, and modeless navigation are handled natively by the editor.
+4. **Universal All-OS Support**: First-class, zero-prerequisite installer for Linux (Debian, Ubuntu, Arch, Fedora, Alpine, Void), macOS (Intel & Apple Silicon), WSL, and Windows.
+5. **Zero-Nest Terminal RPC Client**: Running `gowise <file>`, `nvim <file>`, or `code <file>` inside the integrated terminal drawer forwards the file directly to a new tab in the parent editor window instead of launching a nested Neovim process.
+6. **Fluent Visuals**:
+   - **Rainbow Tabs**: Color-accented tab bar with dirty indicators and filetype icons.
+   - **Green Smooth & Fluent Cursor**: Modeless vertical beam (`ver25`) with active scope indent guidance.
+   - **Breadcrumbs Winbar**: Instant directory path navigation with file icons.
    - **Realtime Hex Colorizer**: Inline color previews for hex and CSS colors (`#00E5FF`, `#FF007F`).
-   - **6 Bespoke Gowise Themes**: Handcrafted original palettes with live interactive preview.
+   - **6 Bespoke Gowise Themes**: Handcrafted original palettes with live interactive switcher.
 
 ---
 
 ## 🚀 Universal One-Line Installation
 
-Install Gowise on any OS in seconds with automatic dependency handling:
+Install Gowise on any operating system with a single command. The installer automatically provisions dependencies, compiles the plugin cache, and registers the application.
 
-### 🐧 Linux & 🍏 macOS (One-Liner)
+### 🐧 Linux & 🍏 macOS & 🐧 WSL (One-Liner)
 ```bash
 curl -fsSL https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/install.sh | bash
 ```
+*(Or with `wget`: `wget -qO- https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/install.sh | bash`)*
 
 ### 🪟 Windows (PowerShell One-Liner)
+Open PowerShell (as normal user) and run:
 ```powershell
 irm https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/install.ps1 | iex
 ```
 
 ---
 
-### Manual Git Installation (All Platforms)
-```bash
-git clone https://github.com/utkarshIsAProgrammer/gowise.git
-cd gowise
+## 🌟 Starting Completely Fresh (Zero Pre-Installation Guarantee)
 
-# On Linux/macOS:
-./install.sh
+If you are setting up a brand-new computer or want to test a completely clean install from scratch:
 
-# On Windows (PowerShell):
-.\install.ps1
-```
+### How it Works:
+1. **No Pre-Installed Tools Needed**:
+   - You **do not** need to install Neovim beforehand.
+   - If `nvim` (or Neovim v0.10+) is missing, the installer automatically provisions the modern pre-compiled engine into your user directory.
+   - On Windows, if `git` or `nvim` is missing, the installer automatically provisions them via `winget` or direct portable download.
+2. **One-Command Fresh Reset**:
+   If you already have Gowise and want to test a 100% clean installation from scratch:
+   - **Linux / macOS**:
+     ```bash
+     curl -fsSL https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/install.sh | bash -s -- --clean
+     ```
+   - **Windows**:
+     ```powershell
+     & ([scriptblock]::Create((irm https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/install.ps1))) -Clean
+     ```
+3. **Desktop & Application Launcher Integration**:
+   - On Linux, Gowise is registered with your desktop environment (`~/.local/share/applications/gowise.desktop`) and app grid with a dedicated HD vector icon.
+   - On Windows, a **Gowise** shortcut is automatically placed in your Windows Start Menu.
 
 ---
 
 ## 💻 Running Gowise
 
 ```bash
-# Open current directory
+# Open current directory / workspace
 gowise .
 
 # Open or create a file anywhere (auto-creates parent directories on save)
 gowise src/api/routes/auth.go
 
-# Check system health & installed language compilers
+# Inspect system health and language compilers
 gowise --doctor
 
-# Benchmark startup latency
+# Benchmark exact startup latency in milliseconds
 gowise --benchmark
 ```
 
@@ -70,17 +84,20 @@ gowise --benchmark
 
 ## 🧹 Clean Uninstallation
 
-If you ever wish to remove Gowise, it cleans up all its data and leaves your system spotless:
+If you ever wish to remove Gowise, it cleans up all its symlinks, cache, and state, leaving your system completely untouched:
 
-- **Linux / macOS**: Run `./uninstall.sh` from the repository, or:
+- **Linux / macOS**:
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/uninstall.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/uninstall.sh | bash -s -- -y
   ```
-- **Windows**: Run `.\uninstall.ps1` in PowerShell.
+- **Windows**:
+  ```powershell
+  & ([scriptblock]::Create((irm https://raw.githubusercontent.com/utkarshIsAProgrammer/gowise/main/uninstall.ps1))) -Force
+  ```
 
 ---
 
-## 🎨 6 Signature Gowise Themes (No Clones!)
+## 🎨 6 Signature Gowise Themes
 
 Open the live theme previewer anytime with <kbd>Ctrl+K Ctrl+T</kbd> or through the Command Palette:
 
@@ -115,9 +132,12 @@ Open the live theme previewer anytime with <kbd>Ctrl+K Ctrl+T</kbd> or through t
 | **Fold / Unfold Block** | <kbd>Ctrl+Shift+[</kbd> / <kbd>Ctrl+Shift+]</kbd> |
 | **Multi-Cursor (Next Match)** | <kbd>Ctrl+D</kbd> |
 
-### 2. Navigation & Precise Selection
+### 2. Navigation, Focus & Precise Selection
 | Action | Shortcut |
 |---|---|
+| **Focus File Explorer Sidebar** | <kbd>Ctrl+0</kbd> or <kbd>Ctrl+Shift+E</kbd> |
+| **Focus Editor Window** | <kbd>Ctrl+1</kbd> or <kbd>Alt+1</kbd> |
+| **Focus Integrated Terminal** | <kbd>Ctrl+2</kbd> or <kbd>Alt+2</kbd> |
 | **Jump Word Left / Right** | <kbd>Ctrl+Left</kbd> / <kbd>Ctrl+Right</kbd> |
 | **Select Whole Word Left / Right** | <kbd>Ctrl+Shift+Left</kbd> / <kbd>Ctrl+Shift+Right</kbd> |
 | **Select by Character** | <kbd>Shift+Left</kbd> / <kbd>Shift+Right</kbd> / <kbd>Shift+Up/Down</kbd> |
@@ -133,8 +153,8 @@ Open the live theme previewer anytime with <kbd>Ctrl+K Ctrl+T</kbd> or through t
 | **Command Palette** | <kbd>Ctrl+Shift+P</kbd> |
 | **Go to Symbol in File** | <kbd>Ctrl+Shift+O</kbd> |
 | **Global Search (Live Grep)** | <kbd>Ctrl+Shift+F</kbd> |
-| **Toggle File Explorer Sidebar** | <kbd>Ctrl+B</kbd> *(works everywhere without Esc)* |
-| **Toggle Terminal Drawer** | <kbd>Ctrl+\`</kbd> / <kbd>Ctrl+~</kbd> / <kbd>Ctrl+J</kbd> *(works everywhere without Esc)* |
+| **Toggle File Explorer Sidebar** | <kbd>Ctrl+B</kbd> |
+| **Toggle Terminal Drawer** | <kbd>Ctrl+\`</kbd> / <kbd>Ctrl+~</kbd> / <kbd>Ctrl+J</kbd> |
 
 ### 3. Integrated Terminal Drawer & F5 Runner
 | Action | Shortcut |

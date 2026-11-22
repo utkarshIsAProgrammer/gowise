@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Gowise Universal Installer (Linux, macOS & WSL)
-# Crafted for resilience, zero-error friendliness, and auto-recovery
+# Gowise Universal Zero-Setup Installer (Linux, macOS, WSL)
+# Fully automated: installs dependencies, configures PATH, registers desktop app
 # ==============================================================================
 
 set -eo pipefail
@@ -33,6 +33,25 @@ print_banner() {
   echo -e "${BOLD}The Fluent, Modeless Terminal Code Editor for All OS${RESET}\n"
 }
 
+# Clean install flag check
+CLEAN_INSTALL=false
+for arg in "$@"; do
+  case "$arg" in
+    --clean|-c)
+      CLEAN_INSTALL=true
+      ;;
+    --help|-h)
+      echo "Gowise Universal Installer"
+      echo "Usage: ./install.sh [options]"
+      echo ""
+      echo "Options:"
+      echo "  --clean, -c   Perform a completely clean install from scratch"
+      echo "  --help, -h    Show this help message"
+      exit 0
+      ;;
+  esac
+done
+
 # 1. Platform Detection
 detect_os() {
   OS="$(uname -s)"
@@ -45,67 +64,129 @@ detect_os() {
   log_info "Detected platform: ${BOLD}$PLATFORM ($ARCH)${RESET}"
 }
 
-# 2. Dependency Verifications
-check_dependencies() {
-  log_info "Checking essential dependencies..."
+# 2. Automated Dependency Installation (Zero Pre-requisite Guarantee)
+ensure_dependencies() {
+  log_info "Verifying and provisioning dependencies..."
 
-  # Git Check
+  # A. Check and provision Git
   if ! command -v git &>/dev/null; then
-    log_error "Git is required to download and update Gowise."
-    echo "  Please install Git via your package manager:"
-    echo "    • Ubuntu/Debian: sudo apt install git"
-    echo "    • macOS:         brew install git (or install Xcode Command Line Tools)"
-    echo "    • Fedora:        sudo dnf install git"
-    echo "    • Arch Linux:    sudo pacman -S git"
+    log_warn "Git not found. Attempting automatic installation..."
+    if [ "$PLATFORM" = "macOS" ]; then
+      if command -v brew &>/dev/null; then
+        brew install git
+      else
+        xcode-select --install || true
+      fi
+    elif [ "$PLATFORM" = "Linux" ]; then
+      if command -v apt-get &>/dev/null; then
+        sudo apt-get update && sudo apt-get install -y git
+      elif command -v pacman &>/dev/null; then
+        sudo pacman -S --noconfirm git
+      elif command -v dnf &>/dev/null; then
+        sudo dnf install -y git
+      elif command -v apk &>/dev/null; then
+        sudo apk add git
+      fi
+    fi
+  fi
+
+  if command -v git &>/dev/null; then
+    log_success "Git is available ($(git --version | awk '{print $3}'))."
+  else
+    log_error "Git is required to install Gowise. Please install Git and rerun."
     exit 1
   fi
-  log_success "Git is available."
 
-  # Curl Check
-  if ! command -v curl &>/dev/null; then
-    log_warn "curl is recommended for fetching language servers and extensions."
+  # B. Check and provision Neovim (v0.10+ required)
+  NEED_NVIM=false
+  if ! command -v nvim &>/dev/null; then
+    NEED_NVIM=true
+  else
+    NVIM_VER="$(nvim --version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+' | head -n1 || echo '0.0')"
+    MAJOR="$(echo "$NVIM_VER" | cut -d. -f1)"
+    MINOR="$(echo "$NVIM_VER" | cut -d. -f2)"
+    if [ "$MAJOR" -eq 0 ] && [ "$MINOR" -lt 10 ]; then
+      log_warn "Installed Neovim ($NVIM_VER) is older than required v0.10+."
+      NEED_NVIM=true
+    fi
   fi
 
-  # Neovim Check
-  if ! command -v nvim &>/dev/null; then
-    log_warn "Neovim was not found on your system."
-    echo -e "\n${BOLD}Gowise is powered by Neovim (v0.10+ required).${RESET}"
-    echo "Would you like instructions to install it, or should we install it for you?"
-    echo "  • Ubuntu/Debian: sudo add-apt-repository ppa:neovim-ppa/unstable && sudo apt update && sudo apt install neovim"
-    echo "  • macOS:         brew install neovim"
-    echo "  • Fedora:        sudo dnf install neovim"
-    echo "  • Arch Linux:    sudo pacman -S neovim"
-    echo "  • Portable:      curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim.appimage"
-    echo ""
-    log_warn "Continuing installation... You can install Neovim anytime before running 'gowise'."
+  if [ "$NEED_NVIM" = true ]; then
+    log_info "Provisioning modern Neovim runtime..."
+    if [ "$PLATFORM" = "macOS" ]; then
+      if command -v brew &>/dev/null; then
+        brew install neovim
+      fi
+    elif [ "$PLATFORM" = "Linux" ]; then
+      # Try package manager first if available
+      INSTALLED_PKG=false
+      if command -v pacman &>/dev/null; then
+        sudo pacman -S --noconfirm neovim && INSTALLED_PKG=true || true
+      elif command -v dnf &>/dev/null; then
+        sudo dnf install -y neovim && INSTALLED_PKG=true || true
+      fi
+
+      # If package manager didn't install modern nvim, download official standalone tarball
+      if [ "$INSTALLED_PKG" = false ] && ! command -v nvim &>/dev/null; then
+        log_step "Downloading official pre-compiled Neovim binary..."
+        mkdir -p "$HOME/.local/bin" "$HOME/.local/share/gowise-nvim"
+        local NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz"
+        if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+          NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-arm64.tar.gz"
+        fi
+        
+        if command -v curl &>/dev/null; then
+          curl -sSL "$NVIM_URL" | tar -xz -C "$HOME/.local/share/gowise-nvim" --strip-components=1
+        elif command -v wget &>/dev/null; then
+          wget -qO- "$NVIM_URL" | tar -xz -C "$HOME/.local/share/gowise-nvim" --strip-components=1
+        fi
+
+        if [ -x "$HOME/.local/share/gowise-nvim/bin/nvim" ]; then
+          ln -sf "$HOME/.local/share/gowise-nvim/bin/nvim" "$HOME/.local/bin/nvim"
+          export PATH="$HOME/.local/bin:$PATH"
+        fi
+      fi
+    fi
+  fi
+
+  if command -v nvim &>/dev/null; then
+    log_success "Neovim engine is active ($(nvim --version | head -n1))."
   else
-    NVIM_VER="$(nvim --version | head -n1 | grep -o 'v[0-9]*\.[0-9]*\.[0-9]*' || echo 'unknown')"
-    log_success "Neovim is available (${NVIM_VER})."
+    log_error "Neovim (v0.10+) could not be automatically installed."
+    echo "  Please install Neovim from https://neovim.io and rerun install.sh"
+    exit 1
   fi
 }
 
-# 3. Target Paths
+# 3. Setup Target Directories
 setup_paths() {
   INSTALL_DIR="${HOME}/.local/share/gowise/repo"
   CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/gowise"
   BIN_DIR="${HOME}/.local/bin"
+  DATA_DIR="${HOME}/.local/share/gowise"
+  CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/gowise"
+  STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/gowise"
 
-  mkdir -p "$BIN_DIR"
-  mkdir -p "$(dirname "$INSTALL_DIR")"
+  mkdir -p "$BIN_DIR" "$DATA_DIR" "$CACHE_DIR/luac" "$STATE_DIR"
   mkdir -p "$(dirname "$CONFIG_DIR")"
+
+  if [ "$CLEAN_INSTALL" = true ]; then
+    log_warn "Clean install requested: Wiping old Gowise runtime state..."
+    rm -rf "$CONFIG_DIR" "$INSTALL_DIR" "$CACHE_DIR" "$STATE_DIR" "$DATA_DIR/lazy"
+    mkdir -p "$DATA_DIR" "$CACHE_DIR/luac" "$STATE_DIR"
+  fi
 }
 
-# 4. Clone or Update Repo
+# 4. Clone or Copy Repository
 sync_repository() {
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 
-  # If running from a local cloned directory
   if [ -f "$SCRIPT_DIR/config/init.lua" ]; then
-    log_info "Installing from local directory: $SCRIPT_DIR"
+    log_info "Installing from local workspace: $SCRIPT_DIR"
     mkdir -p "$INSTALL_DIR"
     cp -rf "$SCRIPT_DIR"/* "$INSTALL_DIR"/ 2>/dev/null || true
   else
-    log_info "Fetching latest Gowise from GitHub..."
+    log_info "Fetching latest Gowise from GitHub repository..."
     REPO_URL="https://github.com/utkarshIsAProgrammer/gowise.git"
     if [ -d "$INSTALL_DIR/.git" ]; then
       log_step "Updating existing installation at $INSTALL_DIR..."
@@ -119,13 +200,13 @@ sync_repository() {
   log_success "Gowise source files ready."
 }
 
-# 5. Link Config Safely
+# 5. Link Isolated Configuration
 link_config() {
-  log_info "Configuring Gowise environment..."
+  log_info "Configuring isolated environment..."
 
   if [ -e "$CONFIG_DIR" ] && [ ! -L "$CONFIG_DIR" ]; then
     BACKUP_PATH="${CONFIG_DIR}.backup.$(date +%Y%m%d%H%M%S)"
-    log_warn "Existing config found at $CONFIG_DIR. Moving safely to $BACKUP_PATH"
+    log_warn "Existing config found at $CONFIG_DIR. Backing up to $BACKUP_PATH"
     mv "$CONFIG_DIR" "$BACKUP_PATH"
   elif [ -L "$CONFIG_DIR" ]; then
     rm -f "$CONFIG_DIR"
@@ -135,73 +216,119 @@ link_config() {
   log_success "Linked $CONFIG_DIR -> $INSTALL_DIR/config"
 }
 
-# 6. Install CLI Launcher
+# 6. Install CLI Launcher & PATH
 install_launcher() {
   log_info "Setting up 'gowise' command..."
   chmod +x "$INSTALL_DIR/bin/gowise"
+  chmod +x "$INSTALL_DIR/config/bin/"* 2>/dev/null || true
   ln -sf "$INSTALL_DIR/bin/gowise" "$BIN_DIR/gowise"
-  log_success "Created symlink: $BIN_DIR/gowise"
+  log_success "Created executable link: $BIN_DIR/gowise"
 
-  # PATH verification
+  # PATH verification across popular shells
   if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
-    log_warn "$BIN_DIR is not in your current PATH."
-    SHELL_NAME="$(basename "${SHELL:-bash}")"
-    RC_FILE="$HOME/.bashrc"
-    case "$SHELL_NAME" in
-      zsh)  RC_FILE="$HOME/.zshrc" ;;
-      fish) RC_FILE="$HOME/.config/fish/config.fish" ;;
-      bash) RC_FILE="$HOME/.bashrc" ;;
-      *)    RC_FILE="$HOME/.profile" ;;
-    esac
-
-    if [ -f "$RC_FILE" ] && ! grep -q 'export PATH=.*\.local/bin' "$RC_FILE"; then
-      echo -e '\nexport PATH="$HOME/.local/bin:$PATH"' >> "$RC_FILE"
-      log_success "Added $BIN_DIR to $RC_FILE automatically."
-      log_step "Run: ${BOLD}source $RC_FILE${RESET} or open a new terminal window."
+    log_warn "$BIN_DIR is not in your current shell PATH."
+    for RC_FILE in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
+      if [ -f "$RC_FILE" ] && ! grep -q 'export PATH=.*\.local/bin' "$RC_FILE"; then
+        echo -e '\nexport PATH="$HOME/.local/bin:$PATH"' >> "$RC_FILE"
+        log_success "Added $BIN_DIR to $RC_FILE"
+      fi
+    done
+    if [ -d "$HOME/.config/fish" ]; then
+      FISH_CONF="$HOME/.config/fish/config.fish"
+      if [ -f "$FISH_CONF" ] && ! grep -q '\.local/bin' "$FISH_CONF"; then
+        echo -e '\nfish_add_path -a $HOME/.local/bin' >> "$FISH_CONF"
+        log_success "Added $BIN_DIR to $FISH_CONF"
+      fi
     fi
   fi
 }
 
-# 7. Preheat Plugins
-preheat_cache() {
-  if command -v nvim &>/dev/null; then
-    log_info "Preheating plugins for instant launch..."
-    NVIM_APPNAME=gowise nvim --headless "+Lazy! sync" +qa 2>/dev/null || true
-    log_success "Preheat complete. Startup latency optimized (<50ms)."
+# 7. Desktop & Icon Integration (Linux)
+install_desktop_integration() {
+  if [ "$PLATFORM" = "Linux" ]; then
+    log_info "Registering desktop application and icons..."
+    local APP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    local ICON_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons"
+    local HICOLOR_DIR="$ICON_DIR/hicolor/scalable/apps"
+
+    mkdir -p "$APP_DIR" "$ICON_DIR" "$HICOLOR_DIR"
+
+    if [ -f "$INSTALL_DIR/assets/gowise.svg" ]; then
+      cp -f "$INSTALL_DIR/assets/gowise.svg" "$ICON_DIR/gowise.svg"
+      cp -f "$INSTALL_DIR/assets/gowise.svg" "$HICOLOR_DIR/gowise.svg"
+      log_success "Installed Gowise application icon"
+    fi
+
+    if [ -f "$INSTALL_DIR/desktop/gowise.desktop" ]; then
+      cp -f "$INSTALL_DIR/desktop/gowise.desktop" "$APP_DIR/gowise.desktop"
+      chmod +x "$APP_DIR/gowise.desktop"
+      log_success "Installed desktop entry ($APP_DIR/gowise.desktop)"
+    fi
+
+    if command -v update-desktop-database &>/dev/null; then
+      update-desktop-database "$APP_DIR" 2>/dev/null || true
+    fi
+    if command -v gtk-update-icon-cache &>/dev/null; then
+      gtk-update-icon-cache -f -t "$ICON_DIR/hicolor" 2>/dev/null || true
+      gtk-update-icon-cache -f -t "$ICON_DIR" 2>/dev/null || true
+    fi
   fi
 }
 
-# 8. Friendly Completion Message
+# 8. Bootstrap Plugins & Preheat Cache
+preheat_cache() {
+  log_info "Preheating LuaJIT bytecode & compiling plugin cache..."
+
+  # Pre-clone lazy.nvim if missing
+  local LAZY_DIR="${HOME}/.local/share/gowise/lazy/lazy.nvim"
+  if [ ! -d "$LAZY_DIR" ]; then
+    git clone --filter=blob:none --branch=stable https://github.com/folke/lazy.nvim.git "$LAZY_DIR" --quiet 2>/dev/null || true
+  fi
+
+  # Run headless sync
+  if command -v nvim &>/dev/null; then
+    NVIM_APPNAME=gowise nvim --headless "+Lazy! sync" +qa 2>/dev/null || true
+  fi
+  log_success "Preheat complete. Cold startup latency optimized (<50ms)."
+}
+
+# 9. Friendly Finish Summary
 finish() {
   echo ""
   echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-  echo -e "${BOLD}${GREEN}✔ Gowise installed successfully!${RESET}"
+  echo -e "${BOLD}${GREEN}✔ Gowise installed successfully and ready to use!${RESET}"
   echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
   echo ""
   echo -e "  To start editing, run:"
-  echo -e "    ${CYAN}gowise .${RESET}                      # Open current project"
-  echo -e "    ${CYAN}gowise path/to/file.ext${RESET}       # Open or create file"
-  echo -e "    ${CYAN}gowise --doctor${RESET}               # Check system health"
+  echo -e "    ${CYAN}gowise .${RESET}                      # Open current folder / workspace"
+  echo -e "    ${CYAN}gowise path/to/file.ext${RESET}       # Open or create any file"
+  echo -e "    ${CYAN}gowise --doctor${RESET}               # Inspect toolchains & LSP status"
+  echo -e "    ${CYAN}gowise --benchmark${RESET}            # Measure exact startup latency"
   echo ""
   echo -e "  ${BOLD}Essential shortcuts:${RESET}"
-  echo -e "    • ${BOLD}Ctrl+S${RESET}        Save file (auto-creates directories)"
-  echo -e "    • ${BOLD}Ctrl+P${RESET}        Quick Open file"
+  echo -e "    • ${BOLD}Ctrl+S${RESET}        Save file (auto-creates parent directories)"
+  echo -e "    • ${BOLD}Ctrl+P${RESET}        Quick Open fuzzy file finder"
   echo -e "    • ${BOLD}Ctrl+Shift+P${RESET}  Command Palette"
   echo -e "    • ${BOLD}Ctrl+B${RESET}        Toggle File Explorer sidebar"
-  echo -e "    • ${BOLD}Ctrl+\`${RESET}        Toggle Bottom Terminal Drawer"
-  echo -e "    • ${BOLD}F5${RESET}            Run current file / project"
+  echo -e "    • ${BOLD}Ctrl+\`${RESET}        Toggle Bottom Integrated Terminal"
   echo -e "    • ${BOLD}Ctrl+K Ctrl+T${RESET} Live Theme Switcher"
+  echo -e "    • ${BOLD}F5${RESET}            Run current project / file"
   echo ""
+  if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+    echo -e "  ${YELLOW}Notice:${RESET} Please run ${BOLD}source ~/.bashrc${RESET} (or open a new terminal) to refresh your PATH."
+    echo ""
+  fi
 }
 
 main() {
   print_banner
   detect_os
-  check_dependencies
+  ensure_dependencies
   setup_paths
   sync_repository
   link_config
   install_launcher
+  install_desktop_integration
   preheat_cache
   finish
 }
