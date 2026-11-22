@@ -5,6 +5,7 @@ local opt = vim.opt
 
 -- Appearance & Theme Foundations
 opt.termguicolors = true
+opt.background = "dark"
 opt.number = true
 opt.relativenumber = true  -- Vim-style relative + absolute line numbering
 opt.fillchars = { eob = " " } -- Hides the '~' characters at the end of the buffer!
@@ -29,6 +30,9 @@ opt.wrap = false           -- No jarring line wraps by default
 opt.linebreak = true       -- If wrap is enabled, break cleanly on words
 opt.updatetime = 150       -- 150ms for responsive git signs, hover, and error lens
 opt.timeoutlen = 300       -- Snappy key combo resolution
+opt.keymodel = "startsel,stopsel" -- Native modeless Shift-selection (VS Code / Zed parity)
+opt.selection = "inclusive"       -- Selection includes cursor endpoint
+opt.selectmode = "mouse,key"      -- Typing immediately replaces selection
 
 -- Tabs & Indentation (Polyglot defaults)
 opt.tabstop = 2
@@ -58,5 +62,5 @@ opt.writebackup = false
 -- Session Management
 opt.sessionoptions = "blank,buffers,curdir,folds,help,tabpages,winsize,winpos,terminal"
 
--- Cursor styling for modeless terminal editing
-opt.guicursor = "n-v-c:block,i-ci-ve:ver25-blinkwait300-blinkon200-blinkoff150,r-cr:hor20,o:hor50"
+-- Cursor styling for modeless terminal editing (always thin vertical beam, no block cursor)
+opt.guicursor = "n-v-c-i-ci-ve:ver25-blinkwait300-blinkon200-blinkoff150,r-cr:hor20,o:hor50"

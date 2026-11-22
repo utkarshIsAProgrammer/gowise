@@ -87,62 +87,22 @@ end
 
 function M.restore()
   ensure_state_dirs()
-
-  -- Only auto-restore when launched without file/directory arguments
-  if vim.fn.argc() > 0 then
-    return
-  end
-
-  local target_dir = nil
-  if vim.fn.filereadable(last_workspace_file) == 1 then
-    local lines = vim.fn.readfile(last_workspace_file)
-    if lines and lines[1] and lines[1]:match("%S") then
-      local saved = vim.trim(lines[1])
-      if vim.fn.isdirectory(saved) == 1 and saved ~= vim.env.HOME then
-        target_dir = saved
-      end
-    end
-  end
-
-  if target_dir and vim.fn.getcwd() ~= target_dir then
-    pcall(vim.fn.chdir, target_dir)
-  end
-
-  -- Attempt to restore workspace session
   local active_dir = vim.fn.getcwd()
   local session_file = get_session_file(active_dir)
   local global_session = sessions_dir .. "/global_last_session.vim"
 
-  local restored = false
   if vim.fn.filereadable(session_file) == 1 then
-    local ok = pcall(function()
+    pcall(function()
       vim.cmd("silent! source " .. vim.fn.fnameescape(session_file))
     end)
-    if ok then restored = true end
+    vim.notify("✓ Workspace session restored", vim.log.levels.INFO, { title = "Gowise" })
   elseif vim.fn.filereadable(global_session) == 1 then
-    local ok = pcall(function()
+    pcall(function()
       vim.cmd("silent! source " .. vim.fn.fnameescape(global_session))
     end)
-    if ok then restored = true end
-  end
-
-  -- If session didn't open any buffers, check if last file is available
-  local bufs = vim.fn.getbufinfo({ buflisted = 1 })
-  local valid_files = 0
-  for _, b in ipairs(bufs) do
-    if b.name ~= "" and vim.bo[b.bufnr].buftype == "" then
-      valid_files = valid_files + 1
-    end
-  end
-
-  if valid_files == 0 and vim.fn.filereadable(last_file_path) == 1 then
-    local lines = vim.fn.readfile(last_file_path)
-    if lines and lines[1] and lines[1]:match("%S") then
-      local file = vim.trim(lines[1])
-      if vim.fn.filereadable(file) == 1 then
-        pcall(vim.cmd, "edit " .. vim.fn.fnameescape(file))
-      end
-    end
+    vim.notify("✓ Last session restored", vim.log.levels.INFO, { title = "Gowise" })
+  else
+    vim.notify("No saved session found for this workspace", vim.log.levels.INFO, { title = "Gowise" })
   end
 end
 
@@ -166,18 +126,10 @@ function M.setup()
     end,
   })
 
-  -- Run restore immediately if Neovim already loaded, or on VimEnter
-  if vim.v.vim_did_enter == 1 then
+  -- User command to restore session on demand
+  vim.api.nvim_create_user_command("SessionRestore", function()
     M.restore()
-  else
-    vim.api.nvim_create_autocmd("VimEnter", {
-      group = session_group,
-      nested = true,
-      callback = function()
-        M.restore()
-      end,
-    })
-  end
+  end, { desc = "Restore last saved workspace session" })
 end
 
 return M

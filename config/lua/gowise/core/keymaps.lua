@@ -19,7 +19,7 @@ local function ensure_insert_mode(buf)
     return
   end
   local ft = vim.bo[buf].filetype
-  if ft == "snacks_dashboard" or ft:find("dashboard") or ft:find("picker") or ft:find("snacks") then
+  if ft == "snacks_dashboard" or ft:find("dashboard") or ft:find("picker") or ft:find("snacks") or ft:find("explorer") then
     return
   end
   if not vim.bo[buf].modifiable and not vim.bo[buf].readonly then
@@ -31,7 +31,8 @@ local function ensure_insert_mode(buf)
       and vim.bo[buf].filetype ~= "snacks_dashboard"
       and not vim.bo[buf].filetype:find("picker")
       and not vim.bo[buf].filetype:find("explorer")
-      and vim.fn.mode() ~= "i"
+      and not vim.bo[buf].filetype:find("snacks")
+      and vim.fn.mode() == "n"
     then
       if not vim.bo[buf].modifiable and not vim.bo[buf].readonly then
         pcall(function() vim.bo[buf].modifiable = true end)
@@ -44,9 +45,14 @@ local function ensure_insert_mode(buf)
 end
 
 -- Automatically maintain Insert mode in all editable documents
-vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter", "InsertLeave", "FocusGained", "VimEnter", "ModeChanged" }, {
+vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter", "InsertLeave", "FocusGained", "ModeChanged" }, {
   callback = function(args)
     if args.event == "ModeChanged" and not args.match:find(":n") then
+      return
+    end
+    -- Do not interrupt visual or select mode
+    local m = vim.fn.mode()
+    if m == "v" or m == "V" or m == "\22" or m == "s" or m == "S" then
       return
     end
     ensure_insert_mode(args.buf)
@@ -72,98 +78,39 @@ vim.api.nvim_create_autocmd({ "TermOpen", "BufEnter", "WinEnter" }, {
 -- Mouse Click: Click anywhere in document to focus and type immediately
 map("n", "<LeftMouse>", "<LeftMouse><cmd>startinsert<cr>", { desc = "Click to focus and type (Modeless)" })
 
--- Neutralize Normal Mode: Any printable character typed in an editable document
--- immediately starts typing that character. Zero Vim single-key commands can execute.
-local function bind_normal_mode_typing()
-  for code = 32, 126 do
-    local char = string.char(code)
-    local key_repr = char
-    if char == " " then
-      key_repr = "<Space>"
-    elseif char == "|" then
-      key_repr = "<Bar>"
-    elseif char == "\\" then
-      key_repr = "<Bslash>"
-    end
-    map("n", key_repr, function()
-      local cur_buf = vim.api.nvim_get_current_buf()
-      local ft = vim.bo[cur_buf].filetype
-      local bt = vim.bo[cur_buf].buftype
-
-      -- If on dashboard and user starts typing (not a menu hotkey), open new buffer and type immediately
-      if ft == "snacks_dashboard" then
-        local dashboard_keys = { n = 1, p = 1, f = 1, r = 1, t = 1, b = 1, j = 1, d = 1, q = 1 }
-        if not dashboard_keys[char:lower()] then
-          vim.cmd("ene")
-          pcall(vim.cmd, "startinsert")
-          return "i" .. char
-        end
-        return char
-      end
-
-      -- If inside picker, explorer, or terminal, preserve their keys
-      if ft:find("picker") or ft:find("explorer") or bt == "terminal" then
-        return char
-      end
-
-      -- If regular buffer is not modifiable, ensure modifiable if not readonly
-      if bt == "" and not vim.bo[cur_buf].modifiable and not vim.bo[cur_buf].readonly then
-        pcall(function() vim.bo[cur_buf].modifiable = true end)
-      end
-
-      if bt == "" and vim.bo[cur_buf].modifiable then
-        return "i" .. char
-      end
-
-      -- In any other non-modifiable buffer (help, floating docs, etc.), never execute destructive normal commands like 'c'/'d'/'x'
-      return ""
-    end, { expr = true, silent = true, desc = "Type " .. char .. " (100% Modeless)" })
-  end
-end
-bind_normal_mode_typing()
-
--- Normal Mode Enter & Backspace: behave like a normal editor
+-- Normal Mode Editing Keys: Always enter insert mode cleanly without modal artifacts
 map("n", "<CR>", function()
-  local bt = vim.bo.buftype
-  local ft = vim.bo.filetype
-  if bt == "" and ft ~= "snacks_dashboard" then
-    if not vim.bo.modifiable and not vim.bo.readonly then
-      pcall(function() vim.bo.modifiable = true end)
-    end
-    if vim.bo.modifiable then
-      return "o"
-    end
+  if vim.bo.filetype == "snacks_dashboard" then
+    return "<CR>"
   end
-  return "<CR>"
-end, { expr = true, silent = true })
+  return "<cmd>startinsert<CR><CR>"
+end, { expr = true, silent = true, desc = "Enter" })
 
 map("n", "<BS>", function()
-  local bt = vim.bo.buftype
-  local ft = vim.bo.filetype
-  if bt == "" and ft ~= "snacks_dashboard" then
-    if not vim.bo.modifiable and not vim.bo.readonly then
-      pcall(function() vim.bo.modifiable = true end)
-    end
-    if vim.bo.modifiable then
-      return "i<BS>"
-    end
+  if vim.bo.filetype == "snacks_dashboard" then
+    return "<BS>"
   end
-  return "<BS>"
-end, { expr = true, silent = true })
+  return "<cmd>startinsert<CR><BS>"
+end, { expr = true, silent = true, desc = "Backspace" })
 
 map("n", "<Del>", function()
-  local bt = vim.bo.buftype
-  local ft = vim.bo.filetype
-  if bt == "" and ft ~= "snacks_dashboard" then
-    if not vim.bo.modifiable and not vim.bo.readonly then
-      pcall(function() vim.bo.modifiable = true end)
-    end
-    if vim.bo.modifiable then
-      return '"_x'
-    end
+  if vim.bo.filetype == "snacks_dashboard" then
+    return "<Del>"
   end
-  return "<Del>"
-end, { expr = true, silent = true })
+  return "<cmd>startinsert<CR><Del>"
+end, { expr = true, silent = true, desc = "Delete" })
+
+map("n", "<Space>", function()
+  if vim.bo.filetype == "snacks_dashboard" then
+    return "<Space>"
+  end
+  return "<cmd>startinsert<CR><Space>"
+end, { expr = true, silent = true, desc = "Space" })
+
+map("n", "<Up>", "<cmd>startinsert<CR><Up>", { silent = true, desc = "Cursor Up" })
+map("n", "<Down>", "<cmd>startinsert<CR><Down>", { silent = true, desc = "Cursor Down" })
+map("n", "<Left>", "<cmd>startinsert<CR><Left>", { silent = true, desc = "Cursor Left" })
+map("n", "<Right>", "<cmd>startinsert<CR><Right>", { silent = true, desc = "Cursor Right" })
 
 -- ============================================================================
 -- 2. UNIVERSAL MODELESS ESCAPE KEY (Dismiss, Cancel, Deselect)
@@ -254,32 +201,26 @@ local function handle_escape()
   end
 end
 
-map({ "n", "i", "s", "x" }, "<Esc>", handle_escape, { nowait = true, desc = "Dismiss Popups / Deselect (Modeless Esc)" })
-map({ "n", "i", "s", "x" }, "<S-Esc>", handle_escape, { nowait = true, desc = "Dismiss Popups / Deselect (Modeless Esc)" })
+map("i", "<Esc>", "<cmd>lua handle_escape()<CR>", { nowait = true, desc = "Dismiss Popups / Deselect (Modeless Esc)", silent = true })
+map("n", "<Esc>", "<cmd>lua handle_escape()<CR><cmd>startinsert<CR>", { nowait = true, desc = "Dismiss Popups / Deselect (Modeless Esc)", silent = true })
+map({ "s", "x", "v" }, "<Esc>", "<cmd>lua handle_escape()<CR>", { nowait = true, desc = "Dismiss Popups / Deselect (Modeless Esc)", silent = true })
+
+map("i", "<S-Esc>", "<cmd>lua handle_escape()<CR>", { nowait = true, desc = "Dismiss Popups / Deselect (Modeless Esc)", silent = true })
+map("n", "<S-Esc>", "<cmd>lua handle_escape()<CR><cmd>startinsert<CR>", { nowait = true, desc = "Dismiss Popups / Deselect (Modeless Esc)", silent = true })
+map({ "s", "x", "v" }, "<S-Esc>", "<cmd>lua handle_escape()<CR>", { nowait = true, desc = "Dismiss Popups / Deselect (Modeless Esc)", silent = true })
 _G.handle_escape = handle_escape
 
 -- ============================================================================
 -- 3. FILE, BUFFER & TAB MANAGEMENT
 -- ============================================================================
 
-local function smart_save()
+local function notify_saved()
   local buf = vim.api.nvim_get_current_buf()
   local buf_name = vim.api.nvim_buf_get_name(buf)
-  pcall(function() vim.cmd("silent write") end)
-  if vim.bo.buftype == "" and vim.bo.modifiable then
-    pcall(vim.cmd, "startinsert")
-  end
   local fname = buf_name ~= "" and vim.fn.fnamemodify(buf_name, ":t") or "[Untitled]"
   vim.notify("✓ Saved: " .. fname, vim.log.levels.INFO, { title = "Gowise" })
 end
-
-local function smart_save_all()
-  pcall(function() vim.cmd("silent wa") end)
-  if vim.bo.buftype == "" and vim.bo.modifiable then
-    pcall(vim.cmd, "startinsert")
-  end
-  vim.notify("✓ Saved all files", vim.log.levels.INFO, { title = "Gowise" })
-end
+_G.gowise_notify_saved = notify_saved
 
 local function close_active_buffer()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -300,11 +241,13 @@ local function close_active_buffer()
   end
 end
 
--- Save File (Ctrl+S)
-map({ "n", "i", "v", "x" }, "<C-s>", smart_save, { desc = "Save File (Ctrl+S)", silent = true })
+-- Save File (Ctrl+S) - 100% Modeless: Never drops out of insert mode
+map("i", "<C-s>", "<cmd>silent! write<CR><cmd>lua _G.gowise_notify_saved()<CR>", { desc = "Save File (Ctrl+S)", silent = true })
+map({ "n", "v", "x", "s" }, "<C-s>", "<cmd>silent! write<CR><cmd>lua _G.gowise_notify_saved()<CR><cmd>startinsert<CR>", { desc = "Save File (Ctrl+S)", silent = true })
 
 -- Save All (Ctrl+Shift+S)
-map({ "n", "i", "v", "x" }, "<C-S-s>", smart_save_all, { desc = "Save All Files", silent = true })
+map("i", "<C-S-s>", "<cmd>silent! wa<CR><cmd>lua vim.notify('✓ Saved all files', vim.log.levels.INFO, { title = 'Gowise' })<CR>", { desc = "Save All Files", silent = true })
+map({ "n", "v", "x", "s" }, "<C-S-s>", "<cmd>silent! wa<CR><cmd>lua vim.notify('✓ Saved all files', vim.log.levels.INFO, { title = 'Gowise' })<CR><cmd>startinsert<CR>", { desc = "Save All Files", silent = true })
 
 -- New File (Ctrl+N)
 map({ "n", "i", "v" }, "<C-n>", "<cmd>enew<CR><cmd>startinsert<CR>", { desc = "New File", silent = true })
@@ -422,33 +365,19 @@ map({ "n", "i", "v", "x", "s" }, "<C-a>", "<Esc>ggVG", { desc = "Select All", si
 -- ============================================================================
 
 -- Word Left / Right (Ctrl+Left / Ctrl+Right & ANSI terminal sequences)
-local function move_word_left_insert()
-  local esc = vim.api.nvim_replace_termcodes("<Esc>", true, true, true)
-  vim.api.nvim_feedkeys(esc, "nx", false)
-  vim.cmd("normal! b")
-  vim.cmd("startinsert")
-end
-
-local function move_word_right_insert()
-  local esc = vim.api.nvim_replace_termcodes("<Esc>", true, true, true)
-  vim.api.nvim_feedkeys(esc, "nx", false)
-  vim.cmd("normal! w")
-  vim.cmd("startinsert")
-end
-
 local ctrl_left_keys = { "<C-Left>", "<C-kLeft>", "\27[1;5D", "\27[5D", "\27[57419;5u" }
 local ctrl_right_keys = { "<C-Right>", "<C-kRight>", "\27[1;5C", "\27[5C", "\27[57421;5u" }
 
 for _, k in ipairs(ctrl_left_keys) do
-  map("n", k, "b<cmd>startinsert<cr>", opts)
-  map("v", k, "b", opts)
-  map("i", k, move_word_left_insert, opts)
+  map("n", k, "<cmd>startinsert<CR><C-o>b", opts)
+  map({ "v", "x", "s" }, k, "b", opts)
+  map("i", k, "<C-o>b", opts)
 end
 
 for _, k in ipairs(ctrl_right_keys) do
-  map("n", k, "w<cmd>startinsert<cr>", opts)
-  map("v", k, "w", opts)
-  map("i", k, move_word_right_insert, opts)
+  map("n", k, "<cmd>startinsert<CR><C-o>w", opts)
+  map({ "v", "x", "s" }, k, "w", opts)
+  map("i", k, "<C-o>w", opts)
 end
 
 -- Home & End (Line Start / End)
@@ -526,117 +455,36 @@ map({ "v", "x" }, "<C-S-k>", "d", opts)
 -- 7. SELECTION (Shift+Arrows & Ctrl+Shift+Arrows Word Selection)
 -- ============================================================================
 
-local function is_word_char(ch)
-  if not ch or ch == "" then return false end
-  return ch:match("[%w_]") ~= nil
-end
-
-local function select_word_right_vis()
-  local vpos = vim.fn.getpos("v")
-  local cpos = vim.fn.getpos(".")
-  local cmp = (cpos[2] > vpos[2] or (cpos[2] == vpos[2] and cpos[3] >= vpos[3])) and 1 or -1
-  if cmp >= 0 then
-    local old_c = vim.fn.getpos(".")
-    vim.cmd("normal! e")
-    local new_c = vim.fn.getpos(".")
-    if old_c[2] == new_c[2] and old_c[3] == new_c[3] then
-      vim.cmd("normal! w")
-    end
-  else
-    vim.cmd("normal! w")
-    local new_c = vim.fn.getpos(".")
-    if new_c[2] > vpos[2] or (new_c[2] == vpos[2] and new_c[3] >= vpos[3]) then
-      vim.cmd("normal! e")
-    end
-  end
-end
-
-local function select_word_left_vis()
-  local vpos = vim.fn.getpos("v")
-  local cpos = vim.fn.getpos(".")
-  local cmp = (cpos[2] < vpos[2] or (cpos[2] == vpos[2] and cpos[3] <= vpos[3])) and -1 or 1
-  if cmp <= 0 then
-    local old_c = vim.fn.getpos(".")
-    vim.cmd("normal! b")
-    local new_c = vim.fn.getpos(".")
-    if old_c[2] == new_c[2] and old_c[3] == new_c[3] then
-      vim.cmd("normal! ge")
-    end
-  else
-    vim.cmd("normal! ge")
-    local new_c = vim.fn.getpos(".")
-    if new_c[2] < vpos[2] or (new_c[2] == vpos[2] and new_c[3] <= vpos[3]) then
-      vim.cmd("normal! b")
-    end
-  end
-end
-
-local function select_word_right_norm()
-  local cur = vim.api.nvim_win_get_cursor(0)
-  local line = vim.api.nvim_get_current_line()
-  if #line == 0 then return end
-  local ch = line:sub(cur[2] + 1, cur[2] + 1)
-  if is_word_char(ch) then
-    vim.cmd("normal! viw")
-  else
-    vim.cmd("normal! ve")
-  end
-end
-
-local function select_word_left_norm()
-  local cur = vim.api.nvim_win_get_cursor(0)
-  local line = vim.api.nvim_get_current_line()
-  if #line == 0 then return end
-  local ch = line:sub(cur[2] + 1, cur[2] + 1)
-  if is_word_char(ch) then
-    vim.cmd("normal! viwo")
-  else
-    vim.cmd("normal! vb")
-  end
-end
-
 -- Key codes for terminal compatibility (standard termcodes + xterm CSI + Kitty protocol sequences)
-local c_s_left_keys = { "<C-S-Left>", "<C-S-kLeft>", "\27[1;6D", "\27[6D", "\27[57419;6u" }
-local c_s_right_keys = { "<C-S-Right>", "<C-S-kRight>", "\27[1;6C", "\27[6C", "\27[57421;6u" }
-local s_left_keys = { "<S-Left>", "\27[1;2D", "\27[2D", "\27[57419;2u" }
-local s_right_keys = { "<S-Right>", "\27[1;2C", "\27[2C", "\27[57421;2u" }
-local s_up_keys = { "<S-Up>", "\27[1;2A", "\27[2A", "\27[57418;2u" }
-local s_down_keys = { "<S-Down>", "\27[1;2B", "\27[2B", "\27[57420;2u" }
+local c_s_left_keys = { "<C-S-kLeft>", "\27[1;6D", "\27[6D", "\27[57419;6u" }
+local c_s_right_keys = { "<C-S-kRight>", "\27[1;6C", "\27[6C", "\27[57421;6u" }
+local s_left_keys = { "\27[1;2D", "\27[2D", "\27[57419;2u" }
+local s_right_keys = { "\27[1;2C", "\27[2C", "\27[57421;2u" }
+local s_up_keys = { "\27[1;2A", "\27[2A", "\27[57418;2u" }
+local s_down_keys = { "\27[1;2B", "\27[2B", "\27[57420;2u" }
 
 for _, k in ipairs(c_s_left_keys) do
-  map("n", k, select_word_left_norm, { desc = "Select Word Left", silent = true })
-  map("i", k, "<Esc>viwo", { desc = "Select Word Left", silent = true })
-  map({ "v", "x" }, k, select_word_left_vis, { desc = "Select Word Left", silent = true })
+  map({ "i", "n", "v", "x", "s" }, k, "<C-S-Left>", { remap = true, silent = true })
 end
 
 for _, k in ipairs(c_s_right_keys) do
-  map("n", k, select_word_right_norm, { desc = "Select Word Right", silent = true })
-  map("i", k, "<Esc>lviw", { desc = "Select Word Right", silent = true })
-  map({ "v", "x" }, k, select_word_right_vis, { desc = "Select Word Right", silent = true })
+  map({ "i", "n", "v", "x", "s" }, k, "<C-S-Right>", { remap = true, silent = true })
 end
 
 for _, k in ipairs(s_left_keys) do
-  map("n", k, "vh", { desc = "Select Left Character", silent = true })
-  map("i", k, "<Esc>v", { desc = "Select Left Character", silent = true })
-  map({ "v", "x" }, k, "h", { desc = "Select Left Character", silent = true })
+  map({ "i", "n", "v", "x", "s" }, k, "<S-Left>", { remap = true, silent = true })
 end
 
 for _, k in ipairs(s_right_keys) do
-  map("n", k, "vl", { desc = "Select Right Character", silent = true })
-  map("i", k, "<Esc>lv", { desc = "Select Right Character", silent = true })
-  map({ "v", "x" }, k, "l", { desc = "Select Right Character", silent = true })
+  map({ "i", "n", "v", "x", "s" }, k, "<S-Right>", { remap = true, silent = true })
 end
 
 for _, k in ipairs(s_up_keys) do
-  map("n", k, "vk", { desc = "Select Line Up", silent = true })
-  map("i", k, "<Esc>vk", { desc = "Select Line Up", silent = true })
-  map({ "v", "x" }, k, "k", { desc = "Select Line Up", silent = true })
+  map({ "i", "n", "v", "x", "s" }, k, "<S-Up>", { remap = true, silent = true })
 end
 
 for _, k in ipairs(s_down_keys) do
-  map("n", k, "vj", { desc = "Select Line Down", silent = true })
-  map("i", k, "<Esc>vj", { desc = "Select Line Down", silent = true })
-  map({ "v", "x" }, k, "j", { desc = "Select Line Down", silent = true })
+  map({ "i", "n", "v", "x", "s" }, k, "<S-Down>", { remap = true, silent = true })
 end
 
 -- ============================================================================

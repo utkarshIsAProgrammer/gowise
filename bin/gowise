@@ -132,17 +132,6 @@ for arg in "$@"; do
   fi
 done
 
-# If launched with no arguments, restore last active workspace directory
-if [ "$#" -eq 0 ]; then
-  LAST_WORKSPACE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/gowise/last_workspace.txt"
-  if [ -f "$LAST_WORKSPACE_FILE" ]; then
-    LAST_DIR="$(cat "$LAST_WORKSPACE_FILE" 2>/dev/null || true)"
-    if [ -n "$LAST_DIR" ] && [ -d "$LAST_DIR" ] && [ "$LAST_DIR" != "$HOME" ]; then
-      cd "$LAST_DIR"
-    fi
-  fi
-fi
-
 # If single argument is a directory, change directory into it so Neovim opens cleanly
 if [ "$#" -eq 1 ] && [ -d "$1" ]; then
   cd "$1"
