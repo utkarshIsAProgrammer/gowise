@@ -31,6 +31,17 @@ if [ -f "$HISTFILE" ]; then
   history -r "$HISTFILE"
 fi
 
+# Ensure standard Backspace and Ctrl+Arrows / Ctrl+Backspace / Ctrl+Delete work reliably in Bash readline
+bind '"\C-?": backward-delete-char' 2>/dev/null || true
+bind '"\e[1;5D": backward-word' 2>/dev/null || true
+bind '"\e[1;5C": forward-word' 2>/dev/null || true
+bind '"\e[3;5~": kill-word' 2>/dev/null || true
+bind '"\e[127;5u": backward-kill-word' 2>/dev/null || true
+bind '"\e\x7f": backward-kill-word' 2>/dev/null || true
+bind '"\eb": backward-word' 2>/dev/null || true
+bind '"\ef": forward-word' 2>/dev/null || true
+bind '"\ed": kill-word' 2>/dev/null || true
+
 # Unset any prompt commanders from external tools to ensure clean git profile
 unset PROMPT_COMMAND
 

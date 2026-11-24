@@ -811,6 +811,7 @@ _G.move_word_left = function()
 end
 
 local function delete_word_backward()
+  if not vim.bo.modifiable or vim.bo.buftype ~= "" then return end
   local cursor = vim.api.nvim_win_get_cursor(0)
   local row, col = cursor[1], cursor[2]
   local line = vim.api.nvim_get_current_line()
@@ -828,6 +829,7 @@ local function delete_word_backward()
 end
 
 local function delete_word_forward()
+  if not vim.bo.modifiable or vim.bo.buftype ~= "" then return end
   local cursor = vim.api.nvim_win_get_cursor(0)
   local row, col = cursor[1], cursor[2]
   local line = vim.api.nvim_get_current_line()
@@ -2299,6 +2301,26 @@ _G.new_terminal = function()
   vim.keymap.set("t", "<M-Up>", _G.handle_alt_up, { buffer = new_buf, silent = true })
   vim.keymap.set("t", "<M-Down>", _G.handle_alt_down, { buffer = new_buf, silent = true })
 
+  -- Smart word navigation and word deletion inside integrated Bash terminal
+  local function send_term(seq)
+    local chan = vim.bo[new_buf].channel
+    if chan and chan > 0 then
+      pcall(vim.api.nvim_chan_send, chan, seq)
+    end
+  end
+  vim.keymap.set("t", "<C-Left>", function() send_term("\x1b[1;5D") end, { buffer = new_buf, nowait = true, silent = true })
+  vim.keymap.set("t", "<C-Right>", function() send_term("\x1b[1;5C") end, { buffer = new_buf, nowait = true, silent = true })
+  vim.keymap.set("t", "<C-BS>", function() send_term("\x1b\x7f") end, { buffer = new_buf, nowait = true, silent = true })
+  vim.keymap.set("t", "<C-BackSpace>", function() send_term("\x1b\x7f") end, { buffer = new_buf, nowait = true, silent = true })
+  vim.keymap.set("t", "<M-BS>", function() send_term("\x1b\x7f") end, { buffer = new_buf, nowait = true, silent = true })
+  vim.keymap.set("t", "<M-BackSpace>", function() send_term("\x1b\x7f") end, { buffer = new_buf, nowait = true, silent = true })
+  vim.keymap.set("t", "<C-Del>", function() send_term("\x1bd") end, { buffer = new_buf, nowait = true, silent = true })
+  vim.keymap.set("t", "<C-Delete>", function() send_term("\x1bd") end, { buffer = new_buf, nowait = true, silent = true })
+  vim.keymap.set("t", "<M-Del>", function() send_term("\x1bd") end, { buffer = new_buf, nowait = true, silent = true })
+  vim.keymap.set("t", "<M-Delete>", function() send_term("\x1bd") end, { buffer = new_buf, nowait = true, silent = true })
+  vim.keymap.set("t", "<C-Home>", function() send_term("\x01") end, { buffer = new_buf, nowait = true, silent = true })
+  vim.keymap.set("t", "<C-End>", function() send_term("\x05") end, { buffer = new_buf, nowait = true, silent = true })
+
   local inst_idx = #_G.term_instances + 1
   table.insert(_G.term_instances, { buf = new_buf, name = "bash" })
   _G.active_term_idx = inst_idx
@@ -2502,8 +2524,6 @@ _G.relative_jump = function(direction)
     border = "rounded",
     title = title,
     title_pos = "center",
-    footer = " Enter: Jump │ Esc: Cancel ",
-    footer_pos = "center",
   })
 
   vim.cmd("stopinsert")
@@ -2649,8 +2669,6 @@ _G.goto_line = function()
     border = "rounded",
     title = " Go to Line (number, +down, -up) ",
     title_pos = "center",
-    footer = " Enter: Jump │ Esc: Cancel ",
-    footer_pos = "center",
   })
 
   vim.cmd("stopinsert")
@@ -2833,8 +2851,6 @@ _G.open_quick_fix_spell = function()
     border = "rounded",
     title = title_prefix .. cword .. " ",
     title_pos = "center",
-    footer = " Enter: Apply │ Esc: Cancel ",
-    footer_pos = "center",
   })
 
   vim.cmd("stopinsert")
@@ -3591,8 +3607,6 @@ _G.open_theme_picker = function()
     border = "rounded",
     title = string.format(" Themes (%d Installed) ", #ThemeEngine.themes),
     title_pos = "center",
-    footer = " Enter: Select │ Esc: Cancel │ Type to Filter ",
-    footer_pos = "center",
   })
 
   vim.cmd("stopinsert")
@@ -3896,7 +3910,7 @@ _G.open_font_picker = function()
     border = "rounded",
     title = string.format(" Typography & Font Settings (%d Fonts) ", #all_fonts),
     title_pos = "center",
-    footer = " Enter: Save │ Tab: Next Tab │ Esc: Cancel ",
+    footer = " Tab: Next Tab ",
     footer_pos = "center",
   })
 
@@ -4265,8 +4279,6 @@ _G.open_keybindings_panel = function()
     border = "rounded",
     title = " Keyboard Shortcuts ",
     title_pos = "center",
-    footer = " Enter / Esc: Close │ Type to Search ",
-    footer_pos = "center",
   })
 
   vim.cmd("stopinsert")
@@ -4522,6 +4534,7 @@ _G.open_folder_picker = function()
     current_dir = vim.fn.expand("~")
   end
   local show_hidden = false
+  local search_active = false
   local selected_idx = 1
 
   local buf = vim.api.nvim_create_buf(false, true)
@@ -4531,8 +4544,8 @@ _G.open_folder_picker = function()
   vim.bo[buf].undolevels = -1
 
   local ui = vim.api.nvim_list_uis()[1] or { width = 120, height = 40 }
-  local width = math.min(78, math.max(54, ui.width - 6))
-  local height = math.min(24, math.max(12, ui.height - 8))
+  local width = math.min(76, math.max(52, ui.width - 6))
+  local height = math.min(20, math.max(10, ui.height - 8))
   local row = math.max(1, math.floor((ui.height - height) / 3))
   local col = math.max(1, math.floor((ui.width - width) / 2))
 
@@ -4546,7 +4559,7 @@ _G.open_folder_picker = function()
     border = "rounded",
     title = " Open Folder ",
     title_pos = "center",
-    footer = " Enter: Open Folder │ Tab: Browse Inside │ Shift+Tab: Parent │ Alt+.: Hidden │ Esc: Cancel ",
+    footer = " o: Open │ .: Hidden ",
     footer_pos = "center",
   })
 
@@ -4676,6 +4689,9 @@ _G.open_folder_picker = function()
     vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
 
     pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FolderPickerSearch", 0, 0, 10)
+    if not search_active then
+      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FolderPickerMuted", 0, 10, -1)
+    end
     pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FolderPickerSep", 1, 0, -1)
 
     for _, item in ipairs(items) do
@@ -4708,8 +4724,13 @@ _G.open_folder_picker = function()
   local function render(target_idx)
     if not vim.api.nvim_buf_is_valid(buf) then return end
     items = {}
-    local query = sb and vim.trim(sb.get_text()) or ""
-    local search_line = sb and sb.get_display_line("  Search: ", "(type to search folders...)") or "  Search: ▏ (type to search folders...)"
+    local query = (search_active and sb) and vim.trim(sb.get_text()) or ""
+    local search_line
+    if search_active and sb then
+      search_line = sb.get_display_line("  Search: ", "(type to filter folders...)")
+    else
+      search_line = "  Search: (press / to search folders...)"
+    end
     local sep_line = "  " .. string.rep("─", math.max(10, width - 4))
     local lines = {
       search_line,
@@ -4720,31 +4741,28 @@ _G.open_folder_picker = function()
     local display_cwd = vim.fn.fnamemodify(current_dir, ":~")
 
     if query == "" then
-      -- Row 1: Open current folder directly
       table.insert(lines, "   󰉋  [Open This Folder: " .. display_cwd .. "]")
       table.insert(items, { type = "open_current", path = current_dir, line = #lines })
-      table.insert(lines, "")
 
-      -- Row 2: Parent directory (if not root)
       if current_dir ~= "/" then
         local parent_dir = vim.fn.fnamemodify(current_dir, ":h")
         table.insert(lines, "   󰁝  .. (Parent Directory)")
         table.insert(items, { type = "parent", path = parent_dir, line = #lines })
-        table.insert(lines, "")
       end
+
+      table.insert(lines, "")
 
       local subdirs = scan_immediate()
       for _, dname in ipairs(subdirs) do
         local full = (current_dir == "/" and "/" .. dname or current_dir .. "/" .. dname)
         table.insert(lines, "   󰉋  " .. dname .. "/")
         table.insert(items, { type = "dir", path = full, name = dname, line = #lines })
-        table.insert(lines, "")
       end
 
       if #subdirs == 0 then
         table.insert(lines, "   (No subdirectories)")
-        table.insert(lines, "")
       end
+      table.insert(lines, "")
     else
       local q_low = query:lower()
       local matches = {}
@@ -4784,13 +4802,12 @@ _G.open_folder_picker = function()
         if i > max_show then break end
         table.insert(lines, "   󰉋  " .. m.rel .. "/")
         table.insert(items, { type = "dir", path = m.path, name = m.name, rel = m.rel, line = #lines })
-        table.insert(lines, "")
       end
 
       if #matches == 0 then
         table.insert(lines, '   No matching folders found for "' .. query .. '"')
-        table.insert(lines, "")
       end
+      table.insert(lines, "")
     end
 
     vim.bo[buf].modifiable = true
@@ -4801,7 +4818,7 @@ _G.open_folder_picker = function()
     pcall(vim.api.nvim_win_set_config, win, {
       title = title_str,
       title_pos = "center",
-      footer = " Enter: Open Folder │ Tab: Browse Inside │ Shift+Tab: Parent │ Alt+.: Hidden │ Esc: Cancel ",
+      footer = " o: Open │ .: Hidden ",
       footer_pos = "center",
     })
 
@@ -4809,19 +4826,58 @@ _G.open_folder_picker = function()
     update_selection()
   end
 
-  local function on_confirm_open()
+  local function enter_search()
+    search_active = true
+    if sb then
+      sb.text = ""
+      sb.pos = 1
+    end
+    render(1)
+  end
+
+  local function exit_search()
+    search_active = false
+    if sb then
+      sb.text = ""
+      sb.pos = 1
+    end
+    render(1)
+  end
+
+  local function on_confirm()
     local item = items[selected_idx]
     if not item then return end
 
-    if item.type == "parent" then
-      current_dir = item.path
-      if sb then sb.clear() end
-      render(1)
-    elseif item.path then
+    if item.type == "open_current" then
       local target = item.path
       close_picker()
       _G.open_workspace_folder(target)
+    elseif item.type == "parent" then
+      current_dir = item.path
+      search_active = false
+      if sb then sb.text = ""; sb.pos = 1 end
+      render(1)
+    elseif item.type == "dir" then
+      if search_active then
+        -- When searching folders, Enter opens directly inside the matched folder
+        local target = item.path
+        close_picker()
+        _G.open_workspace_folder(target)
+      else
+        current_dir = item.path
+        render(1)
+      end
     end
+  end
+
+  local function on_open_immediate()
+    local item = items[selected_idx]
+    local target = current_dir
+    if item and item.path then
+      target = item.path
+    end
+    close_picker()
+    _G.open_workspace_folder(target)
   end
 
   local function on_browse_inside()
@@ -4829,10 +4885,8 @@ _G.open_folder_picker = function()
     if not item then return end
     if item.type == "dir" or item.type == "parent" then
       current_dir = item.path
-      if sb then
-        sb.text = ""
-        sb.pos = 1
-      end
+      search_active = false
+      if sb then sb.text = ""; sb.pos = 1 end
       render(1)
     elseif item.type == "open_current" then
       local target = item.path
@@ -4844,10 +4898,8 @@ _G.open_folder_picker = function()
   local function on_go_parent()
     if current_dir ~= "/" then
       current_dir = vim.fn.fnamemodify(current_dir, ":h")
-      if sb then
-        sb.text = ""
-        sb.pos = 1
-      end
+      search_active = false
+      if sb then sb.text = ""; sb.pos = 1 end
       render(1)
     end
   end
@@ -4874,6 +4926,10 @@ _G.open_folder_picker = function()
   local function on_mouse_click()
     local pos = vim.fn.getmousepos()
     if pos and pos.winid == win and pos.line then
+      if pos.line == 1 then
+        if not search_active then enter_search() end
+        return
+      end
       for i, item in ipairs(items) do
         if item.line == pos.line then
           selected_idx = i
@@ -4885,42 +4941,70 @@ _G.open_folder_picker = function()
   end
 
   sb = make_searchbar("", function()
-    render(1)
+    if search_active then
+      render(1)
+    end
   end)
 
-  bind_searchbar_keys(buf, sb)
+  bind_searchbar_keys(buf, sb, function() return search_active end)
 
-  -- Conditional Left/Right: edit query when non-empty, browse folders when empty
+  -- Browse-mode single-key shortcuts (active when search_active == false)
+  local function browse_or_type(key, action)
+    vim.keymap.set({ "n", "i", "s", "v" }, key, function()
+      if search_active then
+        sb.insert(key)
+      else
+        action()
+      end
+    end, { buffer = buf, nowait = true })
+  end
+
+  browse_or_type("o", on_open_immediate)
+  browse_or_type("O", on_open_immediate)
+  browse_or_type(".", on_toggle_hidden)
+  browse_or_type("k", move_up)
+  browse_or_type("j", move_down)
+  browse_or_type("h", on_go_parent)
+  browse_or_type("l", on_browse_inside)
+  browse_or_type("q", close_picker)
+  browse_or_type("~", function()
+    current_dir = vim.fn.expand("~")
+    render(1)
+  end)
+  browse_or_type("/", enter_search)
+
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-f>", enter_search, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-.>", on_toggle_hidden, { buffer = buf, nowait = true })
+
   vim.keymap.set({ "n", "i", "s", "v" }, "<Left>", function()
-    if sb.get_text() ~= "" then
-      sb.move_left()
-    else
-      on_go_parent()
-    end
+    if search_active then sb.move_left() else on_go_parent() end
   end, { buffer = buf, nowait = true })
 
   vim.keymap.set({ "n", "i", "s", "v" }, "<Right>", function()
-    if sb.get_text() ~= "" then
-      sb.move_right()
-    else
-      on_browse_inside()
-    end
+    if search_active then sb.move_right() else on_browse_inside() end
+  end, { buffer = buf, nowait = true })
+
+  vim.keymap.set({ "n", "i", "s", "v" }, "<BS>", function()
+    if search_active then sb.backspace() else on_go_parent() end
   end, { buffer = buf, nowait = true })
 
   vim.keymap.set({ "n", "i", "s", "v" }, "<Tab>", on_browse_inside, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<S-Tab>", on_go_parent, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<CR>", on_confirm_open, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-CR>", on_confirm_open, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<CR>", on_confirm, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-CR>", on_open_immediate, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<LeftMouse>", on_mouse_click, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<2-LeftMouse>", function()
     on_mouse_click()
-    on_confirm_open()
+    on_confirm()
   end, { buffer = buf, nowait = true })
 
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-.>", on_toggle_hidden, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-h>", on_toggle_hidden, { buffer = buf, nowait = true })
-
-  vim.keymap.set({ "n", "i", "s", "v" }, "<Esc>", close_picker, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Esc>", function()
+    if search_active then
+      exit_search()
+    else
+      close_picker()
+    end
+  end, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<C-c>", close_picker, { buffer = buf, nowait = true })
 
   vim.api.nvim_create_autocmd("WinLeave", {
