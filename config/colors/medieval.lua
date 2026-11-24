@@ -95,8 +95,8 @@ hl("FoldColumn", { fg = c.fg_gutter, bg = bg_main })
 hl("Folded", { fg = c.fg_muted, bg = c.bg_surface })
 hl("EndOfBuffer", { fg = c.border, bg = bg_main })
 
-hl("VertSplit", { fg = c.border })
-hl("WinSeparator", { fg = c.border, bold = true })
+hl("VertSplit", { fg = "#2d3139" })
+hl("WinSeparator", { fg = "#2d3139" })
 
 hl("Visual", { bg = c.bg_visual })
 hl("VisualNOS", { bg = c.bg_visual })
@@ -398,7 +398,7 @@ hl("NeoTreeGitUntracked", { fg = c.torch })
 hl("NvimTreeNormal", { fg = c.fg, bg = bg_main })
 hl("NvimTreeNormalNC", { fg = c.fg, bg = bg_main })
 hl("NvimTreeEndOfBuffer", { fg = c.border, bg = bg_main })
-hl("NvimTreeWinSeparator", { fg = c.border, bg = bg_main })
+hl("NvimTreeWinSeparator", { fg = "#2d3139" })
 
 -- ===================================================================
 -- Cmp / Blink Completion Menu
@@ -429,6 +429,10 @@ hl("BufferLineFill", { bg = c.bg_status })
 hl("BufferLineBackground", { fg = c.fg_muted, bg = c.bg_status })
 hl("BufferLineBufferSelected", { fg = c.gold, bg = c.bg, bold = true })
 hl("BufferLineIndicatorSelected", { fg = c.gold, bg = c.bg })
+hl("BufferLineCloseButtonSelected", { fg = c.fg_muted, bg = c.bg })
+hl("BufferLineCloseButton", { fg = c.fg_muted, bg = c.bg_status })
+hl("BufferLineCloseButtonVisible", { fg = c.fg_muted, bg = c.bg_status })
+hl("BufferLineModifiedSelected", { fg = c.gold_bright, bg = c.bg })
 hl("BufferLineSeparator", { fg = c.bg_status, bg = c.bg_status })
 
 -- ===================================================================

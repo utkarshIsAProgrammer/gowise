@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Minimal Clean Uninstaller (Linux, macOS & WSL)
-# Safely removes all Minimal symlinks, configs, desktop entries, and plugin cache
+# Minimal Uninstaller (Linux OS Only)
+# Safely removes Minimal editor links, configs, desktop entries, and cache
 # ==============================================================================
 
-set -e
+set -eo pipefail
 
 BOLD="\033[1m"
 RED="\033[1;31m"
@@ -13,20 +13,35 @@ YELLOW="\033[1;33m"
 CYAN="\033[1;36m"
 RESET="\033[0m"
 
+# Linux OS check
+if [ "$(uname -s)" != "Linux" ]; then
+  echo -e "${RED}✖ Error: Minimal uninstaller is for Linux OS only.${RESET}"
+  exit 1
+fi
+
 NON_INTERACTIVE=false
 for arg in "$@"; do
   case "$arg" in
     -y|--yes|-f|--force)
       NON_INTERACTIVE=true
       ;;
+    -h|--help)
+      echo "Minimal Linux Uninstaller"
+      echo "Usage: ./uninstall.sh [options]"
+      echo ""
+      echo "Options:"
+      echo "  -y, --yes, -f, --force   Non-interactive uninstall without prompt"
+      echo "  -h, --help               Display this help message"
+      exit 0
+      ;;
   esac
 done
 
-echo -e "${YELLOW}==>${RESET} ${BOLD}Minimal Uninstaller${RESET}"
+echo -e "${CYAN}==>${RESET} ${BOLD}Minimal Linux Uninstaller${RESET}"
 echo "This will safely and completely remove Minimal from your system."
 
 if [ "$NON_INTERACTIVE" = false ]; then
-  read -p "Are you sure you want to proceed? [y/N] " -n 1 -r
+  read -p "Are you sure you want to remove Minimal? [y/N] " -n 1 -r
   echo
   if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     echo "Uninstallation cancelled."
@@ -34,38 +49,47 @@ if [ "$NON_INTERACTIVE" = false ]; then
   fi
 fi
 
-# 1. Remove CLI symlink
+# 1. Remove CLI launcher
 if [ -L "$HOME/.local/bin/minimal" ] || [ -f "$HOME/.local/bin/minimal" ]; then
   rm -f "$HOME/.local/bin/minimal"
-  echo -e "  ${GREEN}✔${RESET} Removed executable link: ~/.local/bin/minimal"
+  echo -e "  ${GREEN}✔${RESET} Removed launcher link: ~/.local/bin/minimal"
 fi
 
-# 2. Remove Config link
+# 2. Remove Config directory
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/minimal"
 if [ -L "$CONFIG_DIR" ] || [ -d "$CONFIG_DIR" ]; then
   rm -rf "$CONFIG_DIR"
   echo -e "  ${GREEN}✔${RESET} Removed configuration: $CONFIG_DIR"
 fi
 
-# 3. Remove Data, State, and Cache
+# 3. Remove Data, Plugins, State, and Cache
 rm -rf "$HOME/.local/share/minimal"
 rm -rf "$HOME/.local/state/minimal"
 rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/minimal"
-echo -e "  ${GREEN}✔${RESET} Purged plugin data, state, and bytecode cache"
+echo -e "  ${GREEN}✔${RESET} Purged data, plugins, and cache"
 
 # 4. Remove Desktop Integration & Icons
-APP_ENTRY="${XDG_DATA_HOME:-$HOME/.local/share}/applications/minimal.desktop"
-if [ -f "$APP_ENTRY" ]; then
-  rm -f "$APP_ENTRY"
-  echo -e "  ${GREEN}✔${RESET} Removed desktop entry: $APP_ENTRY"
+APP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+if [ -f "$APP_DIR/minimal.desktop" ]; then
+  rm -f "$APP_DIR/minimal.desktop"
+  echo -e "  ${GREEN}✔${RESET} Removed application desktop entry"
+fi
+if [ -f "$HOME/Desktop/minimal.desktop" ]; then
+  rm -f "$HOME/Desktop/minimal.desktop"
+  echo -e "  ${GREEN}✔${RESET} Removed desktop shortcut"
 fi
 
+rm -f "${XDG_DATA_HOME:-$HOME/.local/share}/icons/minimal.png"
 rm -f "${XDG_DATA_HOME:-$HOME/.local/share}/icons/minimal.svg"
 rm -f "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/minimal.svg"
+rm -f "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/512x512/apps/minimal.png"
+echo -e "  ${GREEN}✔${RESET} Removed application icons"
 
 if command -v update-desktop-database &>/dev/null; then
-  update-desktop-database "${XDG_DATA_HOME:-$HOME/.local/share}/applications" 2>/dev/null || true
+  update-desktop-database "$APP_DIR" 2>/dev/null || true
+fi
+if command -v gtk-update-icon-cache &>/dev/null; then
+  gtk-update-icon-cache -f -t "${XDG_DATA_HOME:-$HOME/.local/share}/icons" 2>/dev/null || true
 fi
 
-echo -e "\n${BOLD}${GREEN}✔ Minimal has been completely removed from your system.${RESET}"
-echo "Thank you for trying Minimal!"
+echo -e "\n${BOLD}${GREEN}✔ Minimal has been completely uninstalled from your Linux system.${RESET}"

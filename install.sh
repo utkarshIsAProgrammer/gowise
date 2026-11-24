@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Minimal Universal Zero-Setup Installer (Linux, macOS, WSL)
-# Fully automated: installs dependencies, configures PATH, registers desktop app
+# Minimal Installer (Linux OS Only)
+# The Fluent, Modeless Code Editor
+# Crafted by indiedev
 # ==============================================================================
 
 set -eo pipefail
 
-# ANSI Colors
+# ANSI Color Codes
 BOLD="\033[1m"
 CYAN="\033[1;36m"
 GREEN="\033[1;32m"
@@ -30,10 +31,25 @@ print_banner() {
   echo "  ██║ ╚═╝ ██║██║██║ ╚████║██║██║ ╚═╝ ██║██║  ██║███████╗"
   echo "  ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝"
   echo -e "${RESET}"
-  echo -e "${BOLD}The Fluent, Modeless Terminal Code Editor for All OS${RESET}\n"
+  echo -e "       ${BOLD}The Fluent, Modeless Code Editor for Linux${RESET}"
+  echo -e "                 ${MAGENTA}crafted by indiedev${RESET}\n"
 }
 
-# Clean install flag check
+# 1. Platform Check (Linux OS Only)
+verify_linux() {
+  local os
+  os="$(uname -s)"
+  if [ "$os" != "Linux" ]; then
+    log_error "Minimal is designed, optimized, and packaged exclusively for Linux OS."
+    echo -e "  Detected system: ${YELLOW}$os${RESET}"
+    echo "  Minimal relies on native Linux desktop standards, XDG directories, and Linux subsystems."
+    exit 1
+  fi
+  ARCH="$(uname -m)"
+  log_info "Detected Linux platform (${BOLD}$ARCH${RESET})"
+}
+
+# Process CLI flags
 CLEAN_INSTALL=false
 for arg in "$@"; do
   case "$arg" in
@@ -41,63 +57,62 @@ for arg in "$@"; do
       CLEAN_INSTALL=true
       ;;
     --help|-h)
-      echo "Minimal Universal Installer"
+      echo "Minimal Linux Installer"
       echo "Usage: ./install.sh [options]"
       echo ""
       echo "Options:"
-      echo "  --clean, -c   Perform a completely clean install from scratch"
-      echo "  --help, -h    Show this help message"
+      echo "  --clean, -c   Clean install (removes existing Minimal cache and config)"
+      echo "  --help, -h    Display this help message"
       exit 0
       ;;
   esac
 done
 
-# 1. Platform Detection
-detect_os() {
-  OS="$(uname -s)"
-  ARCH="$(uname -m)"
-  case "$OS" in
-    Linux*)  PLATFORM="Linux" ;;
-    Darwin*) PLATFORM="macOS" ;;
-    *)       PLATFORM="Unknown ($OS)" ;;
-  esac
-  log_info "Detected platform: ${BOLD}$PLATFORM ($ARCH)${RESET}"
-}
-
-# 2. Automated Dependency Installation (Zero Pre-requisite Guarantee)
+# 2. Dependency Verification & Provisioning
 ensure_dependencies() {
-  log_info "Verifying and provisioning dependencies..."
+  log_info "Verifying core dependencies..."
 
-  # A. Check and provision Git
+  # Git
   if ! command -v git &>/dev/null; then
-    log_warn "Git not found. Attempting automatic installation..."
-    if [ "$PLATFORM" = "macOS" ]; then
-      if command -v brew &>/dev/null; then
-        brew install git
-      else
-        xcode-select --install || true
-      fi
-    elif [ "$PLATFORM" = "Linux" ]; then
-      if command -v apt-get &>/dev/null; then
-        sudo apt-get update && sudo apt-get install -y git
-      elif command -v pacman &>/dev/null; then
-        sudo pacman -S --noconfirm git
-      elif command -v dnf &>/dev/null; then
-        sudo dnf install -y git
-      elif command -v apk &>/dev/null; then
-        sudo apk add git
-      fi
+    log_warn "Git is missing. Attempting to install via package manager..."
+    if command -v apt-get &>/dev/null; then
+      sudo apt-get update && sudo apt-get install -y git
+    elif command -v pacman &>/dev/null; then
+      sudo pacman -S --noconfirm git
+    elif command -v dnf &>/dev/null; then
+      sudo dnf install -y git
+    elif command -v zypper &>/dev/null; then
+      sudo zypper install -y git
+    elif command -v apk &>/dev/null; then
+      sudo apk add git
     fi
   fi
 
   if command -v git &>/dev/null; then
     log_success "Git is available ($(git --version | awk '{print $3}'))."
   else
-    log_error "Git is required to install Minimal. Please install Git and rerun."
+    log_error "Git is required to install Minimal. Please install git and rerun."
     exit 1
   fi
 
-  # B. Check and provision Neovim (v0.10+ required)
+  # Curl / Wget & Tar
+  if ! command -v curl &>/dev/null && ! command -v wget &>/dev/null; then
+    log_warn "Installing curl..."
+    if command -v apt-get &>/dev/null; then sudo apt-get install -y curl
+    elif command -v pacman &>/dev/null; then sudo pacman -S --noconfirm curl
+    elif command -v dnf &>/dev/null; then sudo dnf install -y curl
+    fi
+  fi
+
+  if ! command -v tar &>/dev/null; then
+    log_warn "Installing tar..."
+    if command -v apt-get &>/dev/null; then sudo apt-get install -y tar
+    elif command -v pacman &>/dev/null; then sudo pacman -S --noconfirm tar
+    elif command -v dnf &>/dev/null; then sudo dnf install -y tar
+    fi
+  fi
+
+  # Neovim (v0.10+ required)
   NEED_NVIM=false
   if ! command -v nvim &>/dev/null; then
     NEED_NVIM=true
@@ -106,55 +121,55 @@ ensure_dependencies() {
     MAJOR="$(echo "$NVIM_VER" | cut -d. -f1)"
     MINOR="$(echo "$NVIM_VER" | cut -d. -f2)"
     if [ "$MAJOR" -eq 0 ] && [ "$MINOR" -lt 10 ]; then
-      log_warn "Installed Neovim ($NVIM_VER) is older than required v0.10+."
+      log_warn "Existing Neovim version ($NVIM_VER) is older than v0.10+."
       NEED_NVIM=true
     fi
   fi
 
   if [ "$NEED_NVIM" = true ]; then
     log_info "Provisioning modern Neovim runtime..."
-    if [ "$PLATFORM" = "macOS" ]; then
-      if command -v brew &>/dev/null; then
-        brew install neovim
+    local PKG_OK=false
+    if command -v pacman &>/dev/null; then
+      sudo pacman -S --noconfirm neovim && PKG_OK=true || true
+    elif command -v dnf &>/dev/null; then
+      sudo dnf install -y neovim && PKG_OK=true || true
+    fi
+
+    if [ "$PKG_OK" = false ] || ! command -v nvim &>/dev/null; then
+      log_step "Downloading official pre-compiled Neovim Linux binary..."
+      mkdir -p "$HOME/.local/bin" "$HOME/.local/share/minimal/nvim_bin"
+      local NVIM_TAR="nvim-linux-x86_64.tar.gz"
+      if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+        NVIM_TAR="nvim-linux-arm64.tar.gz"
       fi
-    elif [ "$PLATFORM" = "Linux" ]; then
-      # Try package manager first if available
-      INSTALLED_PKG=false
-      if command -v pacman &>/dev/null; then
-        sudo pacman -S --noconfirm neovim && INSTALLED_PKG=true || true
-      elif command -v dnf &>/dev/null; then
-        sudo dnf install -y neovim && INSTALLED_PKG=true || true
+      local NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/$NVIM_TAR"
+
+      if command -v curl &>/dev/null; then
+        curl -sSL "$NVIM_URL" | tar -xz -C "$HOME/.local/share/minimal/nvim_bin" --strip-components=1
+      else
+        wget -qO- "$NVIM_URL" | tar -xz -C "$HOME/.local/share/minimal/nvim_bin" --strip-components=1
       fi
 
-      # If package manager didn't install modern nvim, download official standalone tarball
-      if [ "$INSTALLED_PKG" = false ] && ! command -v nvim &>/dev/null; then
-        log_step "Downloading official pre-compiled Neovim binary..."
-        mkdir -p "$HOME/.local/bin" "$HOME/.local/share/minimal-nvim"
-        local NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz"
-        if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
-          NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-arm64.tar.gz"
-        fi
-        
-        if command -v curl &>/dev/null; then
-          curl -sSL "$NVIM_URL" | tar -xz -C "$HOME/.local/share/minimal-nvim" --strip-components=1
-        elif command -v wget &>/dev/null; then
-          wget -qO- "$NVIM_URL" | tar -xz -C "$HOME/.local/share/minimal-nvim" --strip-components=1
-        fi
-
-        if [ -x "$HOME/.local/share/minimal-nvim/bin/nvim" ]; then
-          ln -sf "$HOME/.local/share/minimal-nvim/bin/nvim" "$HOME/.local/bin/nvim"
-          export PATH="$HOME/.local/bin:$PATH"
-        fi
+      if [ -x "$HOME/.local/share/minimal/nvim_bin/bin/nvim" ]; then
+        ln -sf "$HOME/.local/share/minimal/nvim_bin/bin/nvim" "$HOME/.local/bin/nvim"
+        export PATH="$HOME/.local/bin:$PATH"
       fi
     fi
   fi
 
   if command -v nvim &>/dev/null; then
-    log_success "Neovim engine is active ($(nvim --version | head -n1))."
+    log_success "Neovim engine active ($(nvim --version | head -n1))."
   else
-    log_error "Neovim (v0.10+) could not be automatically installed."
-    echo "  Please install Neovim from https://neovim.io and rerun install.sh"
+    log_error "Neovim v0.10+ could not be provisioned automatically."
     exit 1
+  fi
+
+  # Check Neovide (Optional GUI frontend)
+  if command -v neovide &>/dev/null; then
+    log_success "Neovide GUI engine detected ($(neovide --version | head -n1))."
+  else
+    log_step "Neovide is not installed; Minimal will run in high-speed terminal mode."
+    log_step "To enable frosted glass GUI visuals later, install Neovide (https://neovide.dev)."
   fi
 }
 
@@ -164,176 +179,218 @@ setup_paths() {
   CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/minimal"
   BIN_DIR="${HOME}/.local/bin"
   DATA_DIR="${HOME}/.local/share/minimal"
+  PLUGINS_DIR="${DATA_DIR}/site/pack/plugins/start"
   CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/minimal"
   STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/minimal"
 
-  mkdir -p "$BIN_DIR" "$DATA_DIR" "$CACHE_DIR/luac" "$STATE_DIR"
+  mkdir -p "$BIN_DIR" "$DATA_DIR" "$PLUGINS_DIR" "$CACHE_DIR" "$STATE_DIR"
   mkdir -p "$(dirname "$CONFIG_DIR")"
 
   if [ "$CLEAN_INSTALL" = true ]; then
-    log_warn "Clean install requested: Wiping old Minimal runtime state..."
-    rm -rf "$CONFIG_DIR" "$INSTALL_DIR" "$CACHE_DIR" "$STATE_DIR" "$DATA_DIR/lazy"
-    mkdir -p "$DATA_DIR" "$CACHE_DIR/luac" "$STATE_DIR"
+    log_warn "Clean install requested: Wiping old Minimal config and cache..."
+    rm -rf "$CONFIG_DIR" "$INSTALL_DIR" "$CACHE_DIR" "$STATE_DIR"
+    mkdir -p "$DATA_DIR" "$PLUGINS_DIR" "$CACHE_DIR" "$STATE_DIR"
   fi
 }
 
-# 4. Clone or Copy Repository
+# 4. Sync Repository Sources
 sync_repository() {
-  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 
-  if [ -f "$SCRIPT_DIR/config/init.lua" ]; then
-    log_info "Installing from local workspace: $SCRIPT_DIR"
+  if [ -f "$script_dir/config/init.lua" ]; then
+    log_info "Installing from local repository ($script_dir)..."
     mkdir -p "$INSTALL_DIR"
-    cp -rf "$SCRIPT_DIR"/* "$INSTALL_DIR"/ 2>/dev/null || true
+    cp -rf "$script_dir"/* "$INSTALL_DIR"/ 2>/dev/null || true
   else
-    log_info "Fetching latest Minimal from GitHub repository..."
-    REPO_URL="https://github.com/utkarshIsAProgrammer/minimal.git"
+    log_info "Fetching latest Minimal from GitHub..."
+    local repo_url="https://github.com/utkarshIsAProgrammer/minimal.git"
     if [ -d "$INSTALL_DIR/.git" ]; then
-      log_step "Updating existing installation at $INSTALL_DIR..."
+      log_step "Updating existing clone in $INSTALL_DIR..."
       git -C "$INSTALL_DIR" pull --quiet || true
     else
-      log_step "Cloning repository to $INSTALL_DIR..."
+      log_step "Cloning Minimal into $INSTALL_DIR..."
       rm -rf "$INSTALL_DIR"
-      git clone --depth 1 "$REPO_URL" "$INSTALL_DIR" --quiet
+      git clone --depth 1 "$repo_url" "$INSTALL_DIR" --quiet
     fi
   fi
-  log_success "Minimal source files ready."
+  log_success "Minimal repository synced."
 }
 
-# 5. Link Isolated Configuration
-link_config() {
-  log_info "Configuring isolated environment..."
+# 5. Link/Deploy Configuration
+deploy_config() {
+  log_info "Deploying editor configuration to $CONFIG_DIR..."
+  mkdir -p "$CONFIG_DIR"
+  cp -rf "$INSTALL_DIR/config/"* "$CONFIG_DIR"/
+  log_success "Configuration deployed successfully."
+}
 
-  if [ -e "$CONFIG_DIR" ] && [ ! -L "$CONFIG_DIR" ]; then
-    BACKUP_PATH="${CONFIG_DIR}.backup.$(date +%Y%m%d%H%M%S)"
-    log_warn "Existing config found at $CONFIG_DIR. Backing up to $BACKUP_PATH"
-    mv "$CONFIG_DIR" "$BACKUP_PATH"
-  elif [ -L "$CONFIG_DIR" ]; then
-    rm -f "$CONFIG_DIR"
+# 6. Provision Essential Plugins
+provision_plugins() {
+  log_info "Provisioning editor plugins into $PLUGINS_DIR..."
+
+  # Check if plugins are present locally to avoid network roundtrips
+  if [ -d "$HOME/.local/share/nvim/site/pack/plugins/start/bufferline.nvim" ]; then
+    log_step "Syncing pre-installed plugins from local environment..."
+    cp -rf "$HOME/.local/share/nvim/site/pack/plugins/start/"* "$PLUGINS_DIR"/ 2>/dev/null || true
   fi
 
-  ln -s "$INSTALL_DIR/config" "$CONFIG_DIR"
-  log_success "Linked $CONFIG_DIR -> $INSTALL_DIR/config"
+  local plugin_repos=(
+    "akinsho/bufferline.nvim"
+    "hrsh7th/cmp-buffer"
+    "saadparwaiz1/cmp_luasnip"
+    "hrsh7th/cmp-nvim-lsp"
+    "hrsh7th/cmp-nvim-lua"
+    "hrsh7th/cmp-path"
+    "ziontee113/color-picker.nvim"
+    "stevearc/conform.nvim"
+    "mattn/emmet-vim"
+    "rafamadriz/friendly-snippets"
+    "lukas-reineke/indent-blankline.nvim"
+    "L3MON4D3/LuaSnip"
+    "brenton-leighton/multiple-cursors.nvim"
+    "windwp/nvim-autopairs"
+    "hrsh7th/nvim-cmp"
+    "norcalli/nvim-colorizer.lua"
+    "neovim/nvim-lspconfig"
+    "nvim-tree/nvim-tree.lua"
+    "nvim-treesitter/nvim-treesitter"
+    "nvim-tree/nvim-web-devicons"
+  )
+
+  local pending=()
+  for item in "${plugin_repos[@]}"; do
+    local pname="${item##*/}"
+    if [ ! -d "$PLUGINS_DIR/$pname" ]; then
+      pending+=("$item")
+    fi
+  done
+
+  if [ ${#pending[@]} -gt 0 ]; then
+    log_step "Cloning ${#pending[@]} missing plugins..."
+    for item in "${pending[@]}"; do
+      local pname="${item##*/}"
+      local purl="https://github.com/${item}.git"
+      git clone --depth 1 "$purl" "$PLUGINS_DIR/$pname" --quiet 2>/dev/null &
+    done
+    wait
+  fi
+
+  # Generate compiled spell file if not present
+  if [ -f "$CONFIG_DIR/spell/en.utf-8.add" ] && [ ! -f "$CONFIG_DIR/spell/en.utf-8.add.spl" ]; then
+    log_step "Compiling dictionary spell cache..."
+    nvim --headless -c "silent! mkspell! $CONFIG_DIR/spell/en.utf-8.add" -c "qall!" 2>/dev/null || true
+  fi
+
+  log_success "All 20 editor plugins ready."
 }
 
-# 6. Install CLI Launcher & PATH
+# 7. Install CLI Launcher
 install_launcher() {
-  log_info "Setting up 'minimal' command..."
+  log_info "Installing 'minimal' command launcher..."
   chmod +x "$INSTALL_DIR/bin/minimal"
-  chmod +x "$INSTALL_DIR/config/bin/"* 2>/dev/null || true
+  chmod +x "$CONFIG_DIR/terminal_rc.sh" 2>/dev/null || true
   ln -sf "$INSTALL_DIR/bin/minimal" "$BIN_DIR/minimal"
-  log_success "Created executable link: $BIN_DIR/minimal"
+  chmod +x "$BIN_DIR/minimal"
+  log_success "Created launcher link: $BIN_DIR/minimal"
 
-  # PATH verification across popular shells
+  # Ensure $BIN_DIR is in PATH
   if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
-    log_warn "$BIN_DIR is not in your current shell PATH."
-    for RC_FILE in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
-      if [ -f "$RC_FILE" ] && ! grep -q 'export PATH=.*\.local/bin' "$RC_FILE"; then
-        echo -e '\nexport PATH="$HOME/.local/bin:$PATH"' >> "$RC_FILE"
-        log_success "Added $BIN_DIR to $RC_FILE"
+    log_warn "$BIN_DIR is not yet in your current PATH."
+    for rc in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
+      if [ -f "$rc" ] && ! grep -q 'export PATH=.*\.local/bin' "$rc"; then
+        echo -e '\nexport PATH="$HOME/.local/bin:$PATH"' >> "$rc"
+        log_success "Added $BIN_DIR to $rc"
       fi
     done
-    if [ -d "$HOME/.config/fish" ]; then
-      FISH_CONF="$HOME/.config/fish/config.fish"
-      if [ -f "$FISH_CONF" ] && ! grep -q '\.local/bin' "$FISH_CONF"; then
-        echo -e '\nfish_add_path -a $HOME/.local/bin' >> "$FISH_CONF"
-        log_success "Added $BIN_DIR to $FISH_CONF"
-      fi
-    fi
   fi
 }
 
-# 7. Desktop & Icon Integration (Linux)
+# 8. Desktop App & Icon Integration (Linux XDG Standard)
 install_desktop_integration() {
-  if [ "$PLATFORM" = "Linux" ]; then
-    log_info "Registering desktop application and icons..."
-    local APP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
-    local ICON_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons"
-    local HICOLOR_DIR="$ICON_DIR/hicolor/scalable/apps"
+  log_info "Installing desktop entry and application icons..."
+  local app_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+  local icon_dir="${XDG_DATA_HOME:-$HOME/.local/share}/icons"
+  local hicolor_dir="$icon_dir/hicolor/scalable/apps"
 
-    mkdir -p "$APP_DIR" "$ICON_DIR" "$HICOLOR_DIR"
+  mkdir -p "$app_dir" "$icon_dir" "$hicolor_dir"
 
-    if [ -f "$INSTALL_DIR/assets/minimal.svg" ]; then
-      cp -f "$INSTALL_DIR/assets/minimal.svg" "$ICON_DIR/minimal.svg"
-      cp -f "$INSTALL_DIR/assets/minimal.svg" "$HICOLOR_DIR/minimal.svg"
-      log_success "Installed Minimal application SVG icon"
-    fi
+  if [ -f "$INSTALL_DIR/assets/minimal.svg" ]; then
+    cp -f "$INSTALL_DIR/assets/minimal.svg" "$icon_dir/minimal.svg"
+    cp -f "$INSTALL_DIR/assets/minimal.svg" "$hicolor_dir/minimal.svg"
+  fi
 
-    if [ -f "$INSTALL_DIR/assets/minimal.png" ]; then
-      cp -f "$INSTALL_DIR/assets/minimal.png" "$ICON_DIR/minimal.png"
-      mkdir -p "$ICON_DIR/hicolor/512x512/apps"
-      cp -f "$INSTALL_DIR/assets/minimal.png" "$ICON_DIR/hicolor/512x512/apps/minimal.png"
-      log_success "Installed Minimal application PNG icon"
-    fi
+  if [ -f "$INSTALL_DIR/assets/minimal.png" ]; then
+    cp -f "$INSTALL_DIR/assets/minimal.png" "$icon_dir/minimal.png"
+    mkdir -p "$icon_dir/hicolor/512x512/apps"
+    cp -f "$INSTALL_DIR/assets/minimal.png" "$icon_dir/hicolor/512x512/apps/minimal.png"
+  fi
 
-    if [ -f "$INSTALL_DIR/desktop/minimal.desktop" ]; then
-      cp -f "$INSTALL_DIR/desktop/minimal.desktop" "$APP_DIR/minimal.desktop"
-      chmod +x "$APP_DIR/minimal.desktop"
-      log_success "Installed desktop entry ($APP_DIR/minimal.desktop)"
+  if [ -f "$INSTALL_DIR/desktop/minimal.desktop" ]; then
+    cp -f "$INSTALL_DIR/desktop/minimal.desktop" "$app_dir/minimal.desktop"
+    chmod +x "$app_dir/minimal.desktop"
+    if [ -d "$HOME/Desktop" ]; then
+      cp -f "$INSTALL_DIR/desktop/minimal.desktop" "$HOME/Desktop/minimal.desktop"
+      chmod +x "$HOME/Desktop/minimal.desktop" 2>/dev/null || true
     fi
+    log_success "Installed desktop launcher entry ($app_dir/minimal.desktop)"
+  fi
 
-    if command -v update-desktop-database &>/dev/null; then
-      update-desktop-database "$APP_DIR" 2>/dev/null || true
-    fi
-    if command -v gtk-update-icon-cache &>/dev/null; then
-      gtk-update-icon-cache -f -t "$ICON_DIR/hicolor" 2>/dev/null || true
-      gtk-update-icon-cache -f -t "$ICON_DIR" 2>/dev/null || true
-    fi
+  if command -v update-desktop-database &>/dev/null; then
+    update-desktop-database "$app_dir" 2>/dev/null || true
+  fi
+  if command -v gtk-update-icon-cache &>/dev/null; then
+    gtk-update-icon-cache -f -t "$icon_dir/hicolor" 2>/dev/null || true
+    gtk-update-icon-cache -f -t "$icon_dir" 2>/dev/null || true
   fi
 }
 
-# 8. Bootstrap Plugins & Preheat Cache
+# 9. Pre-warm Bytecode Cache
 preheat_cache() {
-  log_info "Preheating LuaJIT bytecode & compiling plugin cache..."
-
-  # Pre-clone lazy.nvim if missing
-  local LAZY_DIR="${HOME}/.local/share/minimal/lazy/lazy.nvim"
-  if [ ! -d "$LAZY_DIR" ]; then
-    git clone --filter=blob:none --branch=stable https://github.com/folke/lazy.nvim.git "$LAZY_DIR" --quiet 2>/dev/null || true
-  fi
-
-  # Run headless sync
-  if command -v nvim &>/dev/null; then
-    NVIM_APPNAME=minimal nvim --headless "+Lazy! sync" +qa 2>/dev/null || true
-  fi
-  log_success "Preheat complete. Cold startup latency optimized (<50ms)."
+  log_info "Pre-warming runtime and verifying configuration..."
+  NVIM_APPNAME=minimal nvim --headless -c "qall!" 2>/dev/null || true
+  log_success "Cold startup verified."
 }
 
-# 9. Friendly Finish Summary
+# 10. Summary & Completion
 finish() {
   echo ""
   echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-  echo -e "${BOLD}${GREEN}✔ Minimal installed successfully and ready to use!${RESET}"
+  echo -e "${BOLD}${GREEN}✔ Minimal Code Editor successfully installed on Linux!${RESET}"
   echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
   echo ""
   echo -e "  To start editing, run:"
+  echo -e "    ${CYAN}minimal${RESET}                        # Launch Homescreen"
   echo -e "    ${CYAN}minimal .${RESET}                      # Open current folder / workspace"
-  echo -e "    ${CYAN}minimal path/to/file.ext${RESET}       # Open or create any file"
-  echo -e "    ${CYAN}minimal --doctor${RESET}               # Inspect toolchains & LSP status"
-  echo -e "    ${CYAN}minimal --benchmark${RESET}            # Measure exact startup latency"
+  echo -e "    ${CYAN}minimal path/to/file.py${RESET}        # Open or create any file"
+  echo -e "    ${CYAN}minimal --gui${RESET}                  # Launch in Neovide GUI mode"
   echo ""
-  echo -e "  ${BOLD}Essential shortcuts:${RESET}"
-  echo -e "    • ${BOLD}Ctrl+S${RESET}        Save file (auto-creates parent directories)"
-  echo -e "    • ${BOLD}Ctrl+P${RESET}        Quick Open fuzzy file finder"
-  echo -e "    • ${BOLD}Ctrl+Shift+P${RESET}  Command Palette"
-  echo -e "    • ${BOLD}Ctrl+B${RESET}        Toggle File Explorer sidebar"
-  echo -e "    • ${BOLD}Ctrl+\`${RESET}        Toggle Bottom Integrated Terminal"
-  echo -e "    • ${BOLD}Ctrl+K Ctrl+T${RESET} Live Theme Switcher"
-  echo -e "    • ${BOLD}F5${RESET}            Run current project / file"
+  echo -e "  ${BOLD}Core Keybindings:${RESET}"
+  echo -e "    • ${BOLD}Ctrl+S${RESET}        Save current file"
+  echo -e "    • ${BOLD}Ctrl+N${RESET}        New file (dot icon in tabs for unsaved buffer)"
+  echo -e "    • ${BOLD}Ctrl+B${RESET}        Toggle sidebar file explorer"
+  echo -e "    • ${BOLD}Ctrl+\`${RESET}        Toggle bottom integrated terminal drawer"
+  echo -e "    • ${BOLD}Ctrl+K Ctrl+T${RESET} Color themes picker (darkmagic, cyberaurora, medieval, nocturne)"
+  echo -e "    • ${BOLD}Ctrl+Shift+K+T${RESET} Font & Settings picker"
+  echo -e "    • ${BOLD}Ctrl+P${RESET}        Keybindings cheatsheet & commands"
+  echo -e "    • ${BOLD}Ctrl+D${RESET}        Multi-cursor & multi-selection"
+  echo -e "    • ${BOLD}Alt+Up / Down${RESET} Move line up or down"
+  echo -e "    • ${BOLD}Ctrl+.${RESET}        Code spell checker suggestions & dictionary"
   echo ""
   if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
-    echo -e "  ${YELLOW}Notice:${RESET} Please run ${BOLD}source ~/.bashrc${RESET} (or open a new terminal) to refresh your PATH."
+    echo -e "  ${YELLOW}Notice:${RESET} Run ${BOLD}source ~/.bashrc${RESET} (or open a new terminal) to refresh your PATH."
     echo ""
   fi
 }
 
 main() {
   print_banner
-  detect_os
+  verify_linux
   ensure_dependencies
   setup_paths
   sync_repository
-  link_config
+  deploy_config
+  provision_plugins
   install_launcher
   install_desktop_integration
   preheat_cache

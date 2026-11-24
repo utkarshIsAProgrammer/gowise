@@ -1,12 +1,14 @@
 [Desktop Entry]
+Version=1.0
 Name=Minimal
-Comment=The Fluent, Modeless Terminal Code Editor
+Comment=The Fluent, Modeless Code Editor for Linux
 GenericName=Code Editor
-Exec=minimal %F
+Exec=minimal --gui %F
 Icon=minimal
-Terminal=true
+Terminal=false
 Type=Application
-Categories=Development;TextEditor;IDE;Utility;
-MimeType=text/plain;text/x-go;text/x-python;text/x-c;text/x-c++;text/javascript;text/x-typescript;application/json;text/markdown;
-Keywords=editor;code;terminal;minimal;ide;neovim;modeless;
+Categories=Development;TextEditor;IDE;
+MimeType=text/plain;text/x-python;text/x-c;text/x-c++;text/x-go;text/x-rust;text/javascript;text/x-typescript;application/json;text/markdown;text/x-shellscript;
+Keywords=editor;code;text;terminal;ide;neovim;neovide;modeless;minimal;
 StartupNotify=true
+StartupWMClass=neovide
