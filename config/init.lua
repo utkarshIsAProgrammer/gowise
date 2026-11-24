@@ -1075,10 +1075,18 @@ _G.get_listed_editor_bufs = get_listed_editor_bufs
 _G.active_menu_close_fn = nil
 
 vim.api.nvim_set_hl(0, "MenuCursorHidden", { blend = 100, fg = "#1e222a", bg = "#1e222a" })
+vim.api.nvim_set_hl(0, "FolderCursorHidden", { blend = 100, fg = "#2d3545", bg = "#2d3545" })
+vim.api.nvim_set_hl(0, "FolderPickerSelected", { fg = "#ffffff", bg = "#2d3545", bold = true })
 
-_G.set_picker_cursor = function()
+_G.set_picker_cursor = function(hl_group)
   pcall(function()
-    vim.opt.guicursor = "n-v-c-i:hor1-blinkoff0-MenuCursorHidden"
+    local hl = hl_group or "MenuCursorHidden"
+    if hl == "FolderCursorHidden" then
+      vim.api.nvim_set_hl(0, "FolderCursorHidden", { blend = 100, fg = "#2d3545", bg = "#2d3545" })
+    else
+      vim.api.nvim_set_hl(0, "MenuCursorHidden", { blend = 100, fg = "#1e222a", bg = "#1e222a" })
+    end
+    vim.opt.guicursor = "n-v-c-i:hor1-blinkoff0-" .. hl
   end)
 end
 
@@ -3354,10 +3362,13 @@ function ThemeEngine.apply_theme(theme_id)
   vim.api.nvim_set_hl(0, "MinimalHomeRecent", { fg = "#61afef" })
   vim.api.nvim_set_hl(0, "MinimalHomeArrow", { fg = "#61afef", bold = true })
 
-  -- Multi-Cursor Highlights
+  -- Multi-Cursor & Menu Picker Highlights
   vim.api.nvim_set_hl(0, "MultipleCursorsCursor", { bg = "#61afef", fg = "#1e222a", bold = true })
   vim.api.nvim_set_hl(0, "MultipleCursorsLockedCursor", { bg = "#98c379", fg = "#1e222a", bold = true })
   vim.api.nvim_set_hl(0, "MultipleCursorsVisual", { bg = "#3e4451" })
+  vim.api.nvim_set_hl(0, "MenuCursorHidden", { blend = 100, fg = "#1e222a", bg = "#1e222a" })
+  vim.api.nvim_set_hl(0, "FolderCursorHidden", { blend = 100, fg = "#2d3545", bg = "#2d3545" })
+  vim.api.nvim_set_hl(0, "FolderPickerSelected", { fg = "#ffffff", bg = "#2d3545", bold = true })
 
   if _G.reapply_all_icon_colors then
     _G.reapply_all_icon_colors()
@@ -4329,6 +4340,7 @@ _G.open_folder_picker = function()
     current_dir = vim.fn.expand("~")
   end
   local show_hidden = false
+  local selected_idx = 1
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.b[buf].is_picker = true
@@ -4337,8 +4349,8 @@ _G.open_folder_picker = function()
   vim.bo[buf].undolevels = -1
 
   local ui = vim.api.nvim_list_uis()[1] or { width = 120, height = 40 }
-  local width = math.min(74, math.max(50, ui.width - 6))
-  local height = math.min(16, math.max(8, ui.height - 8))
+  local width = math.min(76, math.max(52, ui.width - 6))
+  local height = math.min(22, math.max(10, ui.height - 8))
   local row = math.max(1, math.floor((ui.height - height) / 3))
   local col = math.max(1, math.floor((ui.width - width) / 2))
 
@@ -4352,13 +4364,14 @@ _G.open_folder_picker = function()
     border = "rounded",
     title = " Open Folder ",
     title_pos = "center",
-    footer = " o: Open | .: Hidden ",
+    footer = " Enter: Drill In │ o: Open │ .: Hidden │ Esc: Cancel ",
     footer_pos = "center",
   })
 
   vim.cmd("stopinsert")
   vim.wo[win].cursorline = false
   vim.wo[win].wrap = false
+  vim.wo[win].scrolloff = 2
   vim.wo[win].winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder"
 
   local function close_picker()
@@ -4366,14 +4379,24 @@ _G.open_folder_picker = function()
     local ed = find_editor_win()
     if ed and vim.api.nvim_win_is_valid(ed) then
       vim.api.nvim_set_current_win(ed)
+      local eb = vim.api.nvim_win_get_buf(ed)
+      if vim.bo[eb].filetype ~= "minimal_home" and not vim.b[eb].is_homescreen then
+        vim.cmd("startinsert")
+      end
     end
-    vim.cmd("startinsert")
     _G.clear_active_menu(close_picker)
   end
 
   _G.register_active_menu(close_picker, win)
+  _G.set_picker_cursor("FolderCursorHidden")
+
+  vim.api.nvim_set_hl(0, "FolderPickerSelected", { fg = "#ffffff", bg = "#2d3545", bold = true })
+  vim.api.nvim_set_hl(0, "FolderPickerAction", { fg = "#61afef", bold = true })
+  vim.api.nvim_set_hl(0, "FolderPickerDir", { fg = "#e5c07b" })
+  vim.api.nvim_set_hl(0, "FolderPickerMuted", { fg = "#5c6370", italic = true })
 
   local items = {}
+  local ns_id = vim.api.nvim_create_namespace("folder_picker_hl")
 
   local function scan_current()
     local dirs = {}
@@ -4398,32 +4421,65 @@ _G.open_folder_picker = function()
     return dirs
   end
 
-  local function render(keep_row)
+  local function update_selection()
+    if not vim.api.nvim_buf_is_valid(buf) or not vim.api.nvim_win_is_valid(win) then return end
+    vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
+
+    for _, item in ipairs(items) do
+      local r = item.line - 1
+      if item.type == "open_current" then
+        pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FolderPickerAction", r, 0, -1)
+      elseif item.type == "dir" then
+        pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FolderPickerDir", r, 0, 7)
+      elseif item.type == "parent" then
+        pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FolderPickerMuted", r, 0, -1)
+      end
+    end
+
+    if #items > 0 then
+      if selected_idx > #items then selected_idx = #items end
+      if selected_idx < 1 then selected_idx = 1 end
+      local sel = items[selected_idx]
+      if sel then
+        pcall(vim.api.nvim_buf_set_extmark, buf, ns_id, sel.line - 1, 0, {
+          line_hl_group = "FolderPickerSelected",
+          priority = 200,
+        })
+        pcall(vim.api.nvim_win_set_cursor, win, { sel.line, 0 })
+      end
+    end
+  end
+
+  local function render(target_idx)
     if not vim.api.nvim_buf_is_valid(buf) then return end
     items = {}
-    local lines = {}
+    local lines = { "" }
     local display_cwd = vim.fn.fnamemodify(current_dir, ":~")
 
     -- Row 1: Select current folder
-    table.insert(items, { type = "open_current", path = current_dir })
-    table.insert(lines, "   󰉋 [Open This Folder: " .. display_cwd .. "]")
+    table.insert(lines, "   󰉋  [Open This Folder: " .. display_cwd .. "]")
+    table.insert(items, { type = "open_current", path = current_dir, line = #lines })
+    table.insert(lines, "")
 
     -- Row 2: Parent directory (if not root)
     if current_dir ~= "/" then
       local parent_dir = vim.fn.fnamemodify(current_dir, ":h")
-      table.insert(items, { type = "parent", path = parent_dir })
-      table.insert(lines, "   .. (Parent Directory)")
+      table.insert(lines, "   󰁝  .. (Parent Directory)")
+      table.insert(items, { type = "parent", path = parent_dir, line = #lines })
+      table.insert(lines, "")
     end
 
     local subdirs = scan_current()
     for _, dname in ipairs(subdirs) do
       local full = (current_dir == "/" and "/" .. dname or current_dir .. "/" .. dname)
-      table.insert(items, { type = "dir", path = full, name = dname })
-      table.insert(lines, "   󰉋 " .. dname .. "/")
+      table.insert(lines, "   󰉋  " .. dname .. "/")
+      table.insert(items, { type = "dir", path = full, name = dname, line = #lines })
+      table.insert(lines, "")
     end
 
-    if #subdirs == 0 and #lines == 1 then
+    if #subdirs == 0 then
       table.insert(lines, "   (No subdirectories)")
+      table.insert(lines, "")
     end
 
     vim.bo[buf].modifiable = true
@@ -4434,20 +4490,16 @@ _G.open_folder_picker = function()
     pcall(vim.api.nvim_win_set_config, win, {
       title = title_str,
       title_pos = "center",
-      footer = " o: Open | .: Hidden ",
+      footer = " Enter: Drill In │ o: Open │ .: Hidden │ Esc: Cancel ",
       footer_pos = "center",
     })
 
-    local target_row = keep_row or 1
-    if target_row > #lines then target_row = #lines end
-    if target_row < 1 then target_row = 1 end
-    pcall(vim.api.nvim_win_set_cursor, win, { target_row, 1 })
+    selected_idx = target_idx or 1
+    update_selection()
   end
 
   local function on_confirm()
-    local cur = vim.api.nvim_win_get_cursor(win)
-    local idx = cur[1]
-    local item = items[idx]
+    local item = items[selected_idx]
     if not item then return end
 
     if item.type == "open_current" then
@@ -4464,9 +4516,7 @@ _G.open_folder_picker = function()
   end
 
   local function on_open_immediate()
-    local cur = vim.api.nvim_win_get_cursor(win)
-    local idx = cur[1]
-    local item = items[idx]
+    local item = items[selected_idx]
     local target = current_dir
     if item and item.path then
       target = item.path
@@ -4484,8 +4534,7 @@ _G.open_folder_picker = function()
 
   local function on_toggle_hidden()
     show_hidden = not show_hidden
-    local cur_row = vim.api.nvim_win_get_cursor(win)[1]
-    render(cur_row)
+    render(selected_idx)
   end
 
   local function on_jump_home()
@@ -4512,21 +4561,30 @@ _G.open_folder_picker = function()
   end
 
   local function move_up()
-    if not vim.api.nvim_win_is_valid(win) then return end
-    local cur = vim.api.nvim_win_get_cursor(win)
-    local total = vim.api.nvim_buf_line_count(buf)
-    local target = cur[1] - 1
-    if target < 1 then target = total end
-    vim.api.nvim_win_set_cursor(win, { target, 3 })
+    if #items == 0 then return end
+    selected_idx = selected_idx - 1
+    if selected_idx < 1 then selected_idx = #items end
+    update_selection()
   end
 
   local function move_down()
-    if not vim.api.nvim_win_is_valid(win) then return end
-    local cur = vim.api.nvim_win_get_cursor(win)
-    local total = vim.api.nvim_buf_line_count(buf)
-    local target = cur[1] + 1
-    if target > total then target = 1 end
-    vim.api.nvim_win_set_cursor(win, { target, 3 })
+    if #items == 0 then return end
+    selected_idx = selected_idx + 1
+    if selected_idx > #items then selected_idx = 1 end
+    update_selection()
+  end
+
+  local function on_mouse_click()
+    local pos = vim.fn.getmousepos()
+    if pos and pos.winid == win and pos.line then
+      for i, item in ipairs(items) do
+        if item.line == pos.line then
+          selected_idx = i
+          update_selection()
+          return
+        end
+      end
+    end
   end
 
   -- Block all normal typing keys so picker buffer is completely unwritable
@@ -4538,8 +4596,14 @@ _G.open_folder_picker = function()
     end
   end
 
+  vim.keymap.set({ "n", "i", "s", "v" }, "k", move_up, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "j", move_down, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<LeftMouse>", on_mouse_click, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<CR>", on_confirm, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<2-LeftMouse>", on_confirm, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<2-LeftMouse>", function()
+    on_mouse_click()
+    on_confirm()
+  end, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<C-CR>", on_open_immediate, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "o", on_open_immediate, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "O", on_open_immediate, { buffer = buf, nowait = true })
