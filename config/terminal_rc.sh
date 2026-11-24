@@ -1,11 +1,34 @@
 #!/usr/bin/env bash
 
+export SHELL=/bin/bash
 export TERM=xterm-256color
 export COLORTERM=truecolor
+export HISTFILE="$HOME/.bash_history"
+export HISTSIZE=10000
+export HISTFILESIZE=20000
+export HISTCONTROL=ignoreboth:erasedups
+unset KITTY_PID KITTY_WINDOW_ID KITTY_PUBLIC_KEY KITTY_INSTALLATION_DIR TERMINFO STARSHIP_SHELL ZDOTDIR ZSH_AUTOSUGGEST_STRATEGY
 
-# Source user's standard bashrc if available
+# Source user's standard bashrc (paths/aliases/options) while skipping Zsh/Kitty prompt/line-editor shims
 if [ -f "$HOME/.bashrc" ]; then
-  source "$HOME/.bashrc"
+  if grep -qE 'blesh/ble\.sh|ble-attach|starship init bash' "$HOME/.bashrc" 2>/dev/null; then
+    source <(sed -E \
+      -e 's#^([[:space:]]*)(source|\.)[[:space:]]+.*blesh/ble\.sh.*#\1:#' \
+      -e 's#^([[:space:]]*)ble-attach.*#\1:#' \
+      -e 's#^([[:space:]]*)eval "\$\(starship init bash\)".*#\1:#' \
+      "$HOME/.bashrc")
+  else
+    source "$HOME/.bashrc"
+  fi
+fi
+
+# Re-assert Bash environment and reload pure Bash history
+export SHELL=/bin/bash
+export HISTFILE="$HOME/.bash_history"
+shopt -s histappend 2>/dev/null || true
+history -c
+if [ -f "$HISTFILE" ]; then
+  history -r "$HISTFILE"
 fi
 
 # Unset any prompt commanders from external tools to ensure clean git profile

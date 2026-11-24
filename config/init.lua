@@ -25,6 +25,7 @@ vim.g.loaded_netrw = 1
 vim.g.loaded_netrwPlugin = 1
 
 -- 1. General Editor Behavior & Layout
+vim.opt.shell = "/bin/bash"              -- Force standard Bash shell instead of parent terminal shell (e.g. Zsh/Kitty)
 vim.opt.mouse = "a"                      -- Full mouse support (click, drag to select)
 vim.opt.clipboard = "unnamedplus"        -- System clipboard integration
 vim.opt.number = true                    -- Line numbers
@@ -2245,7 +2246,23 @@ _G.new_terminal = function()
       rc_file = fallback_rc
     end
   end
-  local cmd = { "/bin/bash", "--rcfile", rc_file }
+  local bash_hist = vim.fn.expand("~/.bash_history")
+  local cmd = {
+    "/usr/bin/env",
+    "-u", "KITTY_PID",
+    "-u", "KITTY_WINDOW_ID",
+    "-u", "KITTY_PUBLIC_KEY",
+    "-u", "KITTY_INSTALLATION_DIR",
+    "-u", "TERMINFO",
+    "-u", "STARSHIP_SHELL",
+    "-u", "ZDOTDIR",
+    "-u", "ZSH_AUTOSUGGEST_STRATEGY",
+    "SHELL=/bin/bash",
+    "HISTFILE=" .. bash_hist,
+    "TERM=xterm-256color",
+    "COLORTERM=truecolor",
+    "/bin/bash", "--rcfile", rc_file,
+  }
   vim.fn.termopen(cmd)
 
   vim.wo[term_win].number = false
