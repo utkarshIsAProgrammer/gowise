@@ -234,6 +234,10 @@ provision_plugins() {
     log_step "Syncing pre-installed plugins from local environment..."
     cp -rf "$HOME/.local/share/nvim/site/pack/plugins/start/"* "$PLUGINS_DIR"/ 2>/dev/null || true
   fi
+  if [ -d "$HOME/.local/share/nvim/site/parser" ]; then
+    mkdir -p "$DATA_DIR/site/parser"
+    cp -rf "$HOME/.local/share/nvim/site/parser/"* "$DATA_DIR/site/parser"/ 2>/dev/null || true
+  fi
 
   local plugin_repos=(
     "akinsho/bufferline.nvim"

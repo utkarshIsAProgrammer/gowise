@@ -3,14 +3,24 @@
 -- Crafted by indiedev
 -- =============================================================================
 
--- Ensure both standalone minimal and standard nvim packpaths are recognized for plugins
+-- Ensure both standalone minimal and standard nvim packpaths & parser runtimes are recognized
 local minimal_site = vim.fn.expand("~/.local/share/minimal/site")
-if vim.fn.isdirectory(minimal_site) == 1 and not vim.tbl_contains(vim.opt.packpath:get(), minimal_site) then
-  vim.opt.packpath:prepend(minimal_site)
+if vim.fn.isdirectory(minimal_site) == 1 then
+  if not vim.tbl_contains(vim.opt.packpath:get(), minimal_site) then
+    vim.opt.packpath:prepend(minimal_site)
+  end
+  if not vim.tbl_contains(vim.opt.runtimepath:get(), minimal_site) then
+    vim.opt.runtimepath:prepend(minimal_site)
+  end
 end
 local nvim_site = vim.fn.expand("~/.local/share/nvim/site")
-if vim.fn.isdirectory(nvim_site) == 1 and not vim.tbl_contains(vim.opt.packpath:get(), nvim_site) then
-  vim.opt.packpath:append(nvim_site)
+if vim.fn.isdirectory(nvim_site) == 1 then
+  if not vim.tbl_contains(vim.opt.packpath:get(), nvim_site) then
+    vim.opt.packpath:append(nvim_site)
+  end
+  if not vim.tbl_contains(vim.opt.runtimepath:get(), nvim_site) then
+    vim.opt.runtimepath:append(nvim_site)
+  end
 end
 
 -- Silence deprecation warning for vim.tbl_flatten across all plugins
@@ -170,6 +180,9 @@ vim.filetype.add({
     redis = "conf",
     env = "sh",
     conf = "conf",
+    md = "markdown",
+    mdx = "markdown",
+    markdown = "markdown",
     svelte = "svelte",
     vue = "vue",
     jsx = "javascriptreact",
@@ -356,6 +369,27 @@ if ok_luasnip then
         require("luasnip.loaders.from_vscode").lazy_load()
       end
     end
+  end)
+
+  -- Rich Markdown Snippets
+  pcall(function()
+    local s = luasnip.snippet
+    local t = luasnip.text_node
+    local i = luasnip.insert_node
+    luasnip.add_snippets("markdown", {
+      s("code", { t("```"), i(1, "python"), t({ "", "" }), i(2), t({ "", "```" }) }),
+      s("todo", { t("- [ ] "), i(1, "Task description") }),
+      s("table", {
+        t("| "), i(1, "Column 1"), t(" | "), i(2, "Column 2"), t({ " |", "| :--- | :--- |", "| " }),
+        i(3, "Value 1"), t(" | "), i(4, "Value 2"), t(" |"),
+      }),
+      s("link", { t("["), i(1, "title"), t("]("), i(2, "https://"), t(")") }),
+      s("img", { t("!["), i(1, "alt text"), t("]("), i(2, "path/to/image.png"), t(")") }),
+      s("note", { t({ "> [!NOTE]", "> " }), i(1, "Note content") }),
+      s("tip", { t({ "> [!TIP]", "> " }), i(1, "Helpful tip") }),
+      s("warn", { t({ "> [!WARNING]", "> " }), i(1, "Warning details") }),
+      s("frontmatter", { t({ "---", "title: " }), i(1, "Document Title"), t({ "", "date: " }), i(2, "2026-01-01"), t({ "", "---", "" }) }),
+    })
   end)
 end
 
@@ -3569,6 +3603,9 @@ function ThemeEngine.apply_theme(theme_id)
   if _G.reapply_all_icon_colors then
     _G.reapply_all_icon_colors()
   end
+  if _G.apply_markdown_highlights then
+    _G.apply_markdown_highlights()
+  end
 end
 
 _G.open_theme_picker = function()
@@ -4252,6 +4289,13 @@ _G.open_keybindings_panel = function()
     { cat = "INTEGRATED TERMINAL", key = "Alt + N + T", desc = "New terminal tab instance" },
     { cat = "INTEGRATED TERMINAL", key = "Shift + Alt + K", desc = "Kill active terminal tab" },
     { cat = "INTEGRATED TERMINAL", key = "Ctrl + PgUp / PgDn", desc = "Switch active terminal tab" },
+    { cat = "MARKDOWN (.MD)", key = "Alt + M", desc = "Open Markdown heading outline & section jumper" },
+    { cat = "MARKDOWN (.MD)", key = "Alt + P", desc = "Open styled Markdown preview in browser" },
+    { cat = "MARKDOWN (.MD)", key = "Alt + X", desc = "Toggle checkbox [ ] <-> [x] on current line" },
+    { cat = "MARKDOWN (.MD)", key = "Alt + B / Alt + I", desc = "Toggle **Bold** / *Italic* on selection or word" },
+    { cat = "MARKDOWN (.MD)", key = "Alt + E / Alt + L", desc = "Wrap as `Inline Code` or [Link](url)" },
+    { cat = "MARKDOWN (.MD)", key = "Alt + O / gx", desc = "Open Markdown link under cursor (file or URL)" },
+    { cat = "MARKDOWN (.MD)", key = ":MdTableAlign", desc = "Align Markdown table columns" },
   }
 
   local filtered = {}
@@ -6202,6 +6246,988 @@ function _G.editor_statusline()
 end
 
 vim.opt.statusline = "%!v:lua._G.editor_statusline()"
+
+-- =============================================================================
+-- 22. Rich Markdown (.md) Highlights, Visual Renderer & Productivity Suite
+-- =============================================================================
+local md_ns = vim.api.nvim_create_namespace("minimal_markdown_visuals")
+
+_G.apply_markdown_highlights = function()
+  local function copy_fg(target, fallback_fg, extra)
+    local hl = vim.api.nvim_get_hl(0, { name = target, link = false })
+    local fg = (hl and hl.fg) or fallback_fg
+    local def = vim.tbl_extend("force", { fg = fg }, extra or {})
+    return def
+  end
+
+  -- Distinct heading colors (linking/extending active theme)
+  vim.api.nvim_set_hl(0, "MinimalMdH1", copy_fg("@markup.heading.1", "#61afef", { bold = true }))
+  vim.api.nvim_set_hl(0, "MinimalMdH2", copy_fg("@markup.heading.2", "#98c379", { bold = true }))
+  vim.api.nvim_set_hl(0, "MinimalMdH3", copy_fg("@markup.heading.3", "#e5c07b", { bold = true }))
+  vim.api.nvim_set_hl(0, "MinimalMdH4", copy_fg("@markup.heading.4", "#cba6f7", { bold = true }))
+  vim.api.nvim_set_hl(0, "MinimalMdH5", copy_fg("@markup.heading.5", "#fab387", { bold = true }))
+  vim.api.nvim_set_hl(0, "MinimalMdH6", copy_fg("@markup.heading.6", "#89dceb", { bold = true }))
+
+  vim.api.nvim_set_hl(0, "MinimalMdH1Bg", { bg = "#152030" })
+  vim.api.nvim_set_hl(0, "MinimalMdH2Bg", { bg = "#14221d" })
+  vim.api.nvim_set_hl(0, "MinimalMdCodeBlock", { bg = "#131620" })
+  vim.api.nvim_set_hl(0, "MinimalMdCodeLang", { fg = "#61afef", bg = "#1f2433", bold = true })
+  vim.api.nvim_set_hl(0, "MinimalMdQuoteBar", { fg = "#61afef", bold = true })
+  vim.api.nvim_set_hl(0, "MinimalMdRule", { fg = "#3e4451" })
+  vim.api.nvim_set_hl(0, "MinimalMdBullet", { fg = "#e5c07b", bold = true })
+  vim.api.nvim_set_hl(0, "MinimalMdCheckboxTodo", { fg = "#e5c07b", bold = true })
+  vim.api.nvim_set_hl(0, "MinimalMdCheckboxDone", { fg = "#98c379", bold = true })
+  vim.api.nvim_set_hl(0, "MinimalMdDoneText", { fg = "#5c6370", strikethrough = true })
+  vim.api.nvim_set_hl(0, "MinimalMdTableBorder", { fg = "#61afef" })
+  vim.api.nvim_set_hl(0, "MinimalMdTableHead", { fg = "#e5c07b", bold = true })
+
+  -- GitHub Callouts
+  vim.api.nvim_set_hl(0, "MinimalMdCalloutNote", { fg = "#61afef", bold = true })
+  vim.api.nvim_set_hl(0, "MinimalMdCalloutTip", { fg = "#98c379", bold = true })
+  vim.api.nvim_set_hl(0, "MinimalMdCalloutImportant", { fg = "#cba6f7", bold = true })
+  vim.api.nvim_set_hl(0, "MinimalMdCalloutWarning", { fg = "#fab387", bold = true })
+  vim.api.nvim_set_hl(0, "MinimalMdCalloutCaution", { fg = "#f38ba8", bold = true })
+end
+
+local md_heading_icons = { "󰲡 ", "󰲣 ", "󰲥 ", "󰲧 ", "󰲩 ", "󰲫 " }
+local md_bullets = { "•", "◦", "▪" }
+local md_callouts = {
+  NOTE = { icon = "󰋽 Note", hl = "MinimalMdCalloutNote" },
+  TIP = { icon = "󰌶 Tip", hl = "MinimalMdCalloutTip" },
+  IMPORTANT = { icon = "󰅾 Important", hl = "MinimalMdCalloutImportant" },
+  WARNING = { icon = "󰀪 Warning", hl = "MinimalMdCalloutWarning" },
+  CAUTION = { icon = "󰳦 Caution", hl = "MinimalMdCalloutCaution" },
+}
+
+_G.render_markdown_visuals = function(buf)
+  buf = (buf and buf ~= 0) and buf or vim.api.nvim_get_current_buf()
+  if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].filetype ~= "markdown" then return end
+
+  vim.api.nvim_buf_clear_namespace(buf, md_ns, 0, -1)
+
+  local line_count = vim.api.nvim_buf_line_count(buf)
+  if line_count > 4000 then return end
+
+  local cur_row = -1
+  local cur_win = vim.api.nvim_get_current_win()
+  if cur_win and vim.api.nvim_win_is_valid(cur_win) and vim.api.nvim_win_get_buf(cur_win) == buf then
+    cur_row = vim.api.nvim_win_get_cursor(cur_win)[1]
+  end
+
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local in_fence = false
+  local fence_char = nil
+  local fence_len = 0
+  local ok_dev, devicons = pcall(require, "nvim-web-devicons")
+
+  for i, line in ipairs(lines) do
+    local r = i - 1
+    local is_cur = (i == cur_row)
+
+    -- Fenced code blocks (``` or ~~~)
+    local indent_fence, fseq, info = line:match("^(%s*)(```+)(.*)$")
+    if not fseq then
+      indent_fence, fseq, info = line:match("^(%s*)(~~~+)(.*)$")
+    end
+
+    if fseq and not in_fence then
+      in_fence = true
+      fence_char = fseq:sub(1, 1)
+      fence_len = #fseq
+      pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+        line_hl_group = "MinimalMdCodeBlock",
+        priority = 80,
+      })
+      local lang = vim.trim(info or ""):match("^(%S+)")
+      if lang and lang ~= "" and not is_cur then
+        local icon = "󰅪 "
+        local icon_hl = "MinimalMdCodeLang"
+        if ok_dev then
+          local d_icon, d_hl = devicons.get_icon_by_filetype(lang, { default = false })
+          if not d_icon then
+            d_icon, d_hl = devicons.get_icon(lang, lang, { default = false })
+          end
+          if d_icon then
+            icon = d_icon .. " "
+            if d_hl and d_hl ~= "" then icon_hl = d_hl end
+          end
+        end
+        pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+          virt_text = {
+            { "  " .. icon, icon_hl },
+            { lang .. " ", "MinimalMdCodeLang" },
+          },
+          virt_text_pos = "eol",
+          priority = 110,
+        })
+      end
+    elseif in_fence then
+      pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+        line_hl_group = "MinimalMdCodeBlock",
+        priority = 80,
+      })
+      local close_pat = "^%s*" .. string.rep(fence_char, fence_len) .. "+%s*$"
+      if line:match(close_pat) then
+        in_fence = false
+        fence_char = nil
+        fence_len = 0
+      end
+    else
+      -- ATX Headings (# Title)
+      local hashes, htext = line:match("^(#+)%s+(.*)$")
+      if hashes and #hashes <= 6 then
+        local lvl = #hashes
+        local hl_name = "MinimalMdH" .. lvl
+        if lvl == 1 then
+          pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+            line_hl_group = "MinimalMdH1Bg",
+            priority = 75,
+          })
+        elseif lvl == 2 then
+          pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+            line_hl_group = "MinimalMdH2Bg",
+            priority = 75,
+          })
+        end
+        pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+          end_col = #line,
+          hl_group = hl_name,
+          priority = 120,
+        })
+        if not is_cur then
+          pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+            end_col = #hashes + 1,
+            conceal = "",
+            virt_text = { { md_heading_icons[lvl] or "# ", hl_name } },
+            virt_text_pos = "inline",
+            priority = 130,
+          })
+        end
+      elseif line:match("^%s*([%-%*_])%s*%1%s*%1[%s%-%*_]*$") then
+        -- Horizontal Rule (--- / *** / ___)
+        if not is_cur then
+          pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+            end_col = #line,
+            conceal = "",
+            virt_text = { { string.rep("─", 56), "MinimalMdRule" } },
+            virt_text_pos = "inline",
+            priority = 110,
+          })
+        else
+          pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+            end_col = #line,
+            hl_group = "MinimalMdRule",
+            priority = 110,
+          })
+        end
+      else
+        -- Task Checkboxes: - [ ] / - [x]
+        local bindent, bmark, bstate, brest = line:match("^(%s*)([%-%*%+])%s+%[([ xX%-])%]%s*(.*)$")
+        if bindent then
+          local box_start = #bindent
+          local box_end = #bindent + 5
+          local done = (bstate == "x" or bstate == "X")
+          local icon = done and "󰱒 " or "󰄱 "
+          local box_hl = done and "MinimalMdCheckboxDone" or "MinimalMdCheckboxTodo"
+
+          if not is_cur then
+            pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, box_start, {
+              end_col = math.min(#line, box_end + 1),
+              conceal = "",
+              virt_text = { { icon, box_hl } },
+              virt_text_pos = "inline",
+              priority = 130,
+            })
+          else
+            pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, box_start, {
+              end_col = math.min(#line, box_end),
+              hl_group = box_hl,
+              priority = 130,
+            })
+          end
+
+          if done and brest ~= "" then
+            pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, math.min(#line, box_end), {
+              end_col = #line,
+              hl_group = "MinimalMdDoneText",
+              priority = 115,
+            })
+          end
+        else
+          -- Unordered list bullets: - item / * item / + item
+          local uindent, umark = line:match("^(%s*)([%-%*%+])%s+")
+          if uindent then
+            local depth = math.min(3, math.floor(#uindent / 2) + 1)
+            local glyph = md_bullets[depth] or "•"
+            local mcol = #uindent
+            if not is_cur then
+              pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, mcol, {
+                end_col = mcol + 1,
+                conceal = "",
+                virt_text = { { glyph, "MinimalMdBullet" } },
+                virt_text_pos = "inline",
+                priority = 125,
+              })
+            else
+              pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, mcol, {
+                end_col = mcol + 1,
+                hl_group = "MinimalMdBullet",
+                priority = 125,
+              })
+            end
+          end
+        end
+
+        -- Blockquotes & GitHub Callouts: > ...
+        local qindent, qrest = line:match("^(%s*)>(.*)$")
+        if qindent then
+          local qcol = #qindent
+          local tag = qrest:match("^%s*%[!([A-Z]+)%]")
+          local callout = tag and md_callouts[tag] or nil
+          local bar_hl = callout and callout.hl or "MinimalMdQuoteBar"
+          if not is_cur then
+            pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, qcol, {
+              end_col = qcol + 1,
+              conceal = "",
+              virt_text = { { "▎", bar_hl } },
+              virt_text_pos = "inline",
+              priority = 125,
+            })
+            if callout then
+              local ts, te = line:find("%[![A-Z]+%]")
+              if ts and te then
+                pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, ts - 1, {
+                  end_col = te,
+                  conceal = "",
+                  virt_text = { { callout.icon, callout.hl } },
+                  virt_text_pos = "inline",
+                  priority = 135,
+                })
+              end
+            end
+          else
+            pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, qcol, {
+              end_col = qcol + 1,
+              hl_group = bar_hl,
+              priority = 125,
+            })
+          end
+        end
+
+        -- Markdown Tables: | col | col |
+        if line:match("^%s*|.*|%s*$") then
+          local is_delim = line:match("^%s*|[:%-%s|]+|%s*$") ~= nil
+          local next_line = lines[i + 1] or ""
+          local is_header = (not is_delim) and (next_line:match("^%s*|[:%-%s|]+|%s*$") ~= nil)
+          if is_delim then
+            pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+              end_col = #line,
+              hl_group = "MinimalMdTableBorder",
+              priority = 115,
+            })
+          else
+            if is_header then
+              pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+                end_col = #line,
+                hl_group = "MinimalMdTableHead",
+                priority = 110,
+              })
+            end
+            local pos = 1
+            while true do
+              local p = line:find("|", pos, true)
+              if not p then break end
+              pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, p - 1, {
+                end_col = p,
+                hl_group = "MinimalMdTableBorder",
+                priority = 125,
+              })
+              pos = p + 1
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
+_G.md_toggle_checkbox = function()
+  local row = vim.api.nvim_win_get_cursor(0)[1]
+  local line = vim.api.nvim_get_current_line()
+  local updated = line
+  if line:match("^%s*[%-%*%+]%s+%[ %]") then
+    updated = line:gsub("^(%s*[%-%*%+]%s+)%[ %]", "%1[x]", 1)
+  elseif line:match("^%s*[%-%*%+]%s+%[[xX]%]") then
+    updated = line:gsub("^(%s*[%-%*%+]%s+)%[[xX]%]", "%1[ ]", 1)
+  elseif line:match("^%s*[%-%*%+]%s+") then
+    updated = line:gsub("^(%s*[%-%*%+]%s+)", "%1[ ] ", 1)
+  else
+    updated = line:gsub("^(%s*)", "%1- [ ] ", 1)
+  end
+  if updated ~= line then
+    vim.api.nvim_set_current_line(updated)
+    _G.render_markdown_visuals(0)
+  end
+end
+
+_G.md_wrap_text = function(prefix, suffix)
+  suffix = suffix or prefix
+  local mode = vim.api.nvim_get_mode().mode
+  if mode:match("^[vVsS\x16]") then
+    -- Wrap active visual/select range cleanly
+    local p1 = vim.fn.getpos("v")
+    local p2 = vim.fn.getpos(".")
+    local r1, c1 = p1[2], p1[3]
+    local r2, c2 = p2[2], p2[3]
+    if r1 > r2 or (r1 == r2 and c1 > c2) then
+      r1, r2 = r2, r1
+      c1, c2 = c2, c1
+    end
+    if r1 == r2 then
+      local line = vim.api.nvim_buf_get_lines(0, r1 - 1, r1, false)[1] or ""
+      local sel_end = math.min(#line, mode:match("^[sS]") and (c2 - 1) or c2)
+      if sel_end >= c1 then
+        local selected = line:sub(c1, sel_end)
+        local wrapped = prefix .. selected .. suffix
+        local new_line = line:sub(1, c1 - 1) .. wrapped .. line:sub(sel_end + 1)
+        vim.api.nvim_buf_set_lines(0, r1 - 1, r1, false, { new_line })
+        vim.cmd("stopinsert")
+        vim.api.nvim_win_set_cursor(0, { r1, c1 - 1 + #wrapped })
+        vim.cmd("startinsert")
+        return
+      end
+    end
+  end
+
+  -- Wrap or unwrap word under cursor
+  local cur = vim.api.nvim_win_get_cursor(0)
+  local row, col = cur[1], cur[2]
+  local line = vim.api.nvim_get_current_line()
+  local s_col = col + 1
+  local e_col = col
+  while s_col > 1 and not line:sub(s_col - 1, s_col - 1):match("%s") do
+    s_col = s_col - 1
+  end
+  while e_col < #line and not line:sub(e_col + 1, e_col + 1):match("%s") do
+    e_col = e_col + 1
+  end
+  if e_col >= s_col then
+    local word = line:sub(s_col, e_col)
+    local new_word
+    if #word > (#prefix + #suffix) and word:sub(1, #prefix) == prefix and word:sub(-#suffix) == suffix then
+      new_word = word:sub(#prefix + 1, #word - #suffix)
+    else
+      new_word = prefix .. word .. suffix
+    end
+    local new_line = line:sub(1, s_col - 1) .. new_word .. line:sub(e_col + 1)
+    vim.api.nvim_set_current_line(new_line)
+    vim.api.nvim_win_set_cursor(0, { row, math.min(#new_line, col + #prefix) })
+  else
+    local new_line = line:sub(1, col) .. prefix .. suffix .. line:sub(col + 1)
+    vim.api.nvim_set_current_line(new_line)
+    vim.api.nvim_win_set_cursor(0, { row, col + #prefix })
+  end
+end
+
+_G.md_smart_enter = function()
+  local ok_cmp, cmp = pcall(require, "cmp")
+  if ok_cmp and cmp.visible() then
+    cmp.confirm({ select = true })
+    return
+  end
+  local cur = vim.api.nvim_win_get_cursor(0)
+  local row, col = cur[1], cur[2]
+  local line = vim.api.nvim_get_current_line()
+
+  -- Only apply list continuation when cursor is at/near end of list line
+  local indent, marker, rest
+  indent, marker, rest = line:match("^(%s*)([%-%*%+]%s+%[[ xX%-]%]%s+)(.*)$")
+  if indent then
+    if vim.trim(rest) == "" then
+      vim.api.nvim_set_current_line("")
+      vim.api.nvim_win_set_cursor(0, { row, 0 })
+      return
+    elseif col >= #line - 1 then
+      local next_prefix = indent .. marker:gsub("%[[xX%-]%]", "[ ]")
+      local before = line:sub(1, col)
+      local after = line:sub(col + 1)
+      vim.api.nvim_buf_set_lines(0, row - 1, row, false, { before, next_prefix .. after })
+      vim.api.nvim_win_set_cursor(0, { row + 1, #next_prefix })
+      return
+    end
+  end
+
+  indent, marker, rest = line:match("^(%s*)([%-%*%+]%s+)(.*)$")
+  if indent then
+    if vim.trim(rest) == "" then
+      vim.api.nvim_set_current_line("")
+      vim.api.nvim_win_set_cursor(0, { row, 0 })
+      return
+    elseif col >= #line - 1 then
+      local next_prefix = indent .. marker
+      local before = line:sub(1, col)
+      local after = line:sub(col + 1)
+      vim.api.nvim_buf_set_lines(0, row - 1, row, false, { before, next_prefix .. after })
+      vim.api.nvim_win_set_cursor(0, { row + 1, #next_prefix })
+      return
+    end
+  end
+
+  local num_indent, num_str, num_sep, num_rest = line:match("^(%s*)(%d+)([%.%)])%s+(.*)$")
+  if num_indent then
+    if vim.trim(num_rest) == "" then
+      vim.api.nvim_set_current_line("")
+      vim.api.nvim_win_set_cursor(0, { row, 0 })
+      return
+    elseif col >= #line - 1 then
+      local next_num = (tonumber(num_str) or 1) + 1
+      local next_prefix = num_indent .. tostring(next_num) .. num_sep .. " "
+      local before = line:sub(1, col)
+      local after = line:sub(col + 1)
+      vim.api.nvim_buf_set_lines(0, row - 1, row, false, { before, next_prefix .. after })
+      vim.api.nvim_win_set_cursor(0, { row + 1, #next_prefix })
+      return
+    end
+  end
+
+  -- Default newline
+  local cr = vim.api.nvim_replace_termcodes("<CR>", true, false, true)
+  vim.api.nvim_feedkeys(cr, "n", false)
+end
+
+_G.md_open_link = function()
+  local line = vim.api.nvim_get_current_line()
+  local col = vim.api.nvim_win_get_cursor(0)[2] + 1
+  local target = nil
+
+  -- Find [label](target) enclosing cursor first, or first on line
+  local pos = 1
+  while true do
+    local s, e, dest = line:find("%b[]%(([^)%s]+)%)", pos)
+    if not s then break end
+    if not target or (col >= s and col <= e) then
+      target = dest
+      if col >= s and col <= e then break end
+    end
+    pos = e + 1
+  end
+
+  if not target then
+    target = line:match("https?://[^%s%)%>\"']+")
+  end
+
+  if not target then
+    vim.notify("No Markdown link found on current line", vim.log.levels.INFO)
+    return
+  end
+
+  if target:match("^https?://") then
+    vim.fn.jobstart({ "xdg-open", target }, { detach = true })
+    vim.notify("Opening URL: " .. target, vim.log.levels.INFO)
+    return
+  end
+
+  -- Local file link (with optional #heading anchor)
+  local fpath, anchor = target:match("^([^#]+)#?(.*)$")
+  if fpath == "" and anchor ~= "" then
+    -- Same-file heading jump (#section)
+    local slug = anchor:lower():gsub("[^%w%-%s]", ""):gsub("%s+", "-")
+    for idx, l in ipairs(vim.api.nvim_buf_get_lines(0, 0, -1, false)) do
+      local h = l:match("^#+%s+(.*)$")
+      if h then
+        local hsl = h:lower():gsub("[^%w%-%s]", ""):gsub("%s+", "-")
+        if hsl == slug then
+          vim.api.nvim_win_set_cursor(0, { idx, 0 })
+          vim.cmd("normal! zz")
+          return
+        end
+      end
+    end
+    return
+  end
+
+  local cur_dir = vim.fn.expand("%:p:h")
+  local resolved = fpath:match("^/") and fpath or (cur_dir .. "/" .. fpath)
+  if vim.fn.filereadable(resolved) == 1 then
+    vim.cmd("silent! edit " .. vim.fn.fnameescape(resolved))
+    if anchor and anchor ~= "" then
+      local slug = anchor:lower():gsub("[^%w%-%s]", ""):gsub("%s+", "-")
+      for idx, l in ipairs(vim.api.nvim_buf_get_lines(0, 0, -1, false)) do
+        local h = l:match("^#+%s+(.*)$")
+        if h and h:lower():gsub("[^%w%-%s]", ""):gsub("%s+", "-") == slug then
+          vim.api.nvim_win_set_cursor(0, { idx, 0 })
+          break
+        end
+      end
+    end
+    vim.cmd("startinsert")
+  else
+    vim.notify("Linked file not found: " .. resolved, vim.log.levels.WARN)
+  end
+end
+
+_G.md_align_tables = function()
+  local buf = vim.api.nvim_get_current_buf()
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local changed = false
+  local i = 1
+  while i <= #lines do
+    if lines[i]:match("^%s*|.*|%s*$") then
+      local j = i
+      while j <= #lines and lines[j]:match("^%s*|.*|%s*$") do
+        j = j + 1
+      end
+      j = j - 1
+      if j > i then
+        local rows = {}
+        local col_widths = {}
+        for k = i, j do
+          local cells = {}
+          local raw = lines[k]:gsub("^%s*|", ""):gsub("|%s*$", "")
+          for cell in (raw .. "|"):gmatch("([^|]*)|") do
+            local trimmed = vim.trim(cell)
+            table.insert(cells, trimmed)
+            local idx = #cells
+            local w = vim.fn.strdisplaywidth(trimmed)
+            if not col_widths[idx] or w > col_widths[idx] then
+              col_widths[idx] = math.max(3, w)
+            end
+          end
+          table.insert(rows, { cells = cells, is_delim = (lines[k]:match("^%s*|[:%-%s|]+|%s*$") ~= nil) })
+        end
+        for offset, row_data in ipairs(rows) do
+          local out_parts = {}
+          for cidx = 1, #col_widths do
+            local val = row_data.cells[cidx] or ""
+            local w = col_widths[cidx]
+            if row_data.is_delim then
+              local left_c = val:match("^:") and ":" or ""
+              local right_c = val:match(":$") and ":" or ""
+              local dash_n = math.max(1, w - #left_c - #right_c)
+              table.insert(out_parts, " " .. left_c .. string.rep("-", dash_n) .. right_c .. " ")
+            else
+              local cur_w = vim.fn.strdisplaywidth(val)
+              table.insert(out_parts, " " .. val .. string.rep(" ", math.max(0, w - cur_w)) .. " ")
+            end
+          end
+          local aligned = "|" .. table.concat(out_parts, "|") .. "|"
+          if aligned ~= lines[i + offset - 1] then
+            lines[i + offset - 1] = aligned
+            changed = true
+          end
+        end
+      end
+      i = j + 1
+    else
+      i = i + 1
+    end
+  end
+  if changed then
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    _G.render_markdown_visuals(buf)
+    vim.notify("Markdown tables aligned", vim.log.levels.INFO)
+  end
+end
+
+_G.open_markdown_outline = function()
+  local src_buf = vim.api.nvim_get_current_buf()
+  local src_win = vim.api.nvim_get_current_win()
+  if vim.bo[src_buf].filetype ~= "markdown" then
+    vim.notify("Outline is available for Markdown (.md) files", vim.log.levels.INFO)
+    return
+  end
+
+  local headings = {}
+  local in_fence = false
+  local fchar, flen = nil, 0
+  for idx, l in ipairs(vim.api.nvim_buf_get_lines(src_buf, 0, -1, false)) do
+    local fseq = l:match("^%s*(```+)") or l:match("^%s*(~~~+)")
+    if fseq and not in_fence then
+      in_fence = true
+      fchar = fseq:sub(1, 1)
+      flen = #fseq
+    elseif in_fence then
+      if l:match("^%s*" .. string.rep(fchar, flen) .. "+%s*$") then
+        in_fence = false
+      end
+    else
+      local hashes, text = l:match("^(#+)%s+(.*)$")
+      if hashes and #hashes <= 6 then
+        table.insert(headings, {
+          level = #hashes,
+          text = vim.trim(text),
+          line = idx,
+        })
+      end
+    end
+  end
+
+  if #headings == 0 then
+    vim.notify("No headings found in this Markdown file", vim.log.levels.INFO)
+    return
+  end
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.b[buf].is_picker = true
+  vim.bo[buf].buftype = "nofile"
+  vim.bo[buf].bufhidden = "wipe"
+  vim.bo[buf].undolevels = -1
+
+  local ui = vim.api.nvim_list_uis()[1] or { width = 120, height = 40 }
+  local width = math.min(68, math.max(46, ui.width - 6))
+  local height = math.min(20, math.max(8, #headings + 4))
+  local row = math.max(1, math.floor((ui.height - height) / 3))
+  local col = math.max(1, math.floor((ui.width - width) / 2))
+
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    row = row,
+    col = col,
+    width = width,
+    height = height,
+    style = "minimal",
+    border = "rounded",
+    title = string.format(" Markdown Outline (%d) ", #headings),
+    title_pos = "center",
+  })
+
+  vim.cmd("stopinsert")
+  vim.wo[win].cursorline = false
+  vim.wo[win].wrap = false
+  vim.wo[win].winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder"
+
+  local function close_outline()
+    pcall(vim.api.nvim_win_close, win, true)
+    if vim.api.nvim_win_is_valid(src_win) then
+      vim.api.nvim_set_current_win(src_win)
+      vim.cmd("startinsert")
+    end
+    _G.clear_active_menu(close_outline)
+  end
+
+  _G.register_active_menu(close_outline, win)
+  _G.set_picker_cursor("FolderCursorHidden")
+
+  local filtered = {}
+  local selected_idx = 1
+  local ns_id = vim.api.nvim_create_namespace("md_outline_hl")
+  local sb = nil
+
+  local function update_hl()
+    if not vim.api.nvim_buf_is_valid(buf) or not vim.api.nvim_win_is_valid(win) then return end
+    vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
+    pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FolderPickerSearch", 0, 0, 10)
+    pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FolderPickerSep", 1, 0, -1)
+
+    for i, item in ipairs(filtered) do
+      local r = i + 2
+      local hl = "MinimalMdH" .. math.min(6, item.level)
+      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, hl, r, 0, -1)
+    end
+
+    if #filtered > 0 then
+      if selected_idx > #filtered then selected_idx = #filtered end
+      if selected_idx < 1 then selected_idx = 1 end
+      local target_line = 3 + selected_idx
+      pcall(vim.api.nvim_buf_set_extmark, buf, ns_id, target_line - 1, 0, {
+        line_hl_group = "FolderPickerSelected",
+        priority = 200,
+      })
+      pcall(vim.api.nvim_win_set_cursor, win, { target_line, 0 })
+    end
+  end
+
+  local function render()
+    if not vim.api.nvim_buf_is_valid(buf) then return end
+    local query = sb and vim.trim(sb.get_text()):lower() or ""
+    filtered = {}
+    for _, h in ipairs(headings) do
+      if query == "" or h.text:lower():find(query, 1, true) then
+        table.insert(filtered, h)
+      end
+    end
+
+    local search_line = sb and sb.get_display_line("  Search: ", "(filter headings...)") or "  Search: ▏ (filter headings...)"
+    local sep_line = "  " .. string.rep("─", math.max(10, width - 4))
+    local lines = { search_line, sep_line, "" }
+
+    if #filtered == 0 then
+      table.insert(lines, "   No matching headings")
+    else
+      for _, h in ipairs(filtered) do
+        local indent = string.rep("  ", h.level - 1)
+        local tag = md_heading_icons[h.level] or "#"
+        table.insert(lines, string.format("   %s%s %s  (:%d)", indent, tag, h.text, h.line))
+      end
+    end
+
+    vim.bo[buf].modifiable = true
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    vim.bo[buf].modifiable = false
+    update_hl()
+  end
+
+  sb = make_searchbar("", function()
+    selected_idx = 1
+    render()
+  end)
+  bind_searchbar_keys(buf, sb)
+
+  local function jump_selected()
+    local item = filtered[selected_idx]
+    close_outline()
+    if item and vim.api.nvim_win_is_valid(src_win) then
+      pcall(vim.api.nvim_win_set_cursor, src_win, { item.line, 0 })
+      vim.cmd("normal! zz")
+      vim.cmd("startinsert")
+    end
+  end
+
+  local function move_up()
+    if #filtered == 0 then return end
+    selected_idx = selected_idx - 1
+    if selected_idx < 1 then selected_idx = #filtered end
+    update_hl()
+  end
+
+  local function move_down()
+    if #filtered == 0 then return end
+    selected_idx = selected_idx + 1
+    if selected_idx > #filtered then selected_idx = 1 end
+    update_hl()
+  end
+
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Up>", move_up, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-p>", move_up, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Down>", move_down, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-n>", move_down, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<CR>", jump_selected, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Esc>", close_outline, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-c>", close_outline, { buffer = buf, nowait = true })
+  vim.api.nvim_create_autocmd("WinLeave", { buffer = buf, once = true, callback = close_outline })
+
+  render()
+end
+
+_G.preview_markdown = function()
+  local buf = vim.api.nvim_get_current_buf()
+  if vim.bo[buf].filetype ~= "markdown" then
+    vim.notify("Preview is available for Markdown (.md) files", vim.log.levels.INFO)
+    return
+  end
+
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local title = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buf), ":t")
+  if title == "" then title = "Minimal Markdown Preview" end
+
+  local function esc_html(s)
+    return (s:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"):gsub('"', "&quot;"))
+  end
+
+  local function render_inline(s)
+    s = esc_html(s)
+    s = s:gsub("!%[([^%]]*)%]%(([^%)]+)%)", '<img alt="%1" src="%2" />')
+    s = s:gsub("%[([^%]]+)%]%(([^%)]+)%)", '<a href="%2">%1</a>')
+    s = s:gsub("`([^`]+)`", "<code>%1</code>")
+    s = s:gsub("%*%*([^%*]+)%*%*", "<strong>%1</strong>")
+    s = s:gsub("__([^_]+)__", "<strong>%1</strong>")
+    s = s:gsub("%*([^%*]+)%*", "<em>%1</em>")
+    s = s:gsub("~~([^~]+)~~", "<del>%1</del>")
+    return s
+  end
+
+  local html = {}
+  local in_code = false
+  local in_ul = false
+  local in_quote = false
+
+  local function close_blocks()
+    if in_ul then table.insert(html, "</ul>"); in_ul = false end
+    if in_quote then table.insert(html, "</blockquote>"); in_quote = false end
+  end
+
+  local i = 1
+  while i <= #lines do
+    local l = lines[i]
+    local fseq, info = l:match("^%s*(```+)(.*)$")
+    if fseq and not in_code then
+      close_blocks()
+      in_code = true
+      local lang = vim.trim(info or "")
+      table.insert(html, '<pre><code class="language-' .. esc_html(lang) .. '">')
+    elseif in_code and l:match("^%s*```+%s*$") then
+      in_code = false
+      table.insert(html, "</code></pre>")
+    elseif in_code then
+      table.insert(html, esc_html(l) .. "\n")
+    elseif l:match("^%s*([%-%*_])%s*%1%s*%1[%s%-%*_]*$") then
+      close_blocks()
+      table.insert(html, "<hr />")
+    elseif l:match("^(#+)%s+(.+)$") then
+      close_blocks()
+      local h, txt = l:match("^(#+)%s+(.+)$")
+      local lvl = math.min(6, #h)
+      table.insert(html, string.format("<h%d>%s</h%d>", lvl, render_inline(txt), lvl))
+    elseif l:match("^%s*|.*|%s*$") then
+      close_blocks()
+      table.insert(html, "<table>")
+      local is_header = true
+      while i <= #lines and lines[i]:match("^%s*|.*|%s*$") do
+        local row_l = lines[i]
+        if row_l:match("^%s*|[:%-%s|]+|%s*$") then
+          is_header = false
+        else
+          local tag = is_header and "th" or "td"
+          table.insert(html, "<tr>")
+          local raw = row_l:gsub("^%s*|", ""):gsub("|%s*$", "")
+          for cell in (raw .. "|"):gmatch("([^|]*)|") do
+            table.insert(html, "<" .. tag .. ">" .. render_inline(vim.trim(cell)) .. "</" .. tag .. ">")
+          end
+          table.insert(html, "</tr>")
+          if is_header and not (lines[i + 1] or ""):match("^%s*|[:%-%s|]+|%s*$") then
+            is_header = false
+          end
+        end
+        i = i + 1
+      end
+      table.insert(html, "</table>")
+      i = i - 1
+    elseif l:match("^%s*>%s?(.*)$") then
+      if in_ul then table.insert(html, "</ul>"); in_ul = false end
+      if not in_quote then table.insert(html, "<blockquote>"); in_quote = true end
+      local qtxt = l:match("^%s*>%s?(.*)$")
+      table.insert(html, "<p>" .. render_inline(qtxt) .. "</p>")
+    elseif l:match("^%s*[%-%*%+]%s+%[([ xX%-])%]%s*(.*)$") then
+      if in_quote then table.insert(html, "</blockquote>"); in_quote = false end
+      if not in_ul then table.insert(html, '<ul class="task-list">'); in_ul = true end
+      local st, txt = l:match("^%s*[%-%*%+]%s+%[([ xX%-])%]%s*(.*)$")
+      local chk = (st == "x" or st == "X") and ' checked disabled' or ' disabled'
+      table.insert(html, '<li class="task"><input type="checkbox"' .. chk .. ' /> ' .. render_inline(txt) .. "</li>")
+    elseif l:match("^%s*[%-%*%+]%s+(.*)$") then
+      if in_quote then table.insert(html, "</blockquote>"); in_quote = false end
+      if not in_ul then table.insert(html, "<ul>"); in_ul = true end
+      local txt = l:match("^%s*[%-%*%+]%s+(.*)$")
+      table.insert(html, "<li>" .. render_inline(txt) .. "</li>")
+    elseif vim.trim(l) == "" then
+      close_blocks()
+    else
+      close_blocks()
+      table.insert(html, "<p>" .. render_inline(l) .. "</p>")
+    end
+    i = i + 1
+  end
+  close_blocks()
+  if in_code then table.insert(html, "</code></pre>") end
+
+  local out_path = "/tmp/minimal_md_preview.html"
+  local full_html = string.format([[<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>%s</title>
+<style>
+  body { background: #0e1017; color: #dce3ec; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.7; max-width: 860px; margin: 40px auto; padding: 0 24px; }
+  h1, h2, h3, h4 { margin-top: 1.6em; margin-bottom: 0.6em; font-weight: 700; }
+  h1 { color: #61afef; border-bottom: 1px solid #242a38; padding-bottom: 0.3em; }
+  h2 { color: #98c379; border-bottom: 1px solid #1e2330; padding-bottom: 0.25em; }
+  h3 { color: #e5c07b; }
+  h4 { color: #cba6f7; }
+  a { color: #61afef; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { background: #1a1f2b; color: #f38ba8; padding: 0.15em 0.4em; border-radius: 5px; font-family: "JetBrainsMono Nerd Font", monospace; font-size: 0.92em; }
+  pre { background: #131722; border: 1px solid #232938; border-radius: 8px; padding: 14px 16px; overflow-x: auto; }
+  pre code { background: none; color: #dce3ec; padding: 0; }
+  blockquote { border-left: 4px solid #61afef; background: #141925; margin: 1em 0; padding: 0.6em 1em; color: #9aa5b8; border-radius: 0 6px 6px 0; }
+  table { border-collapse: collapse; width: 100%%; margin: 1.2em 0; }
+  th, td { border: 1px solid #2a3142; padding: 8px 12px; text-align: left; }
+  th { background: #191e2b; color: #e5c07b; }
+  hr { border: none; border-top: 1px solid #293040; margin: 2em 0; }
+  ul.task-list { list-style: none; padding-left: 0.6em; }
+  img { max-width: 100%%; border-radius: 8px; }
+</style>
+</head>
+<body>
+%s
+</body>
+</html>]], esc_html(title), table.concat(html, "\n"))
+
+  local fh = io.open(out_path, "w")
+  if fh then
+    fh:write(full_html)
+    fh:close()
+    vim.fn.jobstart({ "xdg-open", out_path }, { detach = true })
+    vim.notify("Opened Markdown preview in browser", vim.log.levels.INFO)
+  end
+end
+
+vim.api.nvim_create_user_command("MdOutline", function() _G.open_markdown_outline() end, {})
+vim.api.nvim_create_user_command("MdPreview", function() _G.preview_markdown() end, {})
+vim.api.nvim_create_user_command("MdToggleCheckbox", function() _G.md_toggle_checkbox() end, {})
+vim.api.nvim_create_user_command("MdTableAlign", function() _G.md_align_tables() end, {})
+
+_G.apply_markdown_highlights()
+
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "markdown",
+  callback = function(args)
+    local b = args.buf
+    vim.bo[b].tabstop = 2
+    vim.bo[b].shiftwidth = 2
+    vim.bo[b].expandtab = true
+
+    local cur_win = vim.api.nvim_get_current_win()
+    if cur_win and vim.api.nvim_win_is_valid(cur_win) and vim.api.nvim_win_get_buf(cur_win) == b then
+      vim.wo[cur_win].wrap = true
+      vim.wo[cur_win].linebreak = true
+      vim.wo[cur_win].spell = true
+      vim.wo[cur_win].conceallevel = 2
+      vim.wo[cur_win].concealcursor = ""
+    end
+
+    -- Buffer-local Markdown productivity shortcuts
+    vim.keymap.set({ "i", "n", "v", "s" }, "<M-x>", _G.md_toggle_checkbox, { buffer = b, silent = true, desc = "Toggle Checkbox" })
+    vim.keymap.set({ "i", "n", "v", "s" }, "<M-b>", function() _G.md_wrap_text("**", "**") end, { buffer = b, silent = true, desc = "Bold Markdown" })
+    vim.keymap.set({ "i", "n", "v", "s" }, "<M-i>", function() _G.md_wrap_text("*", "*") end, { buffer = b, silent = true, desc = "Italic Markdown" })
+    vim.keymap.set({ "i", "n", "v", "s" }, "<M-e>", function() _G.md_wrap_text("`", "`") end, { buffer = b, silent = true, desc = "Inline Code Markdown" })
+    vim.keymap.set({ "i", "n", "v", "s" }, "<M-l>", function() _G.md_wrap_text("[", "](url)") end, { buffer = b, silent = true, desc = "Insert Link Markdown" })
+    vim.keymap.set({ "i", "n", "v", "s" }, "<M-m>", _G.open_markdown_outline, { buffer = b, silent = true, desc = "Markdown Outline" })
+    vim.keymap.set({ "i", "n", "v", "s" }, "<M-p>", _G.preview_markdown, { buffer = b, silent = true, desc = "Markdown Preview" })
+    vim.keymap.set({ "i", "n", "v", "s" }, "<M-o>", _G.md_open_link, { buffer = b, silent = true, desc = "Open Link" })
+    vim.keymap.set("n", "gx", _G.md_open_link, { buffer = b, silent = true, desc = "Open Markdown Link" })
+    vim.keymap.set("i", "<CR>", _G.md_smart_enter, { buffer = b, silent = true, desc = "Smart List Continuation" })
+
+    _G.render_markdown_visuals(b)
+  end,
+})
+
+vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter", "TextChanged", "TextChangedI", "CursorMoved", "CursorMovedI" }, {
+  callback = function(args)
+    local b = args.buf
+    if vim.api.nvim_buf_is_valid(b) and vim.bo[b].filetype == "markdown" then
+      local win = vim.api.nvim_get_current_win()
+      if win and vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == b then
+        vim.wo[win].conceallevel = 2
+        vim.wo[win].concealcursor = ""
+      end
+      _G.render_markdown_visuals(b)
+    end
+  end,
+})
+
+vim.api.nvim_create_autocmd("ColorScheme", {
+  callback = function()
+    _G.apply_markdown_highlights()
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      if vim.api.nvim_win_is_valid(win) then
+        local b = vim.api.nvim_win_get_buf(win)
+        if vim.bo[b].filetype == "markdown" then
+          _G.render_markdown_visuals(b)
+        end
+      end
+    end
+  end,
+})
 
 -- 21. Neovide-Specific Visuals (Only applies inside Neovide window)
 if vim.g.neovide then
