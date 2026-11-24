@@ -1575,6 +1575,7 @@ if ok_tree then
   local function open_sidebar_on_startup(data)
     local directory = vim.fn.isdirectory(data.file) == 1
     if directory then
+      vim.g.explicit_workspace_opened = true
       vim.cmd.cd(data.file)
       local entry = nil
       for _, cand in ipairs({ "index.html", "main.go", "main.py", "index.js", "App.tsx", "package.json", "README.md" }) do
@@ -1589,13 +1590,15 @@ if ok_tree then
       end
       api.tree.open({ focus = false })
     elseif vim.fn.argc() > 0 then
+      vim.g.explicit_workspace_opened = true
       local cur_win = vim.api.nvim_get_current_win()
       api.tree.open({ focus = false, find_file = true })
       if cur_win and vim.api.nvim_win_is_valid(cur_win) then
         vim.api.nvim_set_current_win(cur_win)
       end
     else
-      api.tree.open({ focus = false })
+      -- Deferred to restore_session() so restored workspace root is loaded first
+      return
     end
     vim.schedule(function()
       local tree_win = api.tree.winid()
@@ -1615,14 +1618,21 @@ if ok_tree then
 
   vim.api.nvim_create_autocmd({ "VimEnter" }, { callback = open_sidebar_on_startup })
 
-  -- Enforce compact width whenever sidebar is opened
+  -- Enforce compact width & track sidebar visibility whenever opened/closed
   api.events.subscribe(api.events.Event.TreeOpen, function()
+    vim.g.minimal_sidebar_open = true
     vim.schedule(function()
       local tw = api.tree.winid()
       if tw and vim.api.nvim_win_is_valid(tw) then
         pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 24)
       end
     end)
+  end)
+
+  api.events.subscribe(api.events.Event.TreeClose, function()
+    if not vim.g.minimal_is_quitting then
+      vim.g.minimal_sidebar_open = false
+    end
   end)
 
   -- Strictly lock compact sidebar width across all window and display resize events
@@ -2964,21 +2974,28 @@ end
 -- SESSION PERSISTENCE & COMPREHENSIVE AUTOSAVE (VS Code Continuous Workflow)
 -- =============================================================================
 local session_file = vim.fn.stdpath("state") .. "/last_session.json"
+local session_restored = false
+local is_quitting = false
+local last_active_file = nil
 
 local function autosave_all_modified()
   _G.autosave_all_modified()
 end
 
 local function save_session()
+  if is_quitting or not session_restored then return end
+
   local bufs = get_listed_editor_bufs()
   local file_paths = {}
+  local seen = {}
   local current_buf = vim.api.nvim_get_current_buf()
   local active_path = nil
   local active_cursor = { 1, 0 }
 
   for _, b in ipairs(bufs) do
     local name = vim.api.nvim_buf_get_name(b)
-    if name ~= "" and vim.fn.filereadable(name) == 1 then
+    if name ~= "" and vim.fn.filereadable(name) == 1 and not seen[name] then
+      seen[name] = true
       table.insert(file_paths, name)
       if b == current_buf then
         active_path = name
@@ -2990,11 +3007,48 @@ local function save_session()
     end
   end
 
+  if not active_path and last_active_file and seen[last_active_file] then
+    active_path = last_active_file
+  elseif active_path then
+    last_active_file = active_path
+  end
+
+  local sidebar_open = (vim.g.minimal_sidebar_open ~= false)
+  local expanded_dirs = {}
+  local ok_t, t_api = pcall(require, "nvim-tree.api")
+  if ok_t and t_api.tree then
+    if t_api.tree.is_visible() then
+      sidebar_open = true
+    elseif vim.g.minimal_sidebar_open == nil then
+      sidebar_open = false
+    end
+    local ok_core, nt_core = pcall(require, "nvim-tree.core")
+    if ok_core and nt_core.get_explorer then
+      local exp = nt_core.get_explorer()
+      if exp and exp.nodes then
+        local function collect_open(nodes)
+          for _, n in ipairs(nodes) do
+            if n.nodes and n.open and n.absolute_path then
+              table.insert(expanded_dirs, n.absolute_path)
+              collect_open(n.nodes)
+            end
+          end
+        end
+        collect_open(exp.nodes)
+      end
+    end
+  end
+
+  local has_workspace = (#file_paths > 0) or (vim.g.explicit_workspace_opened == true)
+
   local session_data = {
     cwd = vim.fn.getcwd(),
     files = file_paths,
     active_file = active_path,
     cursor = active_cursor,
+    sidebar_open = sidebar_open,
+    expanded_dirs = expanded_dirs,
+    has_workspace = has_workspace,
   }
 
   pcall(vim.fn.mkdir, vim.fn.fnamemodify(session_file, ":p:h"), "p")
@@ -3004,17 +3058,41 @@ local function save_session()
     f:close()
   end
 end
+_G.save_session = save_session
 
 local function restore_session()
-  if vim.fn.argc() > 0 then return end
-  if vim.fn.filereadable(session_file) ~= 1 then
+  if vim.fn.argc() > 0 then
+    session_restored = true
+    return
+  end
+
+  local function open_fallback_home()
+    session_restored = true
     if _G.open_homescreen then _G.open_homescreen() end
+    local ok_t, t_api = pcall(require, "nvim-tree.api")
+    if ok_t then
+      pcall(t_api.tree.open, { focus = false })
+      vim.schedule(function()
+        local tw = t_api.tree.winid()
+        if tw and vim.api.nvim_win_is_valid(tw) then
+          pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 24)
+        end
+        local ed = find_editor_win()
+        if ed and vim.api.nvim_win_is_valid(ed) then
+          vim.api.nvim_set_current_win(ed)
+        end
+      end)
+    end
+  end
+
+  if vim.fn.filereadable(session_file) ~= 1 then
+    open_fallback_home()
     return
   end
 
   local f = io.open(session_file, "r")
   if not f then
-    if _G.open_homescreen then _G.open_homescreen() end
+    open_fallback_home()
     return
   end
   local content = f:read("*a")
@@ -3022,37 +3100,103 @@ local function restore_session()
 
   local ok, data = pcall(vim.fn.json_decode, content)
   if not ok or type(data) ~= "table" then
-    if _G.open_homescreen then _G.open_homescreen() end
+    open_fallback_home()
     return
   end
 
-  if data.cwd and vim.fn.isdirectory(data.cwd) == 1 then
-    pcall(vim.cmd.cd, data.cwd)
+  local valid_files = {}
+  if type(data.files) == "table" then
+    for _, path in ipairs(data.files) do
+      if type(path) == "string" and path ~= "" and vim.fn.filereadable(path) == 1 then
+        table.insert(valid_files, path)
+      end
+    end
   end
 
+  local has_cwd = (type(data.cwd) == "string" and data.cwd ~= "" and vim.fn.isdirectory(data.cwd) == 1)
+  local should_restore = (#valid_files > 0) or (data.has_workspace == true and has_cwd)
+
+  if not should_restore then
+    open_fallback_home()
+    return
+  end
+
+  if has_cwd then
+    pcall(vim.cmd.cd, data.cwd)
+    vim.g.explicit_workspace_opened = (data.has_workspace == true)
+  end
+
+  local initial_empty_buf = vim.api.nvim_get_current_buf()
   local opened_any = false
-  if type(data.files) == "table" and #data.files > 0 then
-    for _, path in ipairs(data.files) do
-      if vim.fn.filereadable(path) == 1 then
-        vim.cmd("silent! badd " .. vim.fn.fnameescape(path))
-        opened_any = true
-      end
+  if #valid_files > 0 then
+    for _, path in ipairs(valid_files) do
+      vim.cmd("silent! badd " .. vim.fn.fnameescape(path))
+      opened_any = true
     end
   end
 
   if data.active_file and vim.fn.filereadable(data.active_file) == 1 then
     vim.cmd("silent! edit " .. vim.fn.fnameescape(data.active_file))
+    last_active_file = data.active_file
     if data.cursor and type(data.cursor) == "table" and data.cursor[1] then
       pcall(vim.api.nvim_win_set_cursor, 0, { data.cursor[1], data.cursor[2] or 0 })
     end
-  elseif opened_any and data.files[1] then
-    vim.cmd("silent! edit " .. vim.fn.fnameescape(data.files[1]))
+  elseif opened_any and valid_files[1] then
+    vim.cmd("silent! edit " .. vim.fn.fnameescape(valid_files[1]))
+    last_active_file = valid_files[1]
+  end
+
+  -- Remove initial unnamed scratch buffer if files were restored
+  if opened_any and vim.api.nvim_buf_is_valid(initial_empty_buf) then
+    local init_name = vim.api.nvim_buf_get_name(initial_empty_buf)
+    if init_name == "" and vim.bo[initial_empty_buf].buftype == "" and not vim.bo[initial_empty_buf].modified then
+      vim.bo[initial_empty_buf].buflisted = false
+      if initial_empty_buf ~= vim.api.nvim_get_current_buf() then
+        pcall(vim.api.nvim_buf_delete, initial_empty_buf, { force = true })
+      end
+    end
   end
 
   local ok_t, t_api = pcall(require, "nvim-tree.api")
   if ok_t then
-    t_api.tree.open({ focus = false })
+    if has_cwd then
+      pcall(t_api.tree.change_root, data.cwd)
+    end
+    if data.sidebar_open ~= false then
+      pcall(t_api.tree.open, { focus = false })
+      if type(data.expanded_dirs) == "table" and #data.expanded_dirs > 0 then
+        vim.schedule(function()
+          local ok_core, nt_core = pcall(require, "nvim-tree.core")
+          if ok_core and nt_core.get_explorer then
+            local exp = nt_core.get_explorer()
+            if exp and exp.nodes then
+              local open_set = {}
+              for _, p in ipairs(data.expanded_dirs) do open_set[p] = true end
+              local function expand_matching(nodes)
+                for _, n in ipairs(nodes) do
+                  if n.nodes and n.absolute_path and open_set[n.absolute_path] then
+                    if not n.open then
+                      pcall(t_api.node.expand, n)
+                    end
+                    expand_matching(n.nodes)
+                  end
+                end
+              end
+              expand_matching(exp.nodes)
+            end
+          end
+        end)
+      end
+    end
+    vim.schedule(function()
+      local tw = t_api.tree.winid()
+      if tw and vim.api.nvim_win_is_valid(tw) then
+        pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 24)
+      end
+    end)
   end
+
+  session_restored = true
 
   if opened_any then
     local ed = find_editor_win()
@@ -3060,16 +3204,55 @@ local function restore_session()
       vim.api.nvim_set_current_win(ed)
       vim.cmd("startinsert")
     end
+    if _G.reapply_all_icon_colors then
+      vim.schedule(_G.reapply_all_icon_colors)
+    end
   else
+    -- Workspace folder opened with no open files
     if _G.open_homescreen then _G.open_homescreen() end
   end
 end
 
--- Autosave triggers: FocusLost, BufLeave, VimLeavePre, QuitPre
-vim.api.nvim_create_autocmd({ "FocusLost", "BufLeave", "VimLeavePre", "QuitPre" }, {
+-- Track active file and persist session safely
+vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusLost" }, {
   callback = function()
+    if is_quitting or not session_restored then return end
+    local cb = vim.api.nvim_get_current_buf()
+    if vim.bo[cb].buftype == "" and vim.bo[cb].filetype ~= "minimal_home" and vim.bo[cb].filetype ~= "NvimTree" then
+      local n = vim.api.nvim_buf_get_name(cb)
+      if n ~= "" and vim.fn.filereadable(n) == 1 then
+        last_active_file = n
+      end
+    end
     autosave_all_modified()
     save_session()
+  end,
+})
+
+vim.api.nvim_create_autocmd({ "BufDelete", "DirChanged" }, {
+  callback = function()
+    if is_quitting or not session_restored then return end
+    vim.schedule(save_session)
+  end,
+})
+
+vim.api.nvim_create_autocmd("QuitPre", {
+  callback = function()
+    if not is_quitting then
+      autosave_all_modified()
+      save_session()
+    end
+  end,
+})
+
+vim.api.nvim_create_autocmd("VimLeavePre", {
+  callback = function()
+    if not is_quitting then
+      autosave_all_modified()
+      save_session()
+      is_quitting = true
+      vim.g.minimal_is_quitting = true
+    end
   end,
 })
 
@@ -3094,11 +3277,9 @@ vim.api.nvim_create_autocmd("VimEnter", {
   callback = function()
     vim.g.startup_done = true
     if vim.fn.argc() == 0 then
-      if _G.open_homescreen then
-        _G.open_homescreen()
-      end
-    else
       vim.schedule(restore_session)
+    else
+      session_restored = true
     end
   end,
 })
@@ -4234,6 +4415,7 @@ _G.open_workspace_folder = function(target_dir)
 
   -- Autosave all modified buffers before switching folder
   _G.autosave_all_modified()
+  vim.g.explicit_workspace_opened = true
 
   -- Change Neovim working directory
   pcall(vim.cmd.cd, target_dir)
@@ -4349,8 +4531,8 @@ _G.open_folder_picker = function()
   vim.bo[buf].undolevels = -1
 
   local ui = vim.api.nvim_list_uis()[1] or { width = 120, height = 40 }
-  local width = math.min(76, math.max(52, ui.width - 6))
-  local height = math.min(22, math.max(10, ui.height - 8))
+  local width = math.min(78, math.max(54, ui.width - 6))
+  local height = math.min(24, math.max(12, ui.height - 8))
   local row = math.max(1, math.floor((ui.height - height) / 3))
   local col = math.max(1, math.floor((ui.width - width) / 2))
 
@@ -4364,7 +4546,7 @@ _G.open_folder_picker = function()
     border = "rounded",
     title = " Open Folder ",
     title_pos = "center",
-    footer = " Enter: Drill In │ o: Open │ .: Hidden │ Esc: Cancel ",
+    footer = " Enter: Open Folder │ Tab: Browse Inside │ Shift+Tab: Parent │ Alt+.: Hidden │ Esc: Cancel ",
     footer_pos = "center",
   })
 
@@ -4394,11 +4576,26 @@ _G.open_folder_picker = function()
   vim.api.nvim_set_hl(0, "FolderPickerAction", { fg = "#61afef", bold = true })
   vim.api.nvim_set_hl(0, "FolderPickerDir", { fg = "#e5c07b" })
   vim.api.nvim_set_hl(0, "FolderPickerMuted", { fg = "#5c6370", italic = true })
+  vim.api.nvim_set_hl(0, "FolderPickerSearch", { fg = "#61afef", bold = true })
+  vim.api.nvim_set_hl(0, "FolderPickerSep", { fg = "#3b4252" })
 
   local items = {}
   local ns_id = vim.api.nvim_create_namespace("folder_picker_hl")
+  local tree_cache = {}
+  local skip_dirs = {
+    [".git"] = true,
+    ["node_modules"] = true,
+    ["__pycache__"] = true,
+    [".venv"] = true,
+    [".cache"] = true,
+    [".cargo"] = true,
+    [".rustup"] = true,
+    [".npm"] = true,
+    [".mozilla"] = true,
+    ["Trash"] = true,
+  }
 
-  local function scan_current()
+  local function scan_immediate()
     local dirs = {}
     local ok_scan, handle = pcall(vim.uv.fs_scandir, current_dir)
     if ok_scan and handle then
@@ -4421,9 +4618,65 @@ _G.open_folder_picker = function()
     return dirs
   end
 
+  local function get_recursive_dirs()
+    local cache_key = current_dir .. "|" .. tostring(show_hidden)
+    if tree_cache[cache_key] then
+      return tree_cache[cache_key]
+    end
+
+    local results = {}
+    local queue = { { path = current_dir, rel = "", depth = 0 } }
+    local visited = 0
+    local max_visits = 1500
+    local max_depth = 3
+
+    local q_head = 1
+    while q_head <= #queue and visited < max_visits do
+      local cur = queue[q_head]
+      q_head = q_head + 1
+      if cur.depth < max_depth then
+        local ok_scan, handle = pcall(vim.uv.fs_scandir, cur.path)
+        if ok_scan and handle then
+          while visited < max_visits do
+            local name, t = vim.uv.fs_scandir_next(handle)
+            if not name then break end
+            if not skip_dirs[name] and (show_hidden or not name:match("^%.")) then
+              local full = (cur.path == "/" and "/" .. name or cur.path .. "/" .. name)
+              local is_d = (t == "directory")
+              if t == "link" then
+                is_d = (vim.fn.isdirectory(full) == 1)
+              end
+              if is_d then
+                visited = visited + 1
+                local rel_path = (cur.rel == "" and name or (cur.rel .. "/" .. name))
+                table.insert(results, {
+                  name = name,
+                  rel = rel_path,
+                  path = full,
+                  depth = cur.depth + 1,
+                })
+                if cur.depth + 1 < max_depth then
+                  table.insert(queue, { path = full, rel = rel_path, depth = cur.depth + 1 })
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
+    tree_cache[cache_key] = results
+    return results
+  end
+
+  local sb = nil
+
   local function update_selection()
     if not vim.api.nvim_buf_is_valid(buf) or not vim.api.nvim_win_is_valid(win) then return end
     vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
+
+    pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FolderPickerSearch", 0, 0, 10)
+    pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FolderPickerSep", 1, 0, -1)
 
     for _, item in ipairs(items) do
       local r = item.line - 1
@@ -4447,39 +4700,97 @@ _G.open_folder_picker = function()
         })
         pcall(vim.api.nvim_win_set_cursor, win, { sel.line, 0 })
       end
+    else
+      pcall(vim.api.nvim_win_set_cursor, win, { 1, 0 })
     end
   end
 
   local function render(target_idx)
     if not vim.api.nvim_buf_is_valid(buf) then return end
     items = {}
-    local lines = { "" }
+    local query = sb and vim.trim(sb.get_text()) or ""
+    local search_line = sb and sb.get_display_line("  Search: ", "(type to search folders...)") or "  Search: ▏ (type to search folders...)"
+    local sep_line = "  " .. string.rep("─", math.max(10, width - 4))
+    local lines = {
+      search_line,
+      sep_line,
+      "",
+    }
+
     local display_cwd = vim.fn.fnamemodify(current_dir, ":~")
 
-    -- Row 1: Select current folder
-    table.insert(lines, "   󰉋  [Open This Folder: " .. display_cwd .. "]")
-    table.insert(items, { type = "open_current", path = current_dir, line = #lines })
-    table.insert(lines, "")
-
-    -- Row 2: Parent directory (if not root)
-    if current_dir ~= "/" then
-      local parent_dir = vim.fn.fnamemodify(current_dir, ":h")
-      table.insert(lines, "   󰁝  .. (Parent Directory)")
-      table.insert(items, { type = "parent", path = parent_dir, line = #lines })
+    if query == "" then
+      -- Row 1: Open current folder directly
+      table.insert(lines, "   󰉋  [Open This Folder: " .. display_cwd .. "]")
+      table.insert(items, { type = "open_current", path = current_dir, line = #lines })
       table.insert(lines, "")
-    end
 
-    local subdirs = scan_current()
-    for _, dname in ipairs(subdirs) do
-      local full = (current_dir == "/" and "/" .. dname or current_dir .. "/" .. dname)
-      table.insert(lines, "   󰉋  " .. dname .. "/")
-      table.insert(items, { type = "dir", path = full, name = dname, line = #lines })
-      table.insert(lines, "")
-    end
+      -- Row 2: Parent directory (if not root)
+      if current_dir ~= "/" then
+        local parent_dir = vim.fn.fnamemodify(current_dir, ":h")
+        table.insert(lines, "   󰁝  .. (Parent Directory)")
+        table.insert(items, { type = "parent", path = parent_dir, line = #lines })
+        table.insert(lines, "")
+      end
 
-    if #subdirs == 0 then
-      table.insert(lines, "   (No subdirectories)")
-      table.insert(lines, "")
+      local subdirs = scan_immediate()
+      for _, dname in ipairs(subdirs) do
+        local full = (current_dir == "/" and "/" .. dname or current_dir .. "/" .. dname)
+        table.insert(lines, "   󰉋  " .. dname .. "/")
+        table.insert(items, { type = "dir", path = full, name = dname, line = #lines })
+        table.insert(lines, "")
+      end
+
+      if #subdirs == 0 then
+        table.insert(lines, "   (No subdirectories)")
+        table.insert(lines, "")
+      end
+    else
+      local q_low = query:lower()
+      local matches = {}
+      local all_dirs = get_recursive_dirs()
+      for _, d in ipairs(all_dirs) do
+        local n_low = d.name:lower()
+        local r_low = d.rel:lower()
+        local score = nil
+        if n_low == q_low then
+          score = 1
+        elseif n_low:sub(1, #q_low) == q_low then
+          score = 2
+        elseif n_low:find(q_low, 1, true) then
+          score = 3
+        elseif r_low:find(q_low, 1, true) then
+          score = 4
+        end
+        if score then
+          table.insert(matches, {
+            name = d.name,
+            rel = d.rel,
+            path = d.path,
+            depth = d.depth,
+            score = score,
+          })
+        end
+      end
+
+      table.sort(matches, function(a, b)
+        if a.score ~= b.score then return a.score < b.score end
+        if a.depth ~= b.depth then return a.depth < b.depth end
+        return a.rel:lower() < b.rel:lower()
+      end)
+
+      local max_show = 40
+      for i, m in ipairs(matches) do
+        if i > max_show then break end
+        table.insert(lines, "   󰉋  " .. m.rel .. "/")
+        table.insert(items, { type = "dir", path = m.path, name = m.name, rel = m.rel, line = #lines })
+        table.insert(lines, "")
+      end
+
+      if #matches == 0 then
+        table.insert(lines, '   No matching folders found for "' .. query .. '"')
+        table.insert(lines, "")
+      end
     end
 
     vim.bo[buf].modifiable = true
@@ -4490,7 +4801,7 @@ _G.open_folder_picker = function()
     pcall(vim.api.nvim_win_set_config, win, {
       title = title_str,
       title_pos = "center",
-      footer = " Enter: Drill In │ o: Open │ .: Hidden │ Esc: Cancel ",
+      footer = " Enter: Open Folder │ Tab: Browse Inside │ Shift+Tab: Parent │ Alt+.: Hidden │ Esc: Cancel ",
       footer_pos = "center",
     })
 
@@ -4498,36 +4809,45 @@ _G.open_folder_picker = function()
     update_selection()
   end
 
-  local function on_confirm()
+  local function on_confirm_open()
     local item = items[selected_idx]
     if not item then return end
 
-    if item.type == "open_current" then
+    if item.type == "parent" then
+      current_dir = item.path
+      if sb then sb.clear() end
+      render(1)
+    elseif item.path then
       local target = item.path
       close_picker()
       _G.open_workspace_folder(target)
-    elseif item.type == "parent" then
-      current_dir = item.path
-      render(1)
-    elseif item.type == "dir" then
-      current_dir = item.path
-      render(1)
     end
   end
 
-  local function on_open_immediate()
+  local function on_browse_inside()
     local item = items[selected_idx]
-    local target = current_dir
-    if item and item.path then
-      target = item.path
+    if not item then return end
+    if item.type == "dir" or item.type == "parent" then
+      current_dir = item.path
+      if sb then
+        sb.text = ""
+        sb.pos = 1
+      end
+      render(1)
+    elseif item.type == "open_current" then
+      local target = item.path
+      close_picker()
+      _G.open_workspace_folder(target)
     end
-    close_picker()
-    _G.open_workspace_folder(target)
   end
 
   local function on_go_parent()
     if current_dir ~= "/" then
       current_dir = vim.fn.fnamemodify(current_dir, ":h")
+      if sb then
+        sb.text = ""
+        sb.pos = 1
+      end
       render(1)
     end
   end
@@ -4535,29 +4855,6 @@ _G.open_folder_picker = function()
   local function on_toggle_hidden()
     show_hidden = not show_hidden
     render(selected_idx)
-  end
-
-  local function on_jump_home()
-    current_dir = vim.fn.expand("~")
-    render(1)
-  end
-
-  local function on_custom_input()
-    close_picker()
-    vim.ui.input({
-      prompt = "Open folder path: ",
-      default = current_dir,
-      completion = "dir",
-    }, function(input)
-      if input and input:match("%S") then
-        local expanded = vim.fn.expand(vim.trim(input))
-        if vim.fn.isdirectory(expanded) == 1 then
-          _G.open_workspace_folder(expanded)
-        else
-          vim.notify("Not a valid directory: " .. input, vim.log.levels.WARN)
-        end
-      end
-    end)
   end
 
   local function move_up()
@@ -4587,48 +4884,44 @@ _G.open_folder_picker = function()
     end
   end
 
-  -- Block all normal typing keys so picker buffer is completely unwritable
-  for c = 32, 126 do
-    local ch = string.char(c)
-    if ch ~= "j" and ch ~= "k" and ch ~= "h" and ch ~= "l" and ch ~= "q"
-       and ch ~= "o" and ch ~= "O" and ch ~= "." and ch ~= "~" and ch ~= "/" then
-      vim.keymap.set({ "n", "i", "s", "v" }, ch, "<nop>", { buffer = buf, nowait = true })
-    end
-  end
+  sb = make_searchbar("", function()
+    render(1)
+  end)
 
-  vim.keymap.set({ "n", "i", "s", "v" }, "k", move_up, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "j", move_down, { buffer = buf, nowait = true })
+  bind_searchbar_keys(buf, sb)
+
+  -- Conditional Left/Right: edit query when non-empty, browse folders when empty
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Left>", function()
+    if sb.get_text() ~= "" then
+      sb.move_left()
+    else
+      on_go_parent()
+    end
+  end, { buffer = buf, nowait = true })
+
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Right>", function()
+    if sb.get_text() ~= "" then
+      sb.move_right()
+    else
+      on_browse_inside()
+    end
+  end, { buffer = buf, nowait = true })
+
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Tab>", on_browse_inside, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<S-Tab>", on_go_parent, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<CR>", on_confirm_open, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-CR>", on_confirm_open, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<LeftMouse>", on_mouse_click, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<CR>", on_confirm, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<2-LeftMouse>", function()
     on_mouse_click()
-    on_confirm()
+    on_confirm_open()
   end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-CR>", on_open_immediate, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "o", on_open_immediate, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "O", on_open_immediate, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<BS>", on_go_parent, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<Left>", on_go_parent, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "h", on_go_parent, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<Right>", on_confirm, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "l", on_confirm, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, ".", on_toggle_hidden, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-h>", on_toggle_hidden, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "~", on_jump_home, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "/", on_custom_input, { buffer = buf, nowait = true })
+
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-.>", on_toggle_hidden, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-h>", on_toggle_hidden, { buffer = buf, nowait = true })
 
   vim.keymap.set({ "n", "i", "s", "v" }, "<Esc>", close_picker, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "q", close_picker, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<C-c>", close_picker, { buffer = buf, nowait = true })
-
-  local block_keys = { "<C-z>", "<C-y>", "<C-r>", "<C-d>", "<C-x>", "<C-s>", "<S-Del>", "<S-Delete>", "<Insert>" }
-  for _, bk in ipairs(block_keys) do
-    vim.keymap.set({ "n", "i", "s", "v" }, bk, "<nop>", { buffer = buf, nowait = true })
-  end
-
-  for _, wk in ipairs({ "<C-w>w", "<C-w>h", "<C-w>j", "<C-w>k", "<C-w>l", "<C-w><Up>", "<C-w><Down>", "<C-w><Left>", "<C-w><Right>" }) do
-    vim.keymap.set({ "n", "i", "s", "v" }, wk, "<nop>", { buffer = buf, nowait = true })
-  end
 
   vim.api.nvim_create_autocmd("WinLeave", {
     buffer = buf,
