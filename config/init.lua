@@ -2219,7 +2219,6 @@ _G.terminal_winbar = function()
   end
 
   table.insert(parts, "%#StatusLine#%=")
-  table.insert(parts, "%#StatusLineNC# Alt+N T: New │ Shift+Alt+K: Kill ")
 
   return table.concat(parts, " ")
 end
@@ -6183,7 +6182,7 @@ function _G.editor_statusline()
     return "  Minimal %=" .. vim.fn.fnamemodify(vim.fn.getcwd(), ":~") .. " "
   end
   if vim.bo[buf].buftype == "terminal" then
-    return "  bash │ " .. vim.fn.fnamemodify(vim.fn.getcwd(), ":~") .. " %=" .. "Alt+N T: New │ Shift+Alt+K: Kill "
+    return "  bash │ " .. vim.fn.fnamemodify(vim.fn.getcwd(), ":~") .. " "
   end
 
   local branch = vim.b[buf].gitsigns_head or ""
