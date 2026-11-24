@@ -153,6 +153,9 @@ local function enforce_buffer_mode()
     if name == "" or vim.fn.filereadable(name) == 0 then
       vim.bo[cur_buf].modified = true
     end
+    if vim.g.minimal_mc_active and vim.fn.mode():match("^[vVxXn\22]") then
+      return
+    end
     if vim.fn.mode() ~= "i" and vim.fn.mode() ~= "s" then
       vim.cmd("startinsert")
     end
@@ -5504,28 +5507,92 @@ vim.api.nvim_create_autocmd("BufEnter", {
 local ok_mc, mc = pcall(require, "multiple-cursors")
 if ok_mc then
   mc.setup({
+    pre_hook = function()
+      vim.g.minimal_mc_active = true
+      vim.opt.selection = "inclusive"
+    end,
+    post_hook = function()
+      vim.g.minimal_mc_active = false
+      vim.opt.selection = "exclusive"
+    end,
     custom_key_maps = {
-      { { "x", "s" }, "<BS>", function() require("multiple-cursors.visual_mode.delete_yank_change_put").d() end },
-      { { "x", "s" }, "<Del>", function() require("multiple-cursors.visual_mode.delete_yank_change_put").d() end },
+      -- Disable plugin's internal <Esc> override so Minimal's <Esc> exits multi-cursor mode immediately
+      { { "i", "n", "x", "s" }, "<Esc>", nil },
+      -- Normal click exits multi-cursor mode cleanly and moves cursor to clicked position
+      {
+        { "i", "n", "x" },
+        "<LeftMouse>",
+        function()
+          _G.handle_escape()
+          local mp = vim.fn.getmousepos()
+          if mp and mp.winid > 0 and vim.api.nvim_win_is_valid(mp.winid) and mp.line > 0 then
+            pcall(vim.api.nvim_set_current_win, mp.winid)
+            local col = math.max(0, (mp.column or 1) - 1)
+            pcall(vim.api.nvim_win_set_cursor, mp.winid, { mp.line, col })
+          end
+        end,
+        "nowrap",
+      },
+      -- Backspace / Delete on multi-selected matches deletes selections and enters Insert mode
+      { { "x", "s" }, "<BS>", function() require("multiple-cursors.visual_mode.delete_yank_change_put").c() end, "nowrap" },
+      { { "x", "s" }, "<Del>", function() require("multiple-cursors.visual_mode.delete_yank_change_put").c() end, "nowrap" },
+      -- Ctrl+Backspace & Ctrl+Delete across all cursors in Insert mode
+      { "i", { "<C-BS>", "<C-BackSpace>" }, function() delete_word_backward() end },
+      { "i", { "<C-Del>", "<C-Delete>" }, function() delete_word_forward() end },
     },
   })
 end
+
+vim.api.nvim_create_autocmd("BufLeave", {
+  callback = function(args)
+    if vim.g.minimal_mc_active then
+      local ok_m, mc_mod = pcall(require, "multiple-cursors")
+      if ok_m and mc_mod.deinit then
+        pcall(mc_mod.deinit, true)
+      end
+      local ns = vim.api.nvim_get_namespaces()["multiple-cursors"]
+      if ns and vim.api.nvim_buf_is_valid(args.buf) then
+        pcall(vim.api.nvim_buf_clear_namespace, args.buf, ns, 0, -1)
+      end
+      vim.g.minimal_mc_active = false
+      vim.opt.selection = "exclusive"
+    end
+  end,
+})
 
 _G.multicursor_add_next = function()
   local ok, mcp = pcall(require, "multiple-cursors")
   if not ok then return end
   local m = vim.fn.mode()
-  if m:match("[is]") then
+  if m == "s" or m == "S" then
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-g>", true, false, true), "nx", false)
+  elseif m == "i" then
     vim.cmd("stopinsert")
+    local ok_vc, vc = pcall(require, "multiple-cursors.virtual_cursors")
+    if not ok_vc or vc.get_num_virtual_cursors() == 0 then
+      local cword = vim.fn.expand("<cword>")
+      if cword ~= "" then
+        vim.g.minimal_mc_active = true
+        vim.opt.selection = "inclusive"
+        vim.cmd("normal! viw")
+        return
+      end
+    end
   end
   pcall(mcp.add_cursor_and_jump_to_next_match)
 end
 
 _G.multicursor_select_all = function()
-  local ok, mcp = pcall(require, "multiple-cursors")
+  local ok, _ = pcall(require, "multiple-cursors")
   if not ok then return end
   local m = vim.fn.mode()
-  if m:match("[is]") then vim.cmd("stopinsert") end
+  if m == "s" or m == "S" then
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-g>", true, false, true), "nx", false)
+  elseif m == "i" then
+    vim.cmd("stopinsert")
+  end
+  vim.g.minimal_mc_active = true
+  vim.opt.selection = "inclusive"
   pcall(vim.cmd, "MultipleCursorsAddMatches")
 end
 
@@ -6108,9 +6175,27 @@ map({ "i", "n", "v", "s" }, "<C-w>", function() _G.close_buffer() end, { desc = 
 map({ "i", "n", "v", "s", "t" }, "<C-q>", "<cmd>qa<cr>", { desc = "Quit Notepad" })
 
 _G.handle_escape = function()
-  local ok_mc, vc = pcall(require, "multiple-cursors.virtual_cursors")
-  if ok_mc and vc.get_num_virtual_cursors() > 0 then
-    pcall(require("multiple-cursors").normal_escape)
+  local ok_mc_mod, mc_mod = pcall(require, "multiple-cursors")
+  if ok_mc_mod and mc_mod.deinit then
+    pcall(mc_mod.deinit, true)
+  end
+  local ok_vc, vc = pcall(require, "multiple-cursors.virtual_cursors")
+  if ok_vc and vc.clear then
+    pcall(vc.clear)
+  end
+  local ns = vim.api.nvim_get_namespaces()["multiple-cursors"]
+  if ns then
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_valid(b) then
+        pcall(vim.api.nvim_buf_clear_namespace, b, ns, 0, -1)
+      end
+    end
+  end
+  vim.g.minimal_mc_active = false
+  vim.opt.selection = "exclusive"
+  local m = vim.fn.mode()
+  if m:match("[vVsS\x16\x13]") then
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-\\><C-n>", true, false, true), "nx", false)
   end
   vim.cmd("nohlsearch")
   vim.cmd("startinsert")
