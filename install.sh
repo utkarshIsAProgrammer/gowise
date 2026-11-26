@@ -180,16 +180,17 @@ setup_paths() {
   BIN_DIR="${HOME}/.local/bin"
   DATA_DIR="${HOME}/.local/share/minimal"
   PLUGINS_DIR="${DATA_DIR}/site/pack/plugins/start"
+  OPT_PLUGINS_DIR="${DATA_DIR}/site/pack/plugins/opt"
   CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/minimal"
   STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/minimal"
 
-  mkdir -p "$BIN_DIR" "$DATA_DIR" "$PLUGINS_DIR" "$CACHE_DIR" "$STATE_DIR"
+  mkdir -p "$BIN_DIR" "$DATA_DIR" "$PLUGINS_DIR" "$OPT_PLUGINS_DIR" "$CACHE_DIR" "$STATE_DIR"
   mkdir -p "$(dirname "$CONFIG_DIR")"
 
   if [ "$CLEAN_INSTALL" = true ]; then
     log_warn "Clean install requested: Wiping old Minimal config and cache..."
     rm -rf "$CONFIG_DIR" "$INSTALL_DIR" "$CACHE_DIR" "$STATE_DIR"
-    mkdir -p "$DATA_DIR" "$PLUGINS_DIR" "$CACHE_DIR" "$STATE_DIR"
+    mkdir -p "$DATA_DIR" "$PLUGINS_DIR" "$OPT_PLUGINS_DIR" "$CACHE_DIR" "$STATE_DIR"
   fi
 }
 
@@ -239,8 +240,12 @@ provision_plugins() {
     cp -rf "$HOME/.local/share/nvim/site/parser/"* "$DATA_DIR/site/parser"/ 2>/dev/null || true
   fi
 
-  local plugin_repos=(
+  local core_plugins=(
     "akinsho/bufferline.nvim"
+    "nvim-tree/nvim-tree.lua"
+    "nvim-tree/nvim-web-devicons"
+  )
+  local opt_plugins=(
     "hrsh7th/cmp-buffer"
     "saadparwaiz1/cmp_luasnip"
     "hrsh7th/cmp-nvim-lsp"
@@ -257,25 +262,42 @@ provision_plugins() {
     "hrsh7th/nvim-cmp"
     "norcalli/nvim-colorizer.lua"
     "neovim/nvim-lspconfig"
-    "nvim-tree/nvim-tree.lua"
     "nvim-treesitter/nvim-treesitter"
-    "nvim-tree/nvim-web-devicons"
   )
 
+  for item in "${opt_plugins[@]}"; do
+    local pname="${item##*/}"
+    if [ -d "$PLUGINS_DIR/$pname" ] && [ ! -d "$OPT_PLUGINS_DIR/$pname" ]; then
+      mv "$PLUGINS_DIR/$pname" "$OPT_PLUGINS_DIR/$pname" 2>/dev/null || true
+    fi
+  done
+
   local pending=()
-  for item in "${plugin_repos[@]}"; do
+  for item in "${core_plugins[@]}"; do
     local pname="${item##*/}"
     if [ ! -d "$PLUGINS_DIR/$pname" ]; then
-      pending+=("$item")
+      pending+=("start:$item")
+    fi
+  done
+  for item in "${opt_plugins[@]}"; do
+    local pname="${item##*/}"
+    if [ ! -d "$OPT_PLUGINS_DIR/$pname" ]; then
+      pending+=("opt:$item")
     fi
   done
 
   if [ ${#pending[@]} -gt 0 ]; then
     log_step "Cloning ${#pending[@]} missing plugins..."
-    for item in "${pending[@]}"; do
+    for entry in "${pending[@]}"; do
+      local kind="${entry%%:*}"
+      local item="${entry#*:}"
       local pname="${item##*/}"
       local purl="https://github.com/${item}.git"
-      git clone --depth 1 "$purl" "$PLUGINS_DIR/$pname" --quiet 2>/dev/null &
+      local dest_base="$PLUGINS_DIR"
+      if [ "$kind" = "opt" ]; then
+        dest_base="$OPT_PLUGINS_DIR"
+      fi
+      git clone --depth 1 "$purl" "$dest_base/$pname" --quiet 2>/dev/null &
     done
     wait
   fi
