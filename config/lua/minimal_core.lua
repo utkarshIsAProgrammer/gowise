@@ -1292,24 +1292,22 @@ _G.clear_active_menu = function(caller_fn)
   _G.restore_picker_cursor()
 end
 
--- 15. Code Editor Sidebar & Tabline (deferred 1ms after first frame so startup completes in ~27ms)
--- Uses authentic Flow Deep Icon Theme (config/lua/flow_deep_icons.lua)
+-- 15. Code Editor Sidebar & Tabline (deferred 1ms after first frame so startup completes in ~20ms)
 _G.reapply_all_icon_colors = function()
-  local ok_flow, flow_deep = pcall(require, "flow_deep_icons")
   local ok_dev, dev = pcall(require, "nvim-web-devicons")
   if ok_dev then
     pcall(dev.set_up_highlights, true)
-    if ok_flow then
-      pcall(dev.set_default_icon, "󰈙", flow_deep.palette.white, 75)
-    end
+    pcall(dev.set_default_icon, "󰈙", "#61afef", 75)
   end
   local ok_bl, bl_h = pcall(require, "bufferline.highlights")
   if ok_bl then
     pcall(bl_h.reset_icon_hl_cache)
   end
-  if ok_flow then
-    flow_deep.apply_highlights()
-  end
+  vim.api.nvim_set_hl(0, "NvimTreeFolderIcon", { fg = "#e5c07b", bold = true })
+  vim.api.nvim_set_hl(0, "NvimTreeClosedFolderIcon", { fg = "#e5c07b", bold = true })
+  vim.api.nvim_set_hl(0, "NvimTreeOpenedFolderIcon", { fg = "#e5c07b", bold = true })
+  vim.api.nvim_set_hl(0, "NvimTreeFileIcon", { fg = "#61afef" })
+  vim.api.nvim_set_hl(0, "DevIconDefault", { fg = "#61afef" })
 
   local ok_tree, t_api = pcall(require, "nvim-tree.api")
   if ok_tree and t_api.tree.is_visible() then
@@ -1323,15 +1321,72 @@ _G.ensure_ui_chrome = function()
   if ui_chrome_ready then return end
   ui_chrome_ready = true
 
-  local ok_flow, flow_deep = pcall(require, "flow_deep_icons")
-  if ok_flow then
-    flow_deep.setup_devicons()
+  local ok_devicons, devicons = pcall(require, "nvim-web-devicons")
+  if ok_devicons then
+    devicons.setup({
+      default = true,
+      color_icons = true,
+      override = {
+        py = { icon = "󰌠", color = "#ffd43b", name = "Py" },
+        python = { icon = "󰌠", color = "#ffd43b", name = "Python" },
+        md = { icon = "󰂺", color = "#519aba", name = "Md" },
+        markdown = { icon = "󰂺", color = "#519aba", name = "Markdown" },
+        txt = { icon = "󰈙", color = "#89e051", name = "Txt" },
+        sh = { icon = "", color = "#4ebd54", name = "Sh" },
+        bash = { icon = "", color = "#4ebd54", name = "Bash" },
+        zsh = { icon = "", color = "#4ebd54", name = "Zsh" },
+        conf = { icon = "", color = "#e5c07b", name = "Conf" },
+        cfg = { icon = "", color = "#e5c07b", name = "Cfg" },
+        ini = { icon = "", color = "#e5c07b", name = "Ini" },
+        toml = { icon = "", color = "#9c8675", name = "Toml" },
+        yaml = { icon = "", color = "#e5c07b", name = "Yaml" },
+        yml = { icon = "", color = "#e5c07b", name = "Yml" },
+        json = { icon = "", color = "#cbcb41", name = "Json" },
+        lua = { icon = "", color = "#51a0cf", name = "Lua" },
+        js = { icon = "", color = "#cbcb41", name = "Js" },
+        ts = { icon = "", color = "#519aba", name = "Ts" },
+        jsx = { icon = "", color = "#519aba", name = "Jsx" },
+        tsx = { icon = "", color = "#1354bf", name = "Tsx" },
+        html = { icon = "", color = "#e34c26", name = "Html" },
+        css = { icon = "", color = "#563d7c", name = "Css" },
+        log = { icon = "󰌱", color = "#fab387", name = "Log" },
+        csv = { icon = "󰈙", color = "#a6e3a1", name = "Csv" },
+        c = { icon = "", color = "#599eff", name = "C" },
+        cpp = { icon = "", color = "#599eff", name = "Cpp" },
+        h = { icon = "", color = "#a074c4", name = "H" },
+        hpp = { icon = "", color = "#a074c4", name = "Hpp" },
+        rs = { icon = "󱘗", color = "#dea584", name = "Rs" },
+        go = { icon = "", color = "#00add8", name = "Go" },
+        sql = { icon = "", color = "#dad8d8", name = "Sql" },
+        makefile = { icon = "", color = "#fab387", name = "Makefile" },
+        dockerfile = { icon = "󰡨", color = "#458ee6", name = "Dockerfile" },
+      },
+      override_by_filename = {
+        ["main.py"] = { icon = "󰌠", color = "#ffd43b", name = "Py" },
+        ["menu.py"] = { icon = "󰌠", color = "#ffd43b", name = "Py" },
+        ["README.md"] = { icon = "󰂺", color = "#519aba", name = "Readme" },
+        ["readme.md"] = { icon = "󰂺", color = "#519aba", name = "Readme" },
+        ["README"] = { icon = "󰂺", color = "#519aba", name = "Readme" },
+        ["readme"] = { icon = "󰂺", color = "#519aba", name = "Readme" },
+        ["Makefile"] = { icon = "", color = "#fab387", name = "Makefile" },
+        ["makefile"] = { icon = "", color = "#fab387", name = "Makefile" },
+        ["Dockerfile"] = { icon = "󰡨", color = "#458ee6", name = "Dockerfile" },
+        ["dockerfile"] = { icon = "󰡨", color = "#458ee6", name = "Dockerfile" },
+        ["docker-compose.yml"] = { icon = "󰡨", color = "#458ee6", name = "DockerCompose" },
+        ["docker-compose.yaml"] = { icon = "󰡨", color = "#458ee6", name = "DockerCompose" },
+        ["package.json"] = { icon = "", color = "#e8274b", name = "PackageJson" },
+        ["CMakeLists.txt"] = { icon = "", color = "#064f8c", name = "CMakeLists" },
+        ["LICENSE"] = { icon = "󰈙", color = "#d0bf41", name = "License" },
+        ["license"] = { icon = "󰈙", color = "#d0bf41", name = "License" },
+      },
+      default_icon = { icon = "󰈙", color = "#61afef", name = "Default" },
+    })
+    pcall(devicons.set_default_icon, "󰈙", "#61afef", 75)
   end
 
   local ok_tree, tree = pcall(require, "nvim-tree")
   if ok_tree then
     local api = require("nvim-tree.api")
-    local flow_folder_decorator = ok_flow and flow_deep.create_folder_decorator(api) or nil
 
   local function notify_lsp_file_deleted(filepath)
     if not filepath or filepath == "" then return end
@@ -1530,13 +1585,13 @@ _G.ensure_ui_chrome = function()
       enable = true,
       ignore = false,
       show_on_dirs = true,
-      show_on_open_dirs = false,
+      show_on_open_dirs = true,
       timeout = 400,
     },
     diagnostics = {
       enable = true,
       show_on_dirs = true,
-      show_on_open_dirs = false,
+      show_on_open_dirs = true,
       debounce_delay = 50,
       severity = {
         min = vim.diagnostic.severity.HINT,
@@ -1550,9 +1605,9 @@ _G.ensure_ui_chrome = function()
       },
     },
     view = {
-      width = 32,
+      width = 24,
       side = "left",
-      signcolumn = "yes",
+      signcolumn = "no",
       cursorline = true,           -- Highlights row under block cursor
       preserve_window_proportions = true,
     },
@@ -1561,21 +1616,10 @@ _G.ensure_ui_chrome = function()
       highlight_diagnostics = "name", -- Highlights filename with Red/Yellow/Blue while preserving authentic logo icon colors!
       highlight_opened_files = "name",
       root_folder_label = false,     -- Hides '..' root line so Enter never executes cd ..
-      indent_width = 3,
-      decorators = flow_folder_decorator and {
-        "Git",
-        "Open",
-        "Hidden",
-        "Modified",
-        "Bookmark",
-        "Diagnostics",
-        "Copied",
-        flow_folder_decorator,
-        "Cut",
-      } or nil,
+      indent_width = 2,
       indent_markers = {
         enable = true,
-        inline_arrows = false,
+        inline_arrows = true,
         icons = {
           corner = "└",
           edge = "│",
@@ -1591,18 +1635,11 @@ _G.ensure_ui_chrome = function()
             color = true,
           },
           folder = {
-            enable = false,
+            enable = true,
             color = true,
           },
         },
-        git_placement = "right_align",
-        modified_placement = "after",
-        diagnostics_placement = "right_align",
-        bookmarks_placement = "after",
-        padding = {
-          icon = "  ",
-          folder_arrow = " ",
-        },
+        padding = " ",
         symlink_arrow = " 󰁔 ",
         show = {
           file = true,
@@ -1613,28 +1650,28 @@ _G.ensure_ui_chrome = function()
           diagnostics = true,
         },
         glyphs = {
-          default = "󰈙",
+          default = "",
           symlink = "",
           bookmark = "󰆤",
           modified = "●",
           folder = {
             arrow_closed = "",
             arrow_open = "",
-            default = "󰉋",
-            open = "󰝰",
-            empty = "󰉖",
-            empty_open = "󰝰",
+            default = "",
+            open = "",
+            empty = "",
+            empty_open = "",
             symlink = "",
             symlink_open = "",
           },
           git = {
-            unstaged = "M",
-            staged = "A",
-            unmerged = "U",
-            renamed = "R",
-            untracked = "U",
-            deleted = "D",
-            ignored = "·",
+            unstaged = "󰜥",
+            staged = "󰄬",
+            unmerged = "",
+            renamed = "󰁔",
+            untracked = "󰄱",
+            deleted = "󰅖",
+            ignored = "󰅚",
           },
         },
       },
@@ -1744,7 +1781,7 @@ _G.ensure_ui_chrome = function()
     vim.schedule(function()
       local tree_win = api.tree.winid()
       if tree_win and vim.api.nvim_win_is_valid(tree_win) then
-        pcall(vim.api.nvim_win_set_width, tree_win, _G.sidebar_width or 32)
+        pcall(vim.api.nvim_win_set_width, tree_win, _G.sidebar_width or 24)
       end
       local cur_win = vim.api.nvim_get_current_win()
       local cur_buf = vim.api.nvim_win_get_buf(cur_win)
@@ -1775,7 +1812,7 @@ _G.ensure_ui_chrome = function()
     vim.schedule(function()
       local tw = api.tree.winid()
       if tw and vim.api.nvim_win_is_valid(tw) then
-        pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 32)
+        pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 24)
       end
     end)
   end)
@@ -1792,7 +1829,7 @@ _G.ensure_ui_chrome = function()
       if api.tree.is_visible() then
         local tw = api.tree.winid()
         if tw and vim.api.nvim_win_is_valid(tw) then
-          pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 32)
+          pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 24)
         end
       end
     end,
@@ -1859,7 +1896,7 @@ if ok_bufferline then
       offsets = {
         {
           filetype = "NvimTree",
-          text = "   EXPLORER",
+          text = "  EXPLORER",
           highlight = "Directory",
           text_align = "left",
           separator = true,
@@ -2070,7 +2107,7 @@ _G.term_instances = {}
 _G.active_term_idx = 1
 local term_win = nil
 local term_height = 18
-_G.sidebar_width = 32
+_G.sidebar_width = 24
 
 local function is_valid_win(w) return w and vim.api.nvim_win_is_valid(w) end
 local function is_valid_buf(b) return b and vim.api.nvim_buf_is_valid(b) end
@@ -3270,7 +3307,7 @@ local function restore_session()
       vim.schedule(function()
         local tw = t_api.tree.winid()
         if tw and vim.api.nvim_win_is_valid(tw) then
-          pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 32)
+          pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 24)
         end
         local ed = find_editor_win()
         if ed and vim.api.nvim_win_is_valid(ed) then
@@ -3386,7 +3423,7 @@ local function restore_session()
     vim.schedule(function()
       local tw = t_api.tree.winid()
       if tw and vim.api.nvim_win_is_valid(tw) then
-        pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 32)
+        pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 24)
       end
     end)
   end
