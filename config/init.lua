@@ -59,6 +59,7 @@ vim.opt.smartcase = true                 -- Case-sensitive if capital letter typ
 -- Code Spell Checker (VS Code style with camelCase identifier support)
 vim.opt.spell = true
 vim.opt.spelllang = { "en_us" }
+vim.opt.spellcapcheck = ""               -- Disable yellow SpellCap sentence-start underlines (e.g. after '1.' or '.')
 pcall(function() vim.opt.spelloptions:append("camel") end)
 vim.opt.spellfile = vim.fn.stdpath("config") .. "/spell/en.utf-8.add"
 vim.api.nvim_set_hl(0, "SpellBad", { undercurl = true, sp = "#f38ba8" })
@@ -475,19 +476,50 @@ vim.lsp.config["cssls"] = { capabilities = lsp_capabilities }
 vim.lsp.config["svelte"] = { capabilities = lsp_capabilities }
 vim.lsp.config["tailwindcss"] = { capabilities = lsp_capabilities }
 
-pcall(vim.lsp.enable, {
-  "pyright",
-  "ts_ls",
-  "gopls",
-  "clangd",
-  "bashls",
-  "dockerls",
-  "jsonls",
-  "html",
-  "cssls",
-  "svelte",
-  "tailwindcss",
-})
+local function is_lsp_available(bin, allow_local_node)
+  if vim.fn.executable(bin) == 1 then
+    return true
+  end
+  if allow_local_node then
+    local search_paths = { vim.fn.getcwd() }
+    local first_arg = vim.fn.argv(0)
+    if type(first_arg) == "string" and first_arg ~= "" then
+      table.insert(search_paths, vim.fn.fnamemodify(first_arg, ":p"))
+    end
+    for _, p in ipairs(search_paths) do
+      local local_bin = vim.fs.find("node_modules/.bin/" .. bin, { path = p, upward = true })[1]
+      if local_bin and vim.fn.executable(local_bin) == 1 then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+local lsp_servers = {
+  { name = "pyright", bin = "pyright-langserver" },
+  { name = "ts_ls", bin = "typescript-language-server", local_bin = true },
+  { name = "gopls", bin = "gopls" },
+  { name = "clangd", bin = "clangd" },
+  { name = "bashls", bin = "bash-language-server" },
+  { name = "dockerls", bin = "docker-langserver" },
+  { name = "jsonls", bin = "vscode-json-language-server", local_bin = true },
+  { name = "html", bin = "vscode-html-language-server", local_bin = true },
+  { name = "cssls", bin = "vscode-css-language-server", local_bin = true },
+  { name = "svelte", bin = "svelteserver", local_bin = true },
+  { name = "tailwindcss", bin = "tailwindcss-language-server", local_bin = true },
+}
+
+local enabled_lsp_servers = {}
+for _, srv in ipairs(lsp_servers) do
+  if is_lsp_available(srv.bin, srv.local_bin) then
+    table.insert(enabled_lsp_servers, srv.name)
+  end
+end
+
+if #enabled_lsp_servers > 0 then
+  pcall(vim.lsp.enable, enabled_lsp_servers)
+end
 
 -- 11. Auto-Completions, Path Intellisense & Normal Text Suggestions (nvim-cmp)
 local ok_cmp, cmp = pcall(require, "cmp")
@@ -2966,10 +2998,29 @@ _G.open_quick_fix_spell = function()
         vim.api.nvim_win_set_cursor(ed, { r, new_col })
       end
     elseif action.kind == "dict_add" then
-      vim.cmd("silent! spellgood " .. vim.fn.fnameescape(action.word))
+      local sfile = vim.fn.stdpath("config") .. "/spell/en.utf-8.add"
+      pcall(vim.fn.mkdir, vim.fn.fnamemodify(sfile, ":h"), "p")
+      local already_added = false
+      local f = io.open(sfile, "r")
+      if f then
+        for line_word in f:lines() do
+          if line_word == action.word then
+            already_added = true
+            break
+          end
+        end
+        f:close()
+      end
+      if not already_added then
+        vim.cmd("silent! spellgood " .. vim.fn.fnameescape(action.word))
+      else
+        vim.cmd("silent! mkspell! " .. vim.fn.fnameescape(sfile))
+      end
+      vim.cmd("redraw!")
       vim.notify('Added "' .. action.word .. '" to user dictionary', vim.log.levels.INFO)
     elseif action.kind == "dict_ignore" then
       vim.cmd("silent! spellrare " .. vim.fn.fnameescape(action.word))
+      vim.cmd("redraw!")
     end
   end
 
@@ -4246,8 +4297,8 @@ _G.open_keybindings_panel = function()
     { cat = "EDITING", key = "Ctrl + A", desc = "Select all text in document" },
     { cat = "EDITING", key = "Ctrl + /", desc = "Toggle single line comment" },
     { cat = "EDITING", key = "Shift + Alt + A", desc = "Toggle multiline block comment" },
-    { cat = "EDITING", key = "Tab", desc = "Indent line or selection" },
-    { cat = "EDITING", key = "Shift + Tab", desc = "Unindent line or selection" },
+    { cat = "EDITING", key = "Tab / Ctrl + ]", desc = "Indent line or selection (add tab space)" },
+    { cat = "EDITING", key = "Shift + Tab / Ctrl + [", desc = "Unindent line or selection (remove tab space)" },
     { cat = "EDITING", key = "Ctrl + Enter", desc = "Insert line below and type" },
     { cat = "EDITING", key = "Ctrl + Shift + Enter", desc = "Insert line above and type" },
     { cat = "EDITING", key = "Alt + C / Ctrl+Shift+C", desc = "Open Color Picker (RGB/HEX/HSL sliders)" },
@@ -5692,15 +5743,83 @@ map({ "i", "n", "v", "s" }, "<C-S-i>", _G.format_buffer, { desc = "Format Docume
 map({ "i", "n", "v", "s" }, "<C-S-I>", _G.format_buffer, { desc = "Format Document" })
 
 -- Toggle Comments (Ctrl+/) for Single Line & Multiline in all languages
+local function get_comment_parts(buf)
+  local cs = vim.bo[buf].commentstring
+  if not cs or cs == "" or not cs:find("%%s") then
+    cs = "// %s"
+  end
+  local prefix, suffix = cs:match("^(.-)%%s(.*)$")
+  prefix = prefix or "// "
+  suffix = suffix or ""
+  if prefix ~= "" and not prefix:match("%s$") then
+    prefix = prefix .. " "
+  end
+  if suffix ~= "" and not suffix:match("^%s") then
+    suffix = " " .. suffix
+  end
+  return prefix, suffix
+end
+
 local function toggle_comment()
+  local buf = vim.api.nvim_get_current_buf()
+  if vim.bo[buf].filetype == "NvimTree"
+    or vim.bo[buf].buftype == "terminal"
+    or vim.bo[buf].filetype == "minimal_home"
+    or vim.b[buf].is_picker
+    or not vim.bo[buf].modifiable
+  then
+    return
+  end
+
   local mode = vim.fn.mode()
-  if mode == "s" then
-    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-g>", true, false, true), "nx", false)
-    vim.cmd("normal gc")
-    vim.cmd("startinsert")
-  elseif mode == "x" or mode == "v" or mode == "V" then
-    vim.cmd("normal gc")
-    vim.cmd("startinsert")
+  if mode:match("[vV\22sS\19]") then
+    if mode:match("[sS\19]") then
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-g>", true, false, true), "nx", false)
+    end
+    local vstart = vim.fn.getpos("v")[2]
+    local vcur = vim.fn.getcurpos()[2]
+    local r1, r2 = math.min(vstart, vcur), math.max(vstart, vcur)
+    local sel_lines = vim.api.nvim_buf_get_lines(buf, r1 - 1, r2, false)
+    local all_blank = true
+    for _, l in ipairs(sel_lines) do
+      if not l:match("^%s*$") then
+        all_blank = false
+        break
+      end
+    end
+    if all_blank then
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "nx", false)
+      local prefix, suffix = get_comment_parts(buf)
+      for idx, l in ipairs(sel_lines) do
+        sel_lines[idx] = l .. prefix .. suffix
+      end
+      vim.api.nvim_buf_set_lines(buf, r1 - 1, r2, false, sel_lines)
+      vim.api.nvim_win_set_cursor(0, { r1, #(sel_lines[1]) - #suffix })
+      if suffix == "" then
+        vim.cmd("startinsert!")
+      else
+        vim.cmd("startinsert")
+      end
+    else
+      vim.cmd("normal gc")
+      vim.cmd("startinsert")
+    end
+    return
+  end
+
+  local cur = vim.api.nvim_win_get_cursor(0)
+  local row = cur[1]
+  local line = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or ""
+  if line:match("^%s*$") then
+    local prefix, suffix = get_comment_parts(buf)
+    local new_line = line .. prefix .. suffix
+    vim.api.nvim_buf_set_lines(buf, row - 1, row, false, { new_line })
+    vim.api.nvim_win_set_cursor(0, { row, #(line .. prefix) })
+    if suffix == "" then
+      vim.cmd("startinsert!")
+    else
+      vim.cmd("startinsert")
+    end
   else
     vim.cmd("normal gcc")
     vim.cmd("startinsert")
@@ -5836,6 +5955,74 @@ end
 map({ "i", "n", "v", "s" }, "<M-A>", _G.toggle_block_comment, { desc = "Toggle Multiline Block Comment" })
 map({ "i", "n", "v", "s" }, "<M-S-a>", _G.toggle_block_comment, { desc = "Toggle Multiline Block Comment" })
 map({ "i", "n", "v", "s" }, "<M-S-A>", _G.toggle_block_comment, { desc = "Toggle Multiline Block Comment" })
+
+-- Indent / Unindent Line or Selection (Ctrl+] adds a tab space, Ctrl+[ removes one tab space)
+_G.indent_line_or_selection = function(delta)
+  local buf = vim.api.nvim_get_current_buf()
+  if vim.bo[buf].filetype == "NvimTree"
+    or vim.bo[buf].buftype == "terminal"
+    or vim.bo[buf].filetype == "minimal_home"
+    or vim.b[buf].is_picker
+    or not vim.bo[buf].modifiable
+  then
+    return
+  end
+
+  local sw = vim.bo[buf].shiftwidth > 0 and vim.bo[buf].shiftwidth or vim.bo[buf].tabstop
+  if not sw or sw <= 0 then sw = 4 end
+  local use_tabs = not vim.bo[buf].expandtab
+  local tab_unit = use_tabs and "\t" or string.rep(" ", sw)
+
+  local function adjust_line(line, skip_empty)
+    if delta > 0 then
+      if skip_empty and line == "" then
+        return line, 0
+      end
+      return tab_unit .. line, #tab_unit
+    else
+      if line:sub(1, 1) == "\t" then
+        return line:sub(2), -1
+      end
+      local spaces = line:match("^ +") or ""
+      local rm = math.min(#spaces, sw)
+      return line:sub(rm + 1), -rm
+    end
+  end
+
+  -- Separate undo step
+  vim.o.undolevels = vim.o.undolevels
+
+  local m = vim.fn.mode()
+  if m:match("[vV\22sS\19]") then
+    local vstart = vim.fn.getpos("v")[2]
+    local vcur = vim.fn.getcurpos()[2]
+    local r1 = math.min(vstart, vcur)
+    local r2 = math.max(vstart, vcur)
+    local lines = vim.api.nvim_buf_get_lines(buf, r1 - 1, r2, false)
+    local multi = (r1 < r2)
+    for idx, line in ipairs(lines) do
+      lines[idx] = adjust_line(line, multi)
+    end
+    vim.api.nvim_buf_set_lines(buf, r1 - 1, r2, false, lines)
+    vim.cmd("normal! \27")
+    vim.api.nvim_win_set_cursor(0, { r1, 0 })
+    vim.cmd("normal! V")
+    vim.api.nvim_win_set_cursor(0, { r2, 0 })
+  else
+    local cur = vim.api.nvim_win_get_cursor(0)
+    local row, col = cur[1], cur[2]
+    local line = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or ""
+    local new_line, col_delta = adjust_line(line, false)
+    vim.api.nvim_buf_set_lines(buf, row - 1, row, false, { new_line })
+    vim.api.nvim_win_set_cursor(0, { row, math.max(0, col + col_delta) })
+    if m == "n" then
+      vim.cmd("startinsert")
+    end
+  end
+end
+
+map({ "i", "n", "v", "s" }, "<C-]>", function() _G.indent_line_or_selection(1) end, { desc = "Indent Line or Selection" })
+map({ "i", "n", "v", "s" }, "<C-[>", function() _G.indent_line_or_selection(-1) end, { desc = "Unindent Line or Selection" })
 
 -- New File (Ctrl+N)
 map({ "i", "n", "v", "s" }, "<C-n>", function() _G.homescreen_new_file() end, { desc = "New File" })
@@ -6214,7 +6401,7 @@ map("n", ":", "<cmd>startinsert<cr>")
 -- 1. Block unassigned Ctrl keys so they never output digraphs, registers, or control characters
 local unassigned_ctrl = {
   "<C-l>", "<C-o>", "<C-p>", "<C-r>", "<C-t>",
-  "<C-\\>", "<C-]>", "<C-^>", "<C-@>",
+  "<C-\\>", "<C-^>", "<C-@>",
 }
 for _, k in ipairs(unassigned_ctrl) do
   map({ "i", "n", "v", "s" }, k, "<nop>", { desc = "Disabled Unassigned Ctrl Key" })
@@ -7266,6 +7453,7 @@ vim.api.nvim_create_autocmd("FileType", {
       vim.wo[cur_win].wrap = true
       vim.wo[cur_win].linebreak = true
       vim.wo[cur_win].spell = true
+      vim.bo[b].spellcapcheck = ""
       vim.wo[cur_win].conceallevel = 2
       vim.wo[cur_win].concealcursor = ""
     end

@@ -85,7 +85,18 @@ fi
 
 # Launch in Neovide GUI if available and requested, otherwise terminal Neovim
 if [ "$LAUNCH_GUI" = true ] && command -v neovide >/dev/null 2>&1; then
-  exec neovide "$@"
+  export NEOVIDE_APP_ID="minimal"
+  export NEOVIDE_WM_CLASS="minimal"
+  export NEOVIDE_WM_CLASS_INSTANCE="minimal"
+  NEOVIDE_ARGS=(--wayland-app-id minimal --x11-wm-class minimal --x11-wm-class-instance minimal)
+  ICON_PATH="${XDG_DATA_HOME:-$HOME/.local/share}/icons/minimal.png"
+  if [ ! -f "$ICON_PATH" ]; then
+    ICON_PATH="$HOME/.local/share/minimal/repo/assets/minimal.png"
+  fi
+  if [ -f "$ICON_PATH" ]; then
+    NEOVIDE_ARGS+=(--icon "$ICON_PATH")
+  fi
+  exec neovide "${NEOVIDE_ARGS[@]}" "$@"
 else
   exec nvim "$@"
 fi

@@ -11,4 +11,4 @@ Categories=Development;TextEditor;IDE;
 MimeType=text/plain;text/x-python;text/x-c;text/x-c++;text/x-go;text/x-rust;text/javascript;text/x-typescript;application/json;text/markdown;text/x-shellscript;
 Keywords=editor;code;text;terminal;ide;neovim;neovide;modeless;minimal;
 StartupNotify=true
-StartupWMClass=neovide
+StartupWMClass=minimal
