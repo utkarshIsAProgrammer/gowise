@@ -92,7 +92,7 @@ vim.opt.fillchars = {
 vim.opt.showmode = false                 -- Hide '-- INSERT --' (always typing)
 vim.opt.showcmd = false                  -- Hide command keystrokes
 vim.opt.updatetime = 200                 -- Fast diagnostics and git status updates
-vim.opt.ttimeoutlen = 10                 -- Snappy terminal key-sequence decoding
+vim.opt.ttimeoutlen = 50                 -- Safe terminal key-sequence decoding (default 50ms)
 vim.opt.timeoutlen = 1000                -- Comfortable chord timeout for Ctrl+K chords (VS Code style)
 vim.opt.redrawtime = 1500                -- Cap regex syntax redraw time on huge files
 vim.opt.synmaxcol = 300                  -- Prevent syntax lag on minified single-line files
@@ -6224,6 +6224,27 @@ end
 -- Word Navigation (Ctrl+Left / Ctrl+Right)
 map({ "i", "n" }, "<C-Right>", _G.move_word_right, { desc = "Jump Word Right" })
 map({ "i", "n" }, "<C-Left>", _G.move_word_left, { desc = "Jump Word Left" })
+
+-- Arrow Selection (Shift+Up / Down / Left / Right — explicit noremap avoids keymodel/C-o conflicts)
+map("i", "<S-Up>", "<C-o>vg<Up><C-g>", { desc = "Select Up" })
+map("s", "<S-Up>", "<C-g>g<Up><C-g>", { desc = "Select Up" })
+map("n", "<S-Up>", "vg<Up><C-g>", { desc = "Select Up" })
+map("x", "<S-Up>", "g<Up>", { desc = "Select Up" })
+
+map("i", "<S-Down>", "<C-o>vg<Down><C-g>", { desc = "Select Down" })
+map("s", "<S-Down>", "<C-g>g<Down><C-g>", { desc = "Select Down" })
+map("n", "<S-Down>", "vg<Down><C-g>", { desc = "Select Down" })
+map("x", "<S-Down>", "g<Down>", { desc = "Select Down" })
+
+map("i", "<S-Left>", "<C-o>vh<C-g>", { desc = "Select Left" })
+map("s", "<S-Left>", "<C-g>h<C-g>", { desc = "Select Left" })
+map("n", "<S-Left>", "vh<C-g>", { desc = "Select Left" })
+map("x", "<S-Left>", "h", { desc = "Select Left" })
+
+map("i", "<S-Right>", "<C-o>vl<C-g>", { desc = "Select Right" })
+map("s", "<S-Right>", "<C-g>l<C-g>", { desc = "Select Right" })
+map("n", "<S-Right>", "vl<C-g>", { desc = "Select Right" })
+map("x", "<S-Right>", "l", { desc = "Select Right" })
 
 -- Word Selection (Ctrl+Shift+Right / Ctrl+Shift+Left)
 map("i", "<C-S-Right>", "<C-o>v<cmd>lua _G.move_word_right()<cr><C-g>", { desc = "Select Word Right" })
