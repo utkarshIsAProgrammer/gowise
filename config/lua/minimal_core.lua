@@ -1530,13 +1530,13 @@ _G.ensure_ui_chrome = function()
       enable = true,
       ignore = false,
       show_on_dirs = true,
-      show_on_open_dirs = true,
+      show_on_open_dirs = false,
       timeout = 400,
     },
     diagnostics = {
       enable = true,
       show_on_dirs = true,
-      show_on_open_dirs = true,
+      show_on_open_dirs = false,
       debounce_delay = 50,
       severity = {
         min = vim.diagnostic.severity.HINT,
@@ -1550,9 +1550,9 @@ _G.ensure_ui_chrome = function()
       },
     },
     view = {
-      width = 24,
+      width = 32,
       side = "left",
-      signcolumn = "no",
+      signcolumn = "yes",
       cursorline = true,           -- Highlights row under block cursor
       preserve_window_proportions = true,
     },
@@ -1561,7 +1561,7 @@ _G.ensure_ui_chrome = function()
       highlight_diagnostics = "name", -- Highlights filename with Red/Yellow/Blue while preserving authentic logo icon colors!
       highlight_opened_files = "name",
       root_folder_label = false,     -- Hides '..' root line so Enter never executes cd ..
-      indent_width = 2,
+      indent_width = 3,
       decorators = flow_folder_decorator and {
         "Git",
         "Open",
@@ -1575,7 +1575,7 @@ _G.ensure_ui_chrome = function()
       } or nil,
       indent_markers = {
         enable = true,
-        inline_arrows = true,
+        inline_arrows = false,
         icons = {
           corner = "└",
           edge = "│",
@@ -1595,7 +1595,14 @@ _G.ensure_ui_chrome = function()
             color = true,
           },
         },
-        padding = " ",
+        git_placement = "right_align",
+        modified_placement = "after",
+        diagnostics_placement = "right_align",
+        bookmarks_placement = "after",
+        padding = {
+          icon = "  ",
+          folder_arrow = " ",
+        },
         symlink_arrow = " 󰁔 ",
         show = {
           file = true,
@@ -1621,13 +1628,13 @@ _G.ensure_ui_chrome = function()
             symlink_open = "",
           },
           git = {
-            unstaged = "󰜥",
-            staged = "󰄬",
-            unmerged = "",
-            renamed = "󰁔",
-            untracked = "󰄱",
-            deleted = "󰅖",
-            ignored = "󰅚",
+            unstaged = "M",
+            staged = "A",
+            unmerged = "U",
+            renamed = "R",
+            untracked = "U",
+            deleted = "D",
+            ignored = "·",
           },
         },
       },
@@ -1737,7 +1744,7 @@ _G.ensure_ui_chrome = function()
     vim.schedule(function()
       local tree_win = api.tree.winid()
       if tree_win and vim.api.nvim_win_is_valid(tree_win) then
-        pcall(vim.api.nvim_win_set_width, tree_win, _G.sidebar_width or 24)
+        pcall(vim.api.nvim_win_set_width, tree_win, _G.sidebar_width or 32)
       end
       local cur_win = vim.api.nvim_get_current_win()
       local cur_buf = vim.api.nvim_win_get_buf(cur_win)
@@ -1768,7 +1775,7 @@ _G.ensure_ui_chrome = function()
     vim.schedule(function()
       local tw = api.tree.winid()
       if tw and vim.api.nvim_win_is_valid(tw) then
-        pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 24)
+        pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 32)
       end
     end)
   end)
@@ -1785,7 +1792,7 @@ _G.ensure_ui_chrome = function()
       if api.tree.is_visible() then
         local tw = api.tree.winid()
         if tw and vim.api.nvim_win_is_valid(tw) then
-          pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 24)
+          pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 32)
         end
       end
     end,
@@ -1852,7 +1859,7 @@ if ok_bufferline then
       offsets = {
         {
           filetype = "NvimTree",
-          text = "  EXPLORER",
+          text = "   EXPLORER",
           highlight = "Directory",
           text_align = "left",
           separator = true,
@@ -2063,7 +2070,7 @@ _G.term_instances = {}
 _G.active_term_idx = 1
 local term_win = nil
 local term_height = 18
-_G.sidebar_width = 24
+_G.sidebar_width = 32
 
 local function is_valid_win(w) return w and vim.api.nvim_win_is_valid(w) end
 local function is_valid_buf(b) return b and vim.api.nvim_buf_is_valid(b) end
@@ -3263,7 +3270,7 @@ local function restore_session()
       vim.schedule(function()
         local tw = t_api.tree.winid()
         if tw and vim.api.nvim_win_is_valid(tw) then
-          pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 24)
+          pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 32)
         end
         local ed = find_editor_win()
         if ed and vim.api.nvim_win_is_valid(ed) then
@@ -3379,7 +3386,7 @@ local function restore_session()
     vim.schedule(function()
       local tw = t_api.tree.winid()
       if tw and vim.api.nvim_win_is_valid(tw) then
-        pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 24)
+        pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 32)
       end
     end)
   end
