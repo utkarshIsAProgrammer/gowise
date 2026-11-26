@@ -3,8 +3,20 @@
 -- Crafted by indiedev
 -- =============================================================================
 
--- Ensure both standalone minimal and standard nvim packpaths & parser runtimes are recognized
+-- Enable Neovim LuaJIT bytecode loader cache for ultra-fast startup
+if vim.loader then
+  vim.loader.enable()
+end
+
+-- Disable unused legacy remote plugin providers
+vim.g.loaded_perl_provider = 0
+vim.g.loaded_ruby_provider = 0
+vim.g.loaded_node_provider = 0
+vim.g.loaded_python3_provider = 0
+
+-- Ensure standalone minimal packpath & parser runtimes are recognized without double-sourcing
 local minimal_site = vim.fn.expand("~/.local/share/minimal/site")
+local has_minimal_plugins = vim.fn.isdirectory(minimal_site .. "/pack/plugins/start/nvim-cmp") == 1
 if vim.fn.isdirectory(minimal_site) == 1 then
   if not vim.tbl_contains(vim.opt.packpath:get(), minimal_site) then
     vim.opt.packpath:prepend(minimal_site)
@@ -13,13 +25,15 @@ if vim.fn.isdirectory(minimal_site) == 1 then
     vim.opt.runtimepath:prepend(minimal_site)
   end
 end
-local nvim_site = vim.fn.expand("~/.local/share/nvim/site")
-if vim.fn.isdirectory(nvim_site) == 1 then
-  if not vim.tbl_contains(vim.opt.packpath:get(), nvim_site) then
-    vim.opt.packpath:append(nvim_site)
-  end
-  if not vim.tbl_contains(vim.opt.runtimepath:get(), nvim_site) then
-    vim.opt.runtimepath:append(nvim_site)
+if not has_minimal_plugins then
+  local nvim_site = vim.fn.expand("~/.local/share/nvim/site")
+  if vim.fn.isdirectory(nvim_site) == 1 then
+    if not vim.tbl_contains(vim.opt.packpath:get(), nvim_site) then
+      vim.opt.packpath:append(nvim_site)
+    end
+    if not vim.tbl_contains(vim.opt.runtimepath:get(), nvim_site) then
+      vim.opt.runtimepath:append(nvim_site)
+    end
   end
 end
 
@@ -78,7 +92,10 @@ vim.opt.fillchars = {
 vim.opt.showmode = false                 -- Hide '-- INSERT --' (always typing)
 vim.opt.showcmd = false                  -- Hide command keystrokes
 vim.opt.updatetime = 200                 -- Fast diagnostics and git status updates
+vim.opt.ttimeoutlen = 10                 -- Snappy terminal key-sequence decoding
 vim.opt.timeoutlen = 1000                -- Comfortable chord timeout for Ctrl+K chords (VS Code style)
+vim.opt.redrawtime = 1500                -- Cap regex syntax redraw time on huge files
+vim.opt.synmaxcol = 300                  -- Prevent syntax lag on minified single-line files
 vim.opt.virtualedit = "onemore"          -- Allow cursor past end of line (Notepad behavior)
 vim.opt.tabstop = 4                      -- Standard 4 spaces
 vim.opt.shiftwidth = 4
@@ -209,44 +226,62 @@ vim.filetype.add({
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "*",
   callback = function(args)
-    pcall(vim.treesitter.start, args.buf)
+    local b = args.buf
+    local ft = vim.bo[b].filetype
+    if ft == "NvimTree" or ft == "minimal_home" or vim.bo[b].buftype ~= "" then return end
+    local name = vim.api.nvim_buf_get_name(b)
+    if name ~= "" then
+      local st = vim.uv.fs_stat(name)
+      if st and st.size > 262144 then return end
+    end
+    pcall(vim.treesitter.start, b)
   end,
 })
 
--- Visual Color Highlighting & Color Decorators (VS Code style)
-local ok_colorizer, colorizer = pcall(require, "colorizer")
-if ok_colorizer then
-  colorizer.setup({
-    "*",
-    css = { rgb_fn = true, hsl_fn = true, css = true, css_fn = true },
-    html = { names = false },
-    javascript = { rgb_fn = true, hsl_fn = true },
-    typescript = { rgb_fn = true, hsl_fn = true },
-    javascriptreact = { rgb_fn = true, hsl_fn = true },
-    typescriptreact = { rgb_fn = true, hsl_fn = true },
-    svelte = { rgb_fn = true, hsl_fn = true },
-    vue = { rgb_fn = true, hsl_fn = true },
-  })
-end
+-- Visual Color Highlighting & Color Decorators (deferred after first paint)
+vim.defer_fn(function()
+  local ok_colorizer, colorizer = pcall(require, "colorizer")
+  if ok_colorizer then
+    colorizer.setup({
+      "*",
+      "!NvimTree",
+      "!minimal_home",
+      css = { rgb_fn = true, hsl_fn = true, css = true, css_fn = true },
+      html = { names = false },
+      javascript = { rgb_fn = true, hsl_fn = true },
+      typescript = { rgb_fn = true, hsl_fn = true },
+      javascriptreact = { rgb_fn = true, hsl_fn = true },
+      typescriptreact = { rgb_fn = true, hsl_fn = true },
+      svelte = { rgb_fn = true, hsl_fn = true },
+      vue = { rgb_fn = true, hsl_fn = true },
+    })
+  end
+end, 25)
 
--- Visual Interactive Color Picker (VS Code style color-picker.nvim)
-local ok_cp, color_picker = pcall(require, "color-picker")
-if ok_cp then
-  color_picker.setup({
-    border = "rounded",
-    keymap = {
-      ["<Left>"] = "<Plug>ColorPickerSlider1Decrease",
-      ["<Right>"] = "<Plug>ColorPickerSlider1Increase",
-      ["<Up>"] = "k",
-      ["<Down>"] = "j",
-      ["<CR>"] = "<Plug>ColorPickerApplyColor",
-      ["<Esc>"] = "<Plug>ColorPickerCloseColorPicker",
-      ["q"] = "<Plug>ColorPickerCloseColorPicker",
-    },
-  })
+-- Visual Interactive Color Picker (lazy-initialized on demand)
+local cp_configured = false
+local function ensure_color_picker()
+  if cp_configured then return end
+  cp_configured = true
+  local ok_cp, color_picker = pcall(require, "color-picker")
+  if ok_cp then
+    color_picker.setup({
+      border = "rounded",
+      keymap = {
+        ["<Left>"] = "<Plug>ColorPickerSlider1Decrease",
+        ["<Right>"] = "<Plug>ColorPickerSlider1Increase",
+        ["<Up>"] = "k",
+        ["<Down>"] = "j",
+        ["<CR>"] = "<Plug>ColorPickerApplyColor",
+        ["<Esc>"] = "<Plug>ColorPickerCloseColorPicker",
+        ["q"] = "<Plug>ColorPickerCloseColorPicker",
+      },
+    })
+  end
 end
 
 _G.open_color_picker = function()
+  ensure_color_picker()
   if _G.register_active_menu then
     _G.register_active_menu()
   end
@@ -257,46 +292,52 @@ _G.open_color_picker = function()
   end
 end
 
--- 5. Colorful Rainbow Indentations & Colored Filled Space
-local ok_ibl, ibl = pcall(require, "ibl")
-if ok_ibl then
-  local rainbow_hl = {
-    "RainbowRed",
-    "RainbowYellow",
-    "RainbowBlue",
-    "RainbowOrange",
-    "RainbowGreen",
-    "RainbowViolet",
-    "RainbowCyan",
-  }
+-- 5. Colorful Rainbow Indentations & Colored Filled Space (deferred after first paint)
+vim.defer_fn(function()
+  local ok_ibl, ibl = pcall(require, "ibl")
+  if ok_ibl then
+    local rainbow_hl = {
+      "RainbowRed",
+      "RainbowYellow",
+      "RainbowBlue",
+      "RainbowOrange",
+      "RainbowGreen",
+      "RainbowViolet",
+      "RainbowCyan",
+    }
 
-  local hooks = require("ibl.hooks")
-  hooks.register(hooks.type.HIGHLIGHT_SETUP, function()
-    vim.api.nvim_set_hl(0, "RainbowRed", { fg = "#E06C75", bg = "#3b2628" })
-    vim.api.nvim_set_hl(0, "RainbowYellow", { fg = "#E5C07B", bg = "#3b3626" })
-    vim.api.nvim_set_hl(0, "RainbowBlue", { fg = "#61AFEF", bg = "#26333b" })
-    vim.api.nvim_set_hl(0, "RainbowOrange", { fg = "#D19A66", bg = "#3b3026" })
-    vim.api.nvim_set_hl(0, "RainbowGreen", { fg = "#98C379", bg = "#283b26" })
-    vim.api.nvim_set_hl(0, "RainbowViolet", { fg = "#C678DD", bg = "#36263b" })
-    vim.api.nvim_set_hl(0, "RainbowCyan", { fg = "#56B6C2", bg = "#26383b" })
-  end)
+    local hooks = require("ibl.hooks")
+    hooks.register(hooks.type.HIGHLIGHT_SETUP, function()
+      vim.api.nvim_set_hl(0, "RainbowRed", { fg = "#E06C75", bg = "#3b2628" })
+      vim.api.nvim_set_hl(0, "RainbowYellow", { fg = "#E5C07B", bg = "#3b3626" })
+      vim.api.nvim_set_hl(0, "RainbowBlue", { fg = "#61AFEF", bg = "#26333b" })
+      vim.api.nvim_set_hl(0, "RainbowOrange", { fg = "#D19A66", bg = "#3b3026" })
+      vim.api.nvim_set_hl(0, "RainbowGreen", { fg = "#98C379", bg = "#283b26" })
+      vim.api.nvim_set_hl(0, "RainbowViolet", { fg = "#C678DD", bg = "#36263b" })
+      vim.api.nvim_set_hl(0, "RainbowCyan", { fg = "#56B6C2", bg = "#26383b" })
+    end)
 
-  ibl.setup({
-    indent = {
-      highlight = rainbow_hl,
-      char = "│",
-    },
-    whitespace = {
-      highlight = rainbow_hl,
-      remove_blankline_trail = false, -- Colored fill across indented space
-    },
-    scope = {
-      enabled = true,
-      show_start = false,
-      show_end = false,
-    },
-  })
-end
+    ibl.setup({
+      indent = {
+        highlight = rainbow_hl,
+        char = "│",
+      },
+      whitespace = {
+        highlight = rainbow_hl,
+        remove_blankline_trail = false,
+      },
+      scope = {
+        enabled = true,
+        show_start = false,
+        show_end = false,
+      },
+      exclude = {
+        filetypes = { "minimal_home", "NvimTree", "help" },
+        buftypes = { "terminal", "nofile" },
+      },
+    })
+  end
+end, 20)
 
 -- 6. Diagnostics, Error Gutters & VS Code Error Lens
 vim.diagnostic.config({
@@ -343,59 +384,9 @@ vim.api.nvim_set_hl(0, "DiagnosticUnderlineWarn", { undercurl = true, sp = "#fab
 vim.api.nvim_set_hl(0, "DiagnosticUnderlineInfo", { undercurl = true, sp = "#89dceb" })
 vim.api.nvim_set_hl(0, "DiagnosticUnderlineHint", { undercurl = true, sp = "#a6e3a1" })
 
--- 7. Auto-Closing Quotes and Brackets (nvim-autopairs)
-local ok_autopairs, autopairs = pcall(require, "nvim-autopairs")
-if ok_autopairs then
-  autopairs.setup({
-    check_ts = false,
-    enable_check_bracket_line = false,
-    fast_wrap = {},
-  })
-end
-
--- 8. Snippets (LuaSnip + VS Code Friendly-Snippets)
-local ok_luasnip, luasnip = pcall(require, "luasnip")
-if ok_luasnip then
-  luasnip.config.set_config({
-    history = true,
-    updateevents = "TextChanged,TextChangedI",
-    enable_autosnippets = true,
-  })
-  pcall(function()
-    local fs_path = vim.fn.stdpath("data") .. "/site/pack/plugins/start/friendly-snippets"
-    if vim.fn.isdirectory(fs_path) == 1 then
-      require("luasnip.loaders.from_vscode").lazy_load({ paths = { fs_path } })
-    else
-      local nvim_fs = vim.fn.expand("~/.local/share/nvim/site/pack/plugins/start/friendly-snippets")
-      if vim.fn.isdirectory(nvim_fs) == 1 then
-        require("luasnip.loaders.from_vscode").lazy_load({ paths = { nvim_fs } })
-      else
-        require("luasnip.loaders.from_vscode").lazy_load()
-      end
-    end
-  end)
-
-  -- Rich Markdown Snippets
-  pcall(function()
-    local s = luasnip.snippet
-    local t = luasnip.text_node
-    local i = luasnip.insert_node
-    luasnip.add_snippets("markdown", {
-      s("code", { t("```"), i(1, "python"), t({ "", "" }), i(2), t({ "", "```" }) }),
-      s("todo", { t("- [ ] "), i(1, "Task description") }),
-      s("table", {
-        t("| "), i(1, "Column 1"), t(" | "), i(2, "Column 2"), t({ " |", "| :--- | :--- |", "| " }),
-        i(3, "Value 1"), t(" | "), i(4, "Value 2"), t(" |"),
-      }),
-      s("link", { t("["), i(1, "title"), t("]("), i(2, "https://"), t(")") }),
-      s("img", { t("!["), i(1, "alt text"), t("]("), i(2, "path/to/image.png"), t(")") }),
-      s("note", { t({ "> [!NOTE]", "> " }), i(1, "Note content") }),
-      s("tip", { t({ "> [!TIP]", "> " }), i(1, "Helpful tip") }),
-      s("warn", { t({ "> [!WARNING]", "> " }), i(1, "Warning details") }),
-      s("frontmatter", { t({ "---", "title: " }), i(1, "Document Title"), t({ "", "date: " }), i(2, "2026-01-01"), t({ "", "---", "" }) }),
-    })
-  end)
-end
+-- 7 & 8. Deferred Setup for Auto-Pairs, Snippets & Completions (after first paint)
+local ok_autopairs, autopairs = false, nil
+local ok_luasnip, luasnip = false, nil
 
 -- 9. Emmet Configuration (VS Code-Style HTML/CSS Expansion including '!')
 vim.g.user_emmet_mode = "a"
@@ -421,10 +412,22 @@ end
 
 -- 10. Native LSP Setup (Auto-Imports & Diagnostics for all Languages)
 local lsp_capabilities = vim.lsp.protocol.make_client_capabilities()
-local ok_cmp_lsp, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
-if ok_cmp_lsp then
-  lsp_capabilities = cmp_nvim_lsp.default_capabilities(lsp_capabilities)
-end
+lsp_capabilities.textDocument = lsp_capabilities.textDocument or {}
+lsp_capabilities.textDocument.completion = vim.tbl_deep_extend("force", lsp_capabilities.textDocument.completion or {}, {
+  completionItem = {
+    snippetSupport = true,
+    commitCharactersSupport = true,
+    deprecatedSupport = true,
+    preselectSupport = true,
+    tagSupport = { valueSet = { 1 } },
+    insertReplaceSupport = true,
+    resolveSupport = {
+      properties = { "documentation", "detail", "additionalTextEdits" },
+    },
+    insertTextModeSupport = { valueSet = { 1, 2 } },
+    labelDetailsSupport = true,
+  },
+})
 lsp_capabilities.workspace = lsp_capabilities.workspace or {}
 lsp_capabilities.workspace.didChangeWatchedFiles = { dynamicRegistration = true }
 
@@ -521,257 +524,348 @@ if #enabled_lsp_servers > 0 then
   pcall(vim.lsp.enable, enabled_lsp_servers)
 end
 
--- 11. Auto-Completions, Path Intellisense & Normal Text Suggestions (nvim-cmp)
-local ok_cmp, cmp = pcall(require, "cmp")
-if ok_cmp then
-  local kind_icons = {
-    Text = "󰉿 Text",
-    Method = "󰆧 Method",
-    Function = "󰊕 Function",
-    Constructor = " Constructor",
-    Field = "󰜢 Field",
-    Variable = "󰀫 Variable",
-    Class = "󰠱 Class",
-    Interface = " Interface",
-    Module = " Module",
-    Property = "󰜢 Property",
-    Unit = "󰑭 Unit",
-    Value = "󰎠 Value",
-    Enum = " Enum",
-    Keyword = "󰌋 Keyword",
-    Snippet = " Snippet",
-    Color = "󰏘 Color",
-    File = "󰈙 File",
-    Reference = "󰈇 Reference",
-    Folder = "󰉋 Folder",
-    EnumMember = " EnumMember",
-    Constant = "󰏿 Constant",
-    Struct = "󰙅 Struct",
-    Event = " Event",
-    Operator = "󰆕 Operator",
-    TypeParameter = "󰅲 TypeParam",
-  }
-
-  -- 10. Cross-File Classes & HTML/CSS IntelliSense Source
-  local cross_file_source = {}
-  function cross_file_source:new()
-    return setmetatable({}, { __index = cross_file_source })
+-- 11. Auto-Completions, Snippets, Auto-Pairs & Cross-File Classes (lazy-loaded on InsertEnter or 25ms after paint)
+local completion_ready = false
+local function ensure_completion_and_snippets()
+  if completion_ready then return end
+  completion_ready = true
+  ok_autopairs, autopairs = pcall(require, "nvim-autopairs")
+  if ok_autopairs then
+    autopairs.setup({
+      check_ts = false,
+      enable_check_bracket_line = false,
+      fast_wrap = {},
+    })
   end
-  function cross_file_source:get_trigger_characters()
-    return { ".", "-", "_", '"', "'", " " }
-  end
-  function cross_file_source:complete(params, callback)
-    local items = {}
-    local seen = {}
 
-    local function scan_text(text, source_type)
-      if not text or text == "" then return end
-      -- HTML class="..." and JSX className="..."
-      for cls in text:gmatch('class%s*=%s*["\']([^"\']+)["\']') do
-        for word in cls:gmatch("[%w%-_]+") do
-          if not seen[word] and #word > 1 then
-            seen[word] = true
-            table.insert(items, { label = word, kind = cmp.lsp.CompletionItemKind.Class, detail = source_type or "HTML Class" })
-          end
-        end
-      end
-      for cls in text:gmatch('className%s*=%s*["\']([^"\']+)["\']') do
-        for word in cls:gmatch("[%w%-_]+") do
-          if not seen[word] and #word > 1 then
-            seen[word] = true
-            table.insert(items, { label = word, kind = cmp.lsp.CompletionItemKind.Class, detail = "React/JSX Class" })
-          end
-        end
-      end
-      -- CSS .class-name
-      for cls in text:gmatch('%.([%a_][%w%-_]*)') do
-        if not seen[cls] and #cls > 1 then
-          seen[cls] = true
-          table.insert(items, { label = cls, kind = cmp.lsp.CompletionItemKind.Class, detail = "CSS Class" })
-        end
-      end
-    end
-
-    -- 1. Scan loaded buffers
-    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-      if vim.api.nvim_buf_is_loaded(buf) then
-        local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-        scan_text(table.concat(lines, "\n"), "Buffer Class")
-      end
-    end
-
-    -- 2. Scan workspace files (*.html, *.css, *.jsx, *.tsx, *.svelte, *.vue)
+  ok_luasnip, luasnip = pcall(require, "luasnip")
+  if ok_luasnip then
+    luasnip.config.set_config({
+      history = true,
+      updateevents = "TextChanged,TextChangedI",
+      enable_autosnippets = true,
+    })
     pcall(function()
-      local cwd = vim.fn.getcwd()
-      local files = vim.fs.find(function(name, path)
-        if path:match("[/\\]node_modules[/\\]") or path:match("[/\\]%.git[/\\]") or path:match("[/\\]dist[/\\]") or path:match("[/\\]build[/\\]") then
-          return false
-        end
-        return name:match("%.html$") or name:match("%.css$") or name:match("%.jsx$") or name:match("%.tsx$") or name:match("%.svelte$") or name:match("%.vue$")
-      end, { path = cwd, limit = 50, type = "file" })
-
-      for _, file_path in ipairs(files) do
-        local f = io.open(file_path, "r")
-        if f then
-          local content = f:read(32768)
-          f:close()
-          if content then
-            local ext = file_path:match("%.([^.]+)$") or ""
-            scan_text(content, ext:upper() .. " Class")
-          end
+      local fs_path = vim.fn.stdpath("data") .. "/site/pack/plugins/start/friendly-snippets"
+      if vim.fn.isdirectory(fs_path) == 1 then
+        require("luasnip.loaders.from_vscode").lazy_load({ paths = { fs_path } })
+      else
+        local nvim_fs = vim.fn.expand("~/.local/share/nvim/site/pack/plugins/start/friendly-snippets")
+        if vim.fn.isdirectory(nvim_fs) == 1 then
+          require("luasnip.loaders.from_vscode").lazy_load({ paths = { nvim_fs } })
+        else
+          require("luasnip.loaders.from_vscode").lazy_load()
         end
       end
     end)
 
-    callback({ items = items, isIncomplete = false })
+    pcall(function()
+      local s = luasnip.snippet
+      local t = luasnip.text_node
+      local i = luasnip.insert_node
+      luasnip.add_snippets("markdown", {
+        s("code", { t("```"), i(1, "python"), t({ "", "" }), i(2), t({ "", "```" }) }),
+        s("todo", { t("- [ ] "), i(1, "Task description") }),
+        s("table", {
+          t("| "), i(1, "Column 1"), t(" | "), i(2, "Column 2"), t({ " |", "| :--- | :--- |", "| " }),
+          i(3, "Value 1"), t(" | "), i(4, "Value 2"), t(" |"),
+        }),
+        s("link", { t("["), i(1, "title"), t("]("), i(2, "https://"), t(")") }),
+        s("img", { t("!["), i(1, "alt text"), t("]("), i(2, "path/to/image.png"), t(")") }),
+        s("note", { t({ "> [!NOTE]", "> " }), i(1, "Note content") }),
+        s("tip", { t({ "> [!TIP]", "> " }), i(1, "Helpful tip") }),
+        s("warn", { t({ "> [!WARNING]", "> " }), i(1, "Warning details") }),
+        s("frontmatter", { t({ "---", "title: " }), i(1, "Document Title"), t({ "", "date: " }), i(2, "2026-01-01"), t({ "", "---", "" }) }),
+      })
+    end)
   end
 
-  cmp.register_source("cross_file_classes", cross_file_source:new())
+  local ok_cmp, cmp = pcall(require, "cmp")
+  if ok_cmp then
+    local kind_icons = {
+      Text = "󰉿 Text",
+      Method = "󰆧 Method",
+      Function = "󰊕 Function",
+      Constructor = " Constructor",
+      Field = "󰜢 Field",
+      Variable = "󰀫 Variable",
+      Class = "󰠱 Class",
+      Interface = " Interface",
+      Module = " Module",
+      Property = "󰜢 Property",
+      Unit = "󰑭 Unit",
+      Value = "󰎠 Value",
+      Enum = " Enum",
+      Keyword = "󰌋 Keyword",
+      Snippet = " Snippet",
+      Color = "󰏘 Color",
+      File = "󰈙 File",
+      Reference = "󰈇 Reference",
+      Folder = "󰉋 Folder",
+      EnumMember = " EnumMember",
+      Constant = "󰏿 Constant",
+      Struct = "󰙅 Struct",
+      Event = " Event",
+      Operator = "󰆕 Operator",
+      TypeParameter = "󰅲 TypeParam",
+    }
 
-  cmp.setup({
-    snippet = {
-      expand = function(args)
-        if ok_luasnip then
-          luasnip.lsp_expand(args.body)
-        end
-      end,
-    },
-    completion = {
-      autocomplete = { cmp.TriggerEvent.TextChanged },
-      completeopt = "menu,menuone,noinsert",
-    },
-    window = {
-      completion = cmp.config.window.bordered({
-        border = "rounded",
-        winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder,CursorLine:PmenuSel,Search:None",
-      }),
-      documentation = cmp.config.window.bordered({
-        border = "rounded",
-        winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder,CursorLine:PmenuSel,Search:None",
-      }),
-    },
-    formatting = {
-      format = function(entry, vim_item)
-        vim_item.kind = kind_icons[vim_item.kind] or vim_item.kind
-        vim_item.menu = ({
-          luasnip = "[Snippet]",
-          nvim_lsp = "[LSP]",
-          path = "[Path]",
-          cross_file_classes = "[Class]",
-          buffer = "[Text]",
-          nvim_lua = "[Lua]",
-        })[entry.source.name]
-        return vim_item
-      end,
-    },
-    mapping = {
-      ["<Up>"] = cmp.mapping.select_prev_item({ behavior = cmp.SelectBehavior.Select }),
-      ["<Down>"] = cmp.mapping.select_next_item({ behavior = cmp.SelectBehavior.Select }),
-      ["<C-p>"] = cmp.mapping.select_prev_item({ behavior = cmp.SelectBehavior.Select }),
-      ["<C-n>"] = cmp.mapping.select_next_item({ behavior = cmp.SelectBehavior.Select }),
-      ["<CR>"] = cmp.mapping(function(fallback)
-        if cmp.visible() then
-          cmp.confirm({ select = true })
-        else
-          fallback()
-        end
-      end),
-      ["<Tab>"] = cmp.mapping(function(fallback)
-        if cmp.visible() then
-          cmp.confirm({ select = true })
-        elseif ok_luasnip and luasnip.expand_or_jumpable() then
-          luasnip.expand_or_jump()
-        elseif try_emmet_expand() then
-          return
-        else
-          fallback()
-        end
-      end, { "i", "s" }),
-      ["<S-Tab>"] = cmp.mapping(function(fallback)
-        if ok_luasnip and luasnip.jumpable(-1) then
-          luasnip.jump(-1)
-        else
-          fallback()
-        end
-      end, { "i", "s" }),
-      ["<Esc>"] = cmp.mapping(function(fallback)
-        if cmp.visible() then
-          cmp.abort()
-        else
-          fallback()
-        end
-      end, { "i", "s" }),
-    },
-    sources = cmp.config.sources({
-      { name = "luasnip", priority = 1000 },
-      { name = "nvim_lsp", priority = 900 },
-      {
-        name = "path",
-        priority = 850,
-        option = {
-          trailing_slash = true,
-          label_trailing_slash = true,
-          get_cwd = function()
-            return vim.fn.getcwd()
-          end,
-        },
-      },
-      { name = "cross_file_classes", priority = 750, keyword_length = 2 },
-      {
-        name = "buffer",
-        priority = 600,
-        keyword_length = 2,
-        option = {
-          get_bufnrs = function()
-            return vim.api.nvim_list_bufs()
-          end,
-        },
-      },
-      { name = "nvim_lua", priority = 200 },
-    }),
-  })
+    local web_class_fts = {
+      html = true, css = true, scss = true, less = true,
+      javascript = true, javascriptreact = true,
+      typescript = true, typescriptreact = true,
+      svelte = true, vue = true, astro = true,
+      php = true, htmldjango = true,
+    }
+    local disk_class_cache = { cwd = "", ts = 0, items = {} }
 
-  -- Automatically insert () when confirming function/method completion
-  if ok_autopairs then
-    local cmp_autopairs = require("nvim-autopairs.completion.cmp")
-    cmp.event:on("confirm_done", cmp_autopairs.on_confirm_done())
+    local cross_file_source = {}
+    function cross_file_source:new()
+      return setmetatable({}, { __index = cross_file_source })
+    end
+    function cross_file_source:get_trigger_characters()
+      return { ".", "-", "_", '"', "'", " " }
+    end
+    function cross_file_source:complete(params, callback)
+      local ft = vim.bo[params.context.bufnr].filetype
+      if not web_class_fts[ft] then
+        callback({ items = {}, isIncomplete = false })
+        return
+      end
+
+      local items = {}
+      local seen = {}
+
+      local function scan_text(text, source_type, target_list)
+        if not text or text == "" then return end
+        for cls in text:gmatch('class%s*=%s*["\']([^"\']+)["\']') do
+          for word in cls:gmatch("[%w%-_]+") do
+            if not seen[word] and #word > 1 then
+              seen[word] = true
+              table.insert(target_list, { label = word, kind = cmp.lsp.CompletionItemKind.Class, detail = source_type or "HTML Class" })
+            end
+          end
+        end
+        for cls in text:gmatch('className%s*=%s*["\']([^"\']+)["\']') do
+          for word in cls:gmatch("[%w%-_]+") do
+            if not seen[word] and #word > 1 then
+              seen[word] = true
+              table.insert(target_list, { label = word, kind = cmp.lsp.CompletionItemKind.Class, detail = "React/JSX Class" })
+            end
+          end
+        end
+        for cls in text:gmatch('%.([%a_][%w%-_]*)') do
+          if not seen[cls] and #cls > 1 then
+            seen[cls] = true
+            table.insert(target_list, { label = cls, kind = cmp.lsp.CompletionItemKind.Class, detail = "CSS Class" })
+          end
+        end
+      end
+
+      -- 1. Scan loaded web buffers
+      for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(buf) and web_class_fts[vim.bo[buf].filetype] then
+          local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+          scan_text(table.concat(lines, "\n"), "Buffer Class", items)
+        end
+      end
+
+      -- 2. Cached workspace scan (5s TTL to avoid disk I/O on every keystroke)
+      local cwd = vim.fn.getcwd()
+      local now = vim.uv.now()
+      if disk_class_cache.cwd ~= cwd or (now - disk_class_cache.ts) > 5000 then
+        local cached_items = {}
+        pcall(function()
+          local files = vim.fs.find(function(name, path)
+            if path:match("[/\\]node_modules[/\\]") or path:match("[/\\]%.git[/\\]") or path:match("[/\\]dist[/\\]") or path:match("[/\\]build[/\\]") then
+              return false
+            end
+            return name:match("%.html$") or name:match("%.css$") or name:match("%.jsx$") or name:match("%.tsx$") or name:match("%.svelte$") or name:match("%.vue$")
+          end, { path = cwd, limit = 50, type = "file" })
+
+          for _, file_path in ipairs(files) do
+            local f = io.open(file_path, "r")
+            if f then
+              local content = f:read(32768)
+              f:close()
+              if content then
+                local ext = file_path:match("%.([^.]+)$") or ""
+                scan_text(content, ext:upper() .. " Class", cached_items)
+              end
+            end
+          end
+        end)
+        disk_class_cache = { cwd = cwd, ts = now, items = cached_items }
+      end
+
+      for _, it in ipairs(disk_class_cache.items) do
+        if not seen[it.label] then
+          seen[it.label] = true
+          table.insert(items, it)
+        end
+      end
+
+      callback({ items = items, isIncomplete = false })
+    end
+
+    cmp.register_source("cross_file_classes", cross_file_source:new())
+
+    cmp.setup({
+      snippet = {
+        expand = function(args)
+          if ok_luasnip then
+            luasnip.lsp_expand(args.body)
+          end
+        end,
+      },
+      completion = {
+        autocomplete = { cmp.TriggerEvent.TextChanged },
+        completeopt = "menu,menuone,noinsert",
+      },
+      window = {
+        completion = cmp.config.window.bordered({
+          border = "rounded",
+          winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder,CursorLine:PmenuSel,Search:None",
+        }),
+        documentation = cmp.config.window.bordered({
+          border = "rounded",
+          winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder,CursorLine:PmenuSel,Search:None",
+        }),
+      },
+      formatting = {
+        format = function(entry, vim_item)
+          vim_item.kind = kind_icons[vim_item.kind] or vim_item.kind
+          vim_item.menu = ({
+            luasnip = "[Snippet]",
+            nvim_lsp = "[LSP]",
+            path = "[Path]",
+            cross_file_classes = "[Class]",
+            buffer = "[Text]",
+            nvim_lua = "[Lua]",
+          })[entry.source.name]
+          return vim_item
+        end,
+      },
+      mapping = {
+        ["<Up>"] = cmp.mapping.select_prev_item({ behavior = cmp.SelectBehavior.Select }),
+        ["<Down>"] = cmp.mapping.select_next_item({ behavior = cmp.SelectBehavior.Select }),
+        ["<C-p>"] = cmp.mapping.select_prev_item({ behavior = cmp.SelectBehavior.Select }),
+        ["<C-n>"] = cmp.mapping.select_next_item({ behavior = cmp.SelectBehavior.Select }),
+        ["<CR>"] = cmp.mapping(function(fallback)
+          if cmp.visible() then
+            cmp.confirm({ select = true })
+          else
+            fallback()
+          end
+        end),
+        ["<Tab>"] = cmp.mapping(function(fallback)
+          if cmp.visible() then
+            cmp.confirm({ select = true })
+          elseif ok_luasnip and luasnip.expand_or_jumpable() then
+            luasnip.expand_or_jump()
+          elseif try_emmet_expand() then
+            return
+          else
+            fallback()
+          end
+        end, { "i", "s" }),
+        ["<S-Tab>"] = cmp.mapping(function(fallback)
+          if ok_luasnip and luasnip.jumpable(-1) then
+            luasnip.jump(-1)
+          else
+            fallback()
+          end
+        end, { "i", "s" }),
+        ["<Esc>"] = cmp.mapping(function(fallback)
+          if cmp.visible() then
+            cmp.abort()
+          else
+            fallback()
+          end
+        end, { "i", "s" }),
+      },
+      sources = cmp.config.sources({
+        { name = "luasnip", priority = 1000 },
+        { name = "nvim_lsp", priority = 900 },
+        {
+          name = "path",
+          priority = 850,
+          option = {
+            trailing_slash = true,
+            label_trailing_slash = true,
+            get_cwd = function()
+              return vim.fn.getcwd()
+            end,
+          },
+        },
+        { name = "cross_file_classes", priority = 750, keyword_length = 2 },
+        {
+          name = "buffer",
+          priority = 600,
+          keyword_length = 2,
+          option = {
+            get_bufnrs = function()
+              return vim.api.nvim_list_bufs()
+            end,
+          },
+        },
+        { name = "nvim_lua", priority = 200 },
+      }),
+    })
+
+    if ok_autopairs then
+      local cmp_autopairs = require("nvim-autopairs.completion.cmp")
+      cmp.event:on("confirm_done", cmp_autopairs.on_confirm_done())
+    end
   end
 end
 
--- 12. Prettier, Auto-Imports & Multi-Language Formatter (conform.nvim)
-local ok_conform, conform = pcall(require, "conform")
-if ok_conform then
-  conform.setup({
-    formatters_by_ft = {
-      javascript = { "prettier" },
-      typescript = { "prettier" },
-      javascriptreact = { "prettier" },
-      typescriptreact = { "prettier" },
-      json = { "prettier" },
-      jsonc = { "prettier" },
-      html = { "prettier" },
-      css = { "prettier" },
-      scss = { "prettier" },
-      less = { "prettier" },
-      svelte = { "prettier" },
-      vue = { "prettier" },
-      markdown = { "prettier" },
-      yaml = { "prettier" },
-      graphql = { "prettier" },
-      python = { "ruff_organize_imports", "ruff_format" }, -- Auto-imports and formats Python
-      go = { "goimports", "gofmt" },                        -- Auto-imports and formats Go
-      c = { "clang-format" },
-      cpp = { "clang-format" },
-      rust = { "rustfmt" },
-      sql = { "sql_formatter" },                            -- Formats SQL / Postgres
-      sh = { "shfmt" },
-      bash = { "shfmt" },
-    },
-    default_format_opts = {
-      lsp_format = "fallback",
-    },
-  })
+vim.api.nvim_create_autocmd("InsertEnter", {
+  once = true,
+  callback = ensure_completion_and_snippets,
+})
+vim.defer_fn(ensure_completion_and_snippets, 30)
+
+-- 12. Prettier, Auto-Imports & Multi-Language Formatter (conform.nvim - lazy/deferred)
+local conform_configured = false
+local function ensure_conform()
+  if conform_configured then return end
+  conform_configured = true
+  local ok_conform, conform = pcall(require, "conform")
+  if ok_conform then
+    conform.setup({
+      formatters_by_ft = {
+        javascript = { "prettier" },
+        typescript = { "prettier" },
+        javascriptreact = { "prettier" },
+        typescriptreact = { "prettier" },
+        json = { "prettier" },
+        jsonc = { "prettier" },
+        html = { "prettier" },
+        css = { "prettier" },
+        scss = { "prettier" },
+        less = { "prettier" },
+        svelte = { "prettier" },
+        vue = { "prettier" },
+        markdown = { "prettier" },
+        yaml = { "prettier" },
+        graphql = { "prettier" },
+        python = { "ruff_organize_imports", "ruff_format" },
+        go = { "goimports", "gofmt" },
+        c = { "clang-format" },
+        cpp = { "clang-format" },
+        rust = { "rustfmt" },
+        sql = { "sql_formatter" },
+        sh = { "shfmt" },
+        bash = { "shfmt" },
+      },
+      default_format_opts = {
+        lsp_format = "fallback",
+      },
+    })
+  end
 end
+vim.defer_fn(ensure_conform, 40)
 
 local function organize_lsp_imports(bufnr)
   bufnr = (bufnr and bufnr ~= 0) and bufnr or vim.api.nvim_get_current_buf()
@@ -793,6 +887,7 @@ local function organize_lsp_imports(bufnr)
 end
 
 _G.format_buffer = function()
+  ensure_conform()
   organize_lsp_imports(0)
   local ok, conf = pcall(require, "conform")
   if ok then
@@ -3316,7 +3411,22 @@ local function restore_session()
   end
 end
 
--- Track active file and persist session safely
+-- Track active file and persist session safely (debounced to keep tab switches instant)
+local session_save_timer = nil
+local function schedule_save_session()
+  if session_save_timer then
+    session_save_timer:stop()
+    session_save_timer:close()
+    session_save_timer = nil
+  end
+  session_save_timer = vim.defer_fn(function()
+    session_save_timer = nil
+    if not is_quitting and session_restored then
+      save_session()
+    end
+  end, 150)
+end
+
 vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusLost" }, {
   callback = function()
     if is_quitting or not session_restored then return end
@@ -3327,15 +3437,14 @@ vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusLost" }, {
         last_active_file = n
       end
     end
-    autosave_all_modified()
-    save_session()
+    schedule_save_session()
   end,
 })
 
 vim.api.nvim_create_autocmd({ "BufDelete", "DirChanged" }, {
   callback = function()
     if is_quitting or not session_restored then return end
-    vim.schedule(save_session)
+    schedule_save_session()
   end,
 })
 
@@ -5555,44 +5664,46 @@ vim.api.nvim_create_autocmd("BufEnter", {
 -- =============================================================================
 -- MULTI-CURSOR & MULTI-EDIT ENGINE (VS Code-style Multi-Select & Multiedit)
 -- =============================================================================
-local ok_mc, mc = pcall(require, "multiple-cursors")
-if ok_mc then
-  mc.setup({
-    pre_hook = function()
-      vim.g.minimal_mc_active = true
-      vim.opt.selection = "inclusive"
-    end,
-    post_hook = function()
-      vim.g.minimal_mc_active = false
-      vim.opt.selection = "exclusive"
-    end,
-    custom_key_maps = {
-      -- Disable plugin's internal <Esc> override so Minimal's <Esc> exits multi-cursor mode immediately
-      { { "i", "n", "x", "s" }, "<Esc>", nil },
-      -- Normal click exits multi-cursor mode cleanly and moves cursor to clicked position
-      {
-        { "i", "n", "x" },
-        "<LeftMouse>",
-        function()
-          _G.handle_escape()
-          local mp = vim.fn.getmousepos()
-          if mp and mp.winid > 0 and vim.api.nvim_win_is_valid(mp.winid) and mp.line > 0 then
-            pcall(vim.api.nvim_set_current_win, mp.winid)
-            local col = math.max(0, (mp.column or 1) - 1)
-            pcall(vim.api.nvim_win_set_cursor, mp.winid, { mp.line, col })
-          end
-        end,
-        "nowrap",
+local mc_configured = false
+local function ensure_multicursor()
+  if mc_configured then return end
+  mc_configured = true
+  local ok_mc, mc = pcall(require, "multiple-cursors")
+  if ok_mc then
+    mc.setup({
+      pre_hook = function()
+        vim.g.minimal_mc_active = true
+        vim.opt.selection = "inclusive"
+      end,
+      post_hook = function()
+        vim.g.minimal_mc_active = false
+        vim.opt.selection = "exclusive"
+      end,
+      custom_key_maps = {
+        { { "i", "n", "x", "s" }, "<Esc>", nil },
+        {
+          { "i", "n", "x" },
+          "<LeftMouse>",
+          function()
+            _G.handle_escape()
+            local mp = vim.fn.getmousepos()
+            if mp and mp.winid > 0 and vim.api.nvim_win_is_valid(mp.winid) and mp.line > 0 then
+              pcall(vim.api.nvim_set_current_win, mp.winid)
+              local col = math.max(0, (mp.column or 1) - 1)
+              pcall(vim.api.nvim_win_set_cursor, mp.winid, { mp.line, col })
+            end
+          end,
+          "nowrap",
+        },
+        { { "x", "s" }, "<BS>", function() require("multiple-cursors.visual_mode.delete_yank_change_put").c() end, "nowrap" },
+        { { "x", "s" }, "<Del>", function() require("multiple-cursors.visual_mode.delete_yank_change_put").c() end, "nowrap" },
+        { "i", { "<C-BS>", "<C-BackSpace>" }, function() delete_word_backward() end },
+        { "i", { "<C-Del>", "<C-Delete>" }, function() delete_word_forward() end },
       },
-      -- Backspace / Delete on multi-selected matches deletes selections and enters Insert mode
-      { { "x", "s" }, "<BS>", function() require("multiple-cursors.visual_mode.delete_yank_change_put").c() end, "nowrap" },
-      { { "x", "s" }, "<Del>", function() require("multiple-cursors.visual_mode.delete_yank_change_put").c() end, "nowrap" },
-      -- Ctrl+Backspace & Ctrl+Delete across all cursors in Insert mode
-      { "i", { "<C-BS>", "<C-BackSpace>" }, function() delete_word_backward() end },
-      { "i", { "<C-Del>", "<C-Delete>" }, function() delete_word_forward() end },
-    },
-  })
+    })
+  end
 end
+vim.defer_fn(ensure_multicursor, 45)
 
 vim.api.nvim_create_autocmd("BufLeave", {
   callback = function(args)
@@ -5612,6 +5723,7 @@ vim.api.nvim_create_autocmd("BufLeave", {
 })
 
 _G.multicursor_add_next = function()
+  ensure_multicursor()
   local ok, mcp = pcall(require, "multiple-cursors")
   if not ok then return end
   local m = vim.fn.mode()
@@ -5634,6 +5746,7 @@ _G.multicursor_add_next = function()
 end
 
 _G.multicursor_select_all = function()
+  ensure_multicursor()
   local ok, _ = pcall(require, "multiple-cursors")
   if not ok then return end
   local m = vim.fn.mode()
@@ -5726,6 +5839,7 @@ vim.api.nvim_create_autocmd("BufWritePre", {
 
 -- Save (Ctrl+S) with auto-imports and formatting
 map({ "i", "n", "v", "s" }, "<C-s>", function()
+  ensure_conform()
   organize_lsp_imports(0)
   local ok, conf = pcall(require, "conform")
   if ok then
@@ -6489,23 +6603,35 @@ vim.api.nvim_set_hl(0, "SignColumn", { bg = "NONE" })
 vim.api.nvim_set_hl(0, "LineNr", { fg = "#4b5263" })
 vim.api.nvim_set_hl(0, "CursorLineNr", { fg = "#61afef", bold = true })
 
--- Modern VS Code-style Status Line (No emojis)
+-- Modern VS Code-style Status Line (cached cwd + O(1) diagnostic counts)
+local cached_cwd_raw = ""
+local cached_cwd_display = ""
+local function get_display_cwd()
+  local cwd = vim.fn.getcwd()
+  if cwd ~= cached_cwd_raw then
+    cached_cwd_raw = cwd
+    cached_cwd_display = vim.fn.fnamemodify(cwd, ":~")
+  end
+  return cached_cwd_display
+end
+
 function _G.editor_statusline()
   local buf = vim.api.nvim_get_current_buf()
   local ft = vim.bo[buf].filetype
   if ft == "NvimTree" then return "  EXPLORER" end
   if ft == "minimal_home" then
-    return "  Minimal %=" .. vim.fn.fnamemodify(vim.fn.getcwd(), ":~") .. " "
+    return "  Minimal %=" .. get_display_cwd() .. " "
   end
   if vim.bo[buf].buftype == "terminal" then
-    return "  bash │ " .. vim.fn.fnamemodify(vim.fn.getcwd(), ":~") .. " "
+    return "  bash │ " .. get_display_cwd() .. " "
   end
 
   local branch = vim.b[buf].gitsigns_head or ""
   local branch_str = branch ~= "" and ("  " .. branch .. " │") or ""
 
-  local diag_e = #vim.diagnostic.get(buf, { severity = vim.diagnostic.severity.ERROR })
-  local diag_w = #vim.diagnostic.get(buf, { severity = vim.diagnostic.severity.WARN })
+  local counts = vim.diagnostic.count(buf)
+  local diag_e = counts[vim.diagnostic.severity.ERROR] or 0
+  local diag_w = counts[vim.diagnostic.severity.WARN] or 0
   local diag_str = ""
   if diag_e > 0 then diag_str = diag_str .. " 󰅚 " .. diag_e end
   if diag_w > 0 then diag_str = diag_str .. " 󰀪 " .. diag_w end
@@ -6571,14 +6697,235 @@ local md_callouts = {
   CAUTION = { icon = "󰳦 Caution", hl = "MinimalMdCalloutCaution" },
 }
 
-_G.render_markdown_visuals = function(buf)
+local cached_md_devicons = nil
+local function get_md_devicons()
+  if cached_md_devicons == nil then
+    local ok_dev, d = pcall(require, "nvim-web-devicons")
+    cached_md_devicons = ok_dev and d or false
+  end
+  return cached_md_devicons or nil
+end
+
+local function render_md_line(buf, i, line, next_line, cur_row, fence_state)
+  local r = i - 1
+  local is_cur = (i == cur_row)
+
+  if fence_state and fence_state.open then
+    pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+      line_hl_group = "MinimalMdCodeBlock",
+      priority = 80,
+    })
+    local lang = fence_state.lang
+    if lang and lang ~= "" and not is_cur then
+      local icon = "󰅪 "
+      local icon_hl = "MinimalMdCodeLang"
+      local devicons = get_md_devicons()
+      if devicons then
+        local d_icon, d_hl = devicons.get_icon_by_filetype(lang, { default = false })
+        if not d_icon then
+          d_icon, d_hl = devicons.get_icon(lang, lang, { default = false })
+        end
+        if d_icon then
+          icon = d_icon .. " "
+          if d_hl and d_hl ~= "" then icon_hl = d_hl end
+        end
+      end
+      pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+        virt_text = {
+          { "  " .. icon, icon_hl },
+          { lang .. " ", "MinimalMdCodeLang" },
+        },
+        virt_text_pos = "eol",
+        priority = 110,
+      })
+    end
+    return
+  elseif fence_state and fence_state.inside then
+    pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+      line_hl_group = "MinimalMdCodeBlock",
+      priority = 80,
+    })
+    return
+  end
+
+  local hashes, _ = line:match("^(#+)%s+(.*)$")
+  if hashes and #hashes <= 6 then
+    local lvl = #hashes
+    local hl_name = "MinimalMdH" .. lvl
+    if lvl == 1 then
+      pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+        line_hl_group = "MinimalMdH1Bg",
+        priority = 75,
+      })
+    elseif lvl == 2 then
+      pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+        line_hl_group = "MinimalMdH2Bg",
+        priority = 75,
+      })
+    end
+    pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+      end_col = #line,
+      hl_group = hl_name,
+      priority = 120,
+    })
+    if not is_cur then
+      pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+        end_col = #hashes + 1,
+        conceal = "",
+        virt_text = { { md_heading_icons[lvl] or "# ", hl_name } },
+        virt_text_pos = "inline",
+        priority = 130,
+      })
+    end
+  elseif line:match("^%s*([%-%*_])%s*%1%s*%1[%s%-%*_]*$") then
+    if not is_cur then
+      pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+        end_col = #line,
+        conceal = "",
+        virt_text = { { string.rep("─", 56), "MinimalMdRule" } },
+        virt_text_pos = "inline",
+        priority = 110,
+      })
+    else
+      pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+        end_col = #line,
+        hl_group = "MinimalMdRule",
+        priority = 110,
+      })
+    end
+  else
+    local bindent, _, bstate, brest = line:match("^(%s*)([%-%*%+])%s+%[([ xX%-])%]%s*(.*)$")
+    if bindent then
+      local box_start = #bindent
+      local box_end = #bindent + 5
+      local done = (bstate == "x" or bstate == "X")
+      local icon = done and "󰱒 " or "󰄱 "
+      local box_hl = done and "MinimalMdCheckboxDone" or "MinimalMdCheckboxTodo"
+
+      if not is_cur then
+        pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, box_start, {
+          end_col = math.min(#line, box_end + 1),
+          conceal = "",
+          virt_text = { { icon, box_hl } },
+          virt_text_pos = "inline",
+          priority = 130,
+        })
+      else
+        pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, box_start, {
+          end_col = math.min(#line, box_end),
+          hl_group = box_hl,
+          priority = 130,
+        })
+      end
+
+      if done and brest ~= "" then
+        pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, math.min(#line, box_end), {
+          end_col = #line,
+          hl_group = "MinimalMdDoneText",
+          priority = 115,
+        })
+      end
+    else
+      local uindent, _ = line:match("^(%s*)([%-%*%+])%s+")
+      if uindent then
+        local depth = math.min(3, math.floor(#uindent / 2) + 1)
+        local glyph = md_bullets[depth] or "•"
+        local mcol = #uindent
+        if not is_cur then
+          pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, mcol, {
+            end_col = mcol + 1,
+            conceal = "",
+            virt_text = { { glyph, "MinimalMdBullet" } },
+            virt_text_pos = "inline",
+            priority = 125,
+          })
+        else
+          pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, mcol, {
+            end_col = mcol + 1,
+            hl_group = "MinimalMdBullet",
+            priority = 125,
+          })
+        end
+      end
+    end
+
+    local qindent, qrest = line:match("^(%s*)>(.*)$")
+    if qindent then
+      local qcol = #qindent
+      local tag = qrest:match("^%s*%[!([A-Z]+)%]")
+      local callout = tag and md_callouts[tag] or nil
+      local bar_hl = callout and callout.hl or "MinimalMdQuoteBar"
+      if not is_cur then
+        pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, qcol, {
+          end_col = qcol + 1,
+          conceal = "",
+          virt_text = { { "▎", bar_hl } },
+          virt_text_pos = "inline",
+          priority = 125,
+        })
+        if callout then
+          local ts, te = line:find("%[![A-Z]+%]")
+          if ts and te then
+            pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, ts - 1, {
+              end_col = te,
+              conceal = "",
+              virt_text = { { callout.icon, callout.hl } },
+              virt_text_pos = "inline",
+              priority = 135,
+            })
+          end
+        end
+      else
+        pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, qcol, {
+          end_col = qcol + 1,
+          hl_group = bar_hl,
+          priority = 125,
+        })
+      end
+    end
+
+    if line:match("^%s*|.*|%s*$") then
+      local is_delim = line:match("^%s*|[:%-%s|]+|%s*$") ~= nil
+      local is_header = (not is_delim) and ((next_line or ""):match("^%s*|[:%-%s|]+|%s*$") ~= nil)
+      if is_delim then
+        pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+          end_col = #line,
+          hl_group = "MinimalMdTableBorder",
+          priority = 115,
+        })
+      else
+        if is_header then
+          pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
+            end_col = #line,
+            hl_group = "MinimalMdTableHead",
+            priority = 110,
+          })
+        end
+        local pos = 1
+        while true do
+          local p = line:find("|", pos, true)
+          if not p then break end
+          pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, p - 1, {
+            end_col = p,
+            hl_group = "MinimalMdTableBorder",
+            priority = 125,
+          })
+          pos = p + 1
+        end
+      end
+    end
+  end
+end
+
+_G.render_markdown_visuals = function(buf, force_full)
   buf = (buf and buf ~= 0) and buf or vim.api.nvim_get_current_buf()
   if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].filetype ~= "markdown" then return end
 
-  vim.api.nvim_buf_clear_namespace(buf, md_ns, 0, -1)
-
   local line_count = vim.api.nvim_buf_line_count(buf)
-  if line_count > 4000 then return end
+  if line_count > 4000 then
+    vim.api.nvim_buf_clear_namespace(buf, md_ns, 0, -1)
+    return
+  end
 
   local cur_row = -1
   local cur_win = vim.api.nvim_get_current_win()
@@ -6586,241 +6933,62 @@ _G.render_markdown_visuals = function(buf)
     cur_row = vim.api.nvim_win_get_cursor(cur_win)[1]
   end
 
+  local tick = vim.api.nvim_buf_get_changedtick(buf)
+  local prev_tick = vim.b[buf]._md_last_tick
+  local prev_row = vim.b[buf]._md_last_row
+  local fence_map = vim.b[buf]._md_fence_map
+
+  -- Fast O(1) path on pure cursor movement without buffer edits
+  if not force_full and prev_tick == tick and type(fence_map) == "table" then
+    if prev_row == cur_row then return end
+    for _, row_idx in ipairs({ prev_row, cur_row }) do
+      if row_idx and row_idx >= 1 and row_idx <= line_count then
+        vim.api.nvim_buf_clear_namespace(buf, md_ns, row_idx - 1, row_idx)
+        local pair = vim.api.nvim_buf_get_lines(buf, row_idx - 1, math.min(line_count, row_idx + 1), false)
+        render_md_line(buf, row_idx, pair[1] or "", pair[2] or "", cur_row, fence_map[row_idx])
+      end
+    end
+    vim.b[buf]._md_last_row = cur_row
+    return
+  end
+
+  vim.api.nvim_buf_clear_namespace(buf, md_ns, 0, -1)
+
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   local in_fence = false
   local fence_char = nil
   local fence_len = 0
-  local ok_dev, devicons = pcall(require, "nvim-web-devicons")
+  fence_map = {}
 
   for i, line in ipairs(lines) do
-    local r = i - 1
-    local is_cur = (i == cur_row)
-
-    -- Fenced code blocks (``` or ~~~)
-    local indent_fence, fseq, info = line:match("^(%s*)(```+)(.*)$")
+    local _, fseq, info = line:match("^(%s*)(```+)(.*)$")
     if not fseq then
-      indent_fence, fseq, info = line:match("^(%s*)(~~~+)(.*)$")
+      _, fseq, info = line:match("^(%s*)(~~~+)(.*)$")
     end
 
+    local fstate = nil
     if fseq and not in_fence then
       in_fence = true
       fence_char = fseq:sub(1, 1)
       fence_len = #fseq
-      pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
-        line_hl_group = "MinimalMdCodeBlock",
-        priority = 80,
-      })
       local lang = vim.trim(info or ""):match("^(%S+)")
-      if lang and lang ~= "" and not is_cur then
-        local icon = "󰅪 "
-        local icon_hl = "MinimalMdCodeLang"
-        if ok_dev then
-          local d_icon, d_hl = devicons.get_icon_by_filetype(lang, { default = false })
-          if not d_icon then
-            d_icon, d_hl = devicons.get_icon(lang, lang, { default = false })
-          end
-          if d_icon then
-            icon = d_icon .. " "
-            if d_hl and d_hl ~= "" then icon_hl = d_hl end
-          end
-        end
-        pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
-          virt_text = {
-            { "  " .. icon, icon_hl },
-            { lang .. " ", "MinimalMdCodeLang" },
-          },
-          virt_text_pos = "eol",
-          priority = 110,
-        })
-      end
+      fstate = { open = true, lang = lang }
     elseif in_fence then
-      pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
-        line_hl_group = "MinimalMdCodeBlock",
-        priority = 80,
-      })
+      fstate = { inside = true }
       local close_pat = "^%s*" .. string.rep(fence_char, fence_len) .. "+%s*$"
       if line:match(close_pat) then
         in_fence = false
         fence_char = nil
         fence_len = 0
       end
-    else
-      -- ATX Headings (# Title)
-      local hashes, htext = line:match("^(#+)%s+(.*)$")
-      if hashes and #hashes <= 6 then
-        local lvl = #hashes
-        local hl_name = "MinimalMdH" .. lvl
-        if lvl == 1 then
-          pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
-            line_hl_group = "MinimalMdH1Bg",
-            priority = 75,
-          })
-        elseif lvl == 2 then
-          pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
-            line_hl_group = "MinimalMdH2Bg",
-            priority = 75,
-          })
-        end
-        pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
-          end_col = #line,
-          hl_group = hl_name,
-          priority = 120,
-        })
-        if not is_cur then
-          pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
-            end_col = #hashes + 1,
-            conceal = "",
-            virt_text = { { md_heading_icons[lvl] or "# ", hl_name } },
-            virt_text_pos = "inline",
-            priority = 130,
-          })
-        end
-      elseif line:match("^%s*([%-%*_])%s*%1%s*%1[%s%-%*_]*$") then
-        -- Horizontal Rule (--- / *** / ___)
-        if not is_cur then
-          pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
-            end_col = #line,
-            conceal = "",
-            virt_text = { { string.rep("─", 56), "MinimalMdRule" } },
-            virt_text_pos = "inline",
-            priority = 110,
-          })
-        else
-          pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
-            end_col = #line,
-            hl_group = "MinimalMdRule",
-            priority = 110,
-          })
-        end
-      else
-        -- Task Checkboxes: - [ ] / - [x]
-        local bindent, bmark, bstate, brest = line:match("^(%s*)([%-%*%+])%s+%[([ xX%-])%]%s*(.*)$")
-        if bindent then
-          local box_start = #bindent
-          local box_end = #bindent + 5
-          local done = (bstate == "x" or bstate == "X")
-          local icon = done and "󰱒 " or "󰄱 "
-          local box_hl = done and "MinimalMdCheckboxDone" or "MinimalMdCheckboxTodo"
-
-          if not is_cur then
-            pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, box_start, {
-              end_col = math.min(#line, box_end + 1),
-              conceal = "",
-              virt_text = { { icon, box_hl } },
-              virt_text_pos = "inline",
-              priority = 130,
-            })
-          else
-            pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, box_start, {
-              end_col = math.min(#line, box_end),
-              hl_group = box_hl,
-              priority = 130,
-            })
-          end
-
-          if done and brest ~= "" then
-            pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, math.min(#line, box_end), {
-              end_col = #line,
-              hl_group = "MinimalMdDoneText",
-              priority = 115,
-            })
-          end
-        else
-          -- Unordered list bullets: - item / * item / + item
-          local uindent, umark = line:match("^(%s*)([%-%*%+])%s+")
-          if uindent then
-            local depth = math.min(3, math.floor(#uindent / 2) + 1)
-            local glyph = md_bullets[depth] or "•"
-            local mcol = #uindent
-            if not is_cur then
-              pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, mcol, {
-                end_col = mcol + 1,
-                conceal = "",
-                virt_text = { { glyph, "MinimalMdBullet" } },
-                virt_text_pos = "inline",
-                priority = 125,
-              })
-            else
-              pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, mcol, {
-                end_col = mcol + 1,
-                hl_group = "MinimalMdBullet",
-                priority = 125,
-              })
-            end
-          end
-        end
-
-        -- Blockquotes & GitHub Callouts: > ...
-        local qindent, qrest = line:match("^(%s*)>(.*)$")
-        if qindent then
-          local qcol = #qindent
-          local tag = qrest:match("^%s*%[!([A-Z]+)%]")
-          local callout = tag and md_callouts[tag] or nil
-          local bar_hl = callout and callout.hl or "MinimalMdQuoteBar"
-          if not is_cur then
-            pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, qcol, {
-              end_col = qcol + 1,
-              conceal = "",
-              virt_text = { { "▎", bar_hl } },
-              virt_text_pos = "inline",
-              priority = 125,
-            })
-            if callout then
-              local ts, te = line:find("%[![A-Z]+%]")
-              if ts and te then
-                pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, ts - 1, {
-                  end_col = te,
-                  conceal = "",
-                  virt_text = { { callout.icon, callout.hl } },
-                  virt_text_pos = "inline",
-                  priority = 135,
-                })
-              end
-            end
-          else
-            pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, qcol, {
-              end_col = qcol + 1,
-              hl_group = bar_hl,
-              priority = 125,
-            })
-          end
-        end
-
-        -- Markdown Tables: | col | col |
-        if line:match("^%s*|.*|%s*$") then
-          local is_delim = line:match("^%s*|[:%-%s|]+|%s*$") ~= nil
-          local next_line = lines[i + 1] or ""
-          local is_header = (not is_delim) and (next_line:match("^%s*|[:%-%s|]+|%s*$") ~= nil)
-          if is_delim then
-            pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
-              end_col = #line,
-              hl_group = "MinimalMdTableBorder",
-              priority = 115,
-            })
-          else
-            if is_header then
-              pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, 0, {
-                end_col = #line,
-                hl_group = "MinimalMdTableHead",
-                priority = 110,
-              })
-            end
-            local pos = 1
-            while true do
-              local p = line:find("|", pos, true)
-              if not p then break end
-              pcall(vim.api.nvim_buf_set_extmark, buf, md_ns, r, p - 1, {
-                end_col = p,
-                hl_group = "MinimalMdTableBorder",
-                priority = 125,
-              })
-              pos = p + 1
-            end
-          end
-        end
-      end
     end
+    fence_map[i] = fstate
+    render_md_line(buf, i, line, lines[i + 1] or "", cur_row, fstate)
   end
+
+  vim.b[buf]._md_last_tick = tick
+  vim.b[buf]._md_last_row = cur_row
+  vim.b[buf]._md_fence_map = fence_map
 end
 
 _G.md_toggle_checkbox = function()
@@ -7495,7 +7663,7 @@ vim.api.nvim_create_autocmd("ColorScheme", {
       if vim.api.nvim_win_is_valid(win) then
         local b = vim.api.nvim_win_get_buf(win)
         if vim.bo[b].filetype == "markdown" then
-          _G.render_markdown_visuals(b)
+          _G.render_markdown_visuals(b, true)
         end
       end
     end
