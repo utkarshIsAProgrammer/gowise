@@ -42,8 +42,13 @@ bind '"\eb": backward-word' 2>/dev/null || true
 bind '"\ef": forward-word' 2>/dev/null || true
 bind '"\ed": kill-word' 2>/dev/null || true
 
-# Unset any prompt commanders from external tools to ensure clean git profile
-unset PROMPT_COMMAND
+# Auto-sync editor buffers and sidebar tree whenever terminal command completes
+_minimal_prompt_sync() {
+  if [ -n "$NVIM" ]; then
+    nvim --server "$NVIM" --remote-send "<Cmd>lua _G.sync_buffers_with_disk()<CR>" 2>/dev/null || true
+  fi
+}
+export PROMPT_COMMAND="_minimal_prompt_sync"
 
 # Git branch parser with vibrant status colors
 parse_git_branch() {
@@ -66,15 +71,39 @@ parse_git_branch() {
 # [user@hostname:path] (branch*) $ 
 export PS1='\[\033[1;36m\]\w\[\033[0m\]$(parse_git_branch) \[\033[1;32m\]\$ \[\033[0m\]'
 
-# Terminal commands to interact seamlessly with Neovim editor
-neovide() {
-  for f in "$@"; do
-    if [ -n "$NVIM" ]; then
-      nvim --server "$NVIM" --remote-send "<Cmd>lua _G.open_file_from_terminal('$PWD/$f')<CR>" 2>/dev/null || true
+# Terminal commands to interact seamlessly with Minimal editor
+_minimal_forward_open() {
+  if [ -z "$NVIM" ]; then
+    command minimal "$@"
+    return
+  fi
+  if [ "$#" -eq 0 ]; then
+    nvim --server "$NVIM" --remote-send "<Cmd>lua _G.focus_editor_from_terminal()<CR>" 2>/dev/null || true
+    return
+  fi
+  for target in "$@"; do
+    if [ -n "$target" ] && [ "$target" != "--gui" ]; then
+      local abs_path
+      if [[ "$target" = /* ]]; then
+        abs_path="$target"
+      else
+        abs_path="$(realpath -m "$target" 2>/dev/null || readlink -m "$target" 2>/dev/null || echo "$PWD/$target")"
+      fi
+      local escaped="${abs_path//\\/\\\\}"
+      escaped="${escaped//\'/\\\'}"
+      nvim --server "$NVIM" --remote-send "<Cmd>lua _G.open_file_from_terminal('$escaped')<CR>" 2>/dev/null || true
     fi
   done
 }
 
+minimal() {
+  _minimal_forward_open "$@"
+}
+
 code() {
-  neovide "$@"
+  _minimal_forward_open "$@"
+}
+
+neovide() {
+  _minimal_forward_open "$@"
 }

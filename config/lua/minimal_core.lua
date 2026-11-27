@@ -30,6 +30,7 @@ vim.opt.termguicolors = true             -- True color support
 vim.opt.cursorline = true                -- Subtle highlight on the current line
 vim.opt.ignorecase = true                -- Case-insensitive search
 vim.opt.smartcase = true                 -- Case-sensitive if capital letter typed
+vim.opt.completeopt = { "menu", "menuone", "noselect" } -- Fluent modern completion popup
 
 -- Code Spell Checker & Clipboard (deferred after initial paint for sub-25ms cold boot)
 vim.opt.spellcapcheck = ""
@@ -704,6 +705,35 @@ local function ensure_completion_and_snippets()
       callback({ items = items, isIncomplete = false })
     end
 
+    -- Register optional completion sources explicitly (packadd does not auto-source after/plugin/)
+    local ok_cmp_lsp, cmp_lsp = pcall(require, "cmp_nvim_lsp")
+    if ok_cmp_lsp and cmp_lsp.setup then
+      pcall(cmp_lsp.setup)
+      if cmp_lsp._on_insert_enter then
+        pcall(cmp_lsp._on_insert_enter)
+      end
+    end
+
+    local ok_cbuf, cbuf = pcall(require, "cmp_buffer")
+    if ok_cbuf then
+      pcall(cmp.register_source, "buffer", cbuf)
+    end
+
+    local ok_cpath, cpath = pcall(require, "cmp_path")
+    if ok_cpath and cpath.new then
+      pcall(cmp.register_source, "path", cpath.new())
+    end
+
+    local ok_csnip, csnip = pcall(require, "cmp_luasnip")
+    if ok_csnip and csnip.new then
+      pcall(cmp.register_source, "luasnip", csnip.new())
+    end
+
+    local ok_clua, clua = pcall(require, "cmp_nvim_lua")
+    if ok_clua and clua.new then
+      pcall(cmp.register_source, "nvim_lua", clua.new())
+    end
+
     cmp.register_source("cross_file_classes", cross_file_source:new())
 
     cmp.setup({
@@ -716,7 +746,8 @@ local function ensure_completion_and_snippets()
       },
       completion = {
         autocomplete = { cmp.TriggerEvent.TextChanged },
-        completeopt = "menu,menuone,noinsert",
+        completeopt = "menu,menuone,noselect",
+        keyword_length = 1,
       },
       window = {
         completion = cmp.config.window.bordered({
@@ -743,6 +774,7 @@ local function ensure_completion_and_snippets()
         end,
       },
       mapping = {
+        ["<C-Space>"] = cmp.mapping.complete(),
         ["<Up>"] = cmp.mapping.select_prev_item({ behavior = cmp.SelectBehavior.Select }),
         ["<Down>"] = cmp.mapping.select_next_item({ behavior = cmp.SelectBehavior.Select }),
         ["<C-p>"] = cmp.mapping.select_prev_item({ behavior = cmp.SelectBehavior.Select }),
@@ -798,14 +830,24 @@ local function ensure_completion_and_snippets()
             end,
           },
         },
-        { name = "cross_file_classes", priority = 750, keyword_length = 2 },
+        { name = "cross_file_classes", priority = 750, keyword_length = 1 },
         {
           name = "buffer",
           priority = 600,
-          keyword_length = 2,
+          keyword_length = 1,
           option = {
             get_bufnrs = function()
-              return vim.api.nvim_list_bufs()
+              local bufs = {}
+              for _, b in ipairs(vim.api.nvim_list_bufs()) do
+                if vim.api.nvim_buf_is_valid(b) and vim.api.nvim_buf_is_loaded(b) and vim.bo[b].buflisted then
+                  local bt = vim.bo[b].buftype
+                  local ft = vim.bo[b].filetype
+                  if bt == "" and ft ~= "NvimTree" and ft ~= "minimal_home" then
+                    table.insert(bufs, b)
+                  end
+                end
+              end
+              return bufs
             end,
           },
         },
@@ -823,6 +865,15 @@ end
 vim.api.nvim_create_autocmd("InsertEnter", {
   once = true,
   callback = ensure_completion_and_snippets,
+})
+vim.api.nvim_create_autocmd("LspAttach", {
+  callback = function()
+    ensure_completion_and_snippets()
+    local ok_lsp, cmp_lsp = pcall(require, "cmp_nvim_lsp")
+    if ok_lsp and cmp_lsp._on_insert_enter then
+      pcall(cmp_lsp._on_insert_enter)
+    end
+  end,
 })
 vim.defer_fn(ensure_completion_and_snippets, 30)
 
@@ -1318,6 +1369,160 @@ _G.reapply_all_icon_colors = function()
   pcall(vim.cmd, "redrawtabline")
 end
 
+_G.notify_lsp_file_deleted = function(filepath)
+  if not filepath or filepath == "" then return end
+  local uri = vim.uri_from_fname(filepath)
+  local params = {
+    changes = {
+      {
+        uri = uri,
+        type = 3, -- 3 = FileChangeType.Deleted
+      },
+    },
+  }
+
+  for _, client in ipairs(vim.lsp.get_clients()) do
+    pcall(client.notify, "workspace/didChangeWatchedFiles", params)
+  end
+
+  -- Clear stale diagnostics and trigger re-check for open buffers in the same directory
+  local dir = vim.fs.normalize(vim.fn.fnamemodify(filepath, ":h"))
+  vim.schedule(function()
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_valid(b) and vim.bo[b].buflisted then
+        local bname = vim.api.nvim_buf_get_name(b)
+        if bname ~= "" and vim.fs.normalize(vim.fn.fnamemodify(bname, ":h")) == dir then
+          pcall(vim.diagnostic.reset, nil, b)
+          local b_uri = vim.uri_from_fname(bname)
+          for _, client in ipairs(vim.lsp.get_clients({ bufnr = b })) do
+            pcall(client.notify, "textDocument/didSave", {
+              textDocument = { uri = b_uri },
+            })
+          end
+        end
+      end
+    end
+  end)
+end
+
+_G.wipe_buffer_for_path = function(path, is_dir)
+  if not path or path == "" then return end
+  local norm_path = vim.fs.normalize(path):gsub("/+$", "")
+  local uv = vim.uv or vim.loop
+
+  local bufs = vim.api.nvim_list_bufs()
+  for _, b in ipairs(bufs) do
+    if vim.api.nvim_buf_is_valid(b) then
+      local bname = vim.api.nvim_buf_get_name(b)
+      if bname ~= "" then
+        local norm_bname = vim.fs.normalize(bname):gsub("/+$", "")
+        local match = false
+        if not is_dir and norm_bname == norm_path then
+          match = true
+        elseif is_dir and (norm_bname == norm_path or norm_bname:sub(1, #norm_path + 1) == norm_path .. "/") then
+          match = true
+        end
+
+        if match then
+          pcall(function()
+            vim.bo[b].modified = false
+            vim.bo[b].buflisted = false
+          end)
+
+          for _, w in ipairs(vim.api.nvim_list_wins()) do
+            if vim.api.nvim_win_is_valid(w) and vim.api.nvim_win_get_buf(w) == b then
+              local other_buf = nil
+              for _, ob in ipairs(vim.fn.getbufinfo({ buflisted = 1 })) do
+                if ob.bufnr ~= b and vim.api.nvim_buf_is_valid(ob.bufnr) then
+                  local ob_ft = vim.bo[ob.bufnr].filetype
+                  local ob_bt = vim.bo[ob.bufnr].buftype
+                  local is_home = vim.b[ob.bufnr].is_homescreen or (ob_ft == "minimal_home")
+                  if ob_ft ~= "NvimTree" and ob_bt ~= "terminal" and not is_home then
+                    local ob_name = vim.api.nvim_buf_get_name(ob.bufnr)
+                    local ob_norm = vim.fs.normalize(ob_name):gsub("/+$", "")
+                    local is_deleted = false
+                    if not is_dir and ob_norm == norm_path then
+                      is_deleted = true
+                    elseif is_dir and (ob_norm == norm_path or ob_norm:sub(1, #norm_path + 1) == norm_path .. "/") then
+                      is_deleted = true
+                    elseif ob_name ~= "" and uv.fs_stat(ob_name) == nil and vim.b[ob.bufnr].was_on_disk then
+                      is_deleted = true
+                    end
+
+                    if not is_deleted then
+                      other_buf = ob.bufnr
+                      break
+                    end
+                  end
+                end
+              end
+              if other_buf then
+                vim.api.nvim_win_set_buf(w, other_buf)
+              else
+                if _G.open_homescreen then
+                  _G.open_homescreen()
+                else
+                  local new_empty = vim.api.nvim_create_buf(true, false)
+                  vim.api.nvim_win_set_buf(w, new_empty)
+                end
+              end
+            end
+          end
+
+          pcall(vim.cmd, "silent! bwipeout! " .. b)
+        end
+      end
+    end
+  end
+
+  pcall(vim.cmd, "redrawtabline")
+end
+
+-- Automatically sync open buffers with disk when files or folders are deleted outside
+_G.sync_buffers_with_disk = function()
+  if vim.g.minimal_is_quitting then return end
+  local uv = vim.uv or vim.loop
+  local bufs = vim.api.nvim_list_bufs()
+  local any_wiped = false
+
+  for _, b in ipairs(bufs) do
+    if vim.api.nvim_buf_is_valid(b) and vim.bo[b].buflisted then
+      local bt = vim.bo[b].buftype
+      local ft = vim.bo[b].filetype
+      local is_home = vim.b[b].is_homescreen or (ft == "minimal_home")
+      if bt == "" and ft ~= "NvimTree" and ft ~= "alpha" and not is_home then
+        local bname = vim.api.nvim_buf_get_name(b)
+        if bname ~= "" and bname:match("^/") then
+          local stat = uv.fs_stat(bname)
+          if stat then
+            vim.b[b].was_on_disk = true
+          else
+            -- File was deleted from disk
+            if vim.b[b].was_on_disk then
+              any_wiped = true
+              _G.wipe_buffer_for_path(bname, false)
+              if _G.notify_lsp_file_deleted then
+                _G.notify_lsp_file_deleted(bname)
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+
+  if package.loaded["nvim-tree"] then
+    local ok_t, t_api = pcall(require, "nvim-tree.api")
+    if ok_t and t_api.tree and pcall(t_api.tree.is_visible) and t_api.tree.is_visible() then
+      pcall(t_api.tree.reload)
+    end
+  end
+
+  if any_wiped then
+    pcall(vim.cmd, "redrawtabline")
+  end
+end
+
 local ui_chrome_ready = false
 _G.ensure_ui_chrome = function()
   if ui_chrome_ready then return end
@@ -1333,96 +1538,6 @@ _G.ensure_ui_chrome = function()
     local api = require("nvim-tree.api")
     local minimal_icon_decorator = ok_icons and minimal_icons.create_decorator(api) or nil
     _G.minimal_icon_decorator = minimal_icon_decorator
-
-  local function notify_lsp_file_deleted(filepath)
-    if not filepath or filepath == "" then return end
-    local uri = vim.uri_from_fname(filepath)
-    local params = {
-      changes = {
-        {
-          uri = uri,
-          type = 3, -- 3 = FileChangeType.Deleted
-        },
-      },
-    }
-
-    for _, client in ipairs(vim.lsp.get_clients()) do
-      pcall(client.notify, "workspace/didChangeWatchedFiles", params)
-    end
-
-    -- Clear stale diagnostics and trigger re-check for open buffers in the same directory
-    local dir = vim.fs.normalize(vim.fn.fnamemodify(filepath, ":h"))
-    vim.schedule(function()
-      for _, b in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.api.nvim_buf_is_valid(b) and vim.bo[b].buflisted then
-          local bname = vim.api.nvim_buf_get_name(b)
-          if bname ~= "" and vim.fs.normalize(vim.fn.fnamemodify(bname, ":h")) == dir then
-            pcall(vim.diagnostic.reset, nil, b)
-            local b_uri = vim.uri_from_fname(bname)
-            for _, client in ipairs(vim.lsp.get_clients({ bufnr = b })) do
-              pcall(client.notify, "textDocument/didSave", {
-                textDocument = { uri = b_uri },
-              })
-            end
-          end
-        end
-      end
-    end)
-  end
-
-  _G.wipe_buffer_for_path = function(path, is_dir)
-    if not path or path == "" then return end
-    local norm_path = vim.fs.normalize(path):gsub("/+$", "")
-
-    local bufs = vim.api.nvim_list_bufs()
-    for _, b in ipairs(bufs) do
-      if vim.api.nvim_buf_is_valid(b) then
-        local bname = vim.api.nvim_buf_get_name(b)
-        if bname ~= "" then
-          local norm_bname = vim.fs.normalize(bname):gsub("/+$", "")
-          local match = false
-          if not is_dir and norm_bname == norm_path then
-            match = true
-          elseif is_dir and (norm_bname == norm_path or norm_bname:sub(1, #norm_path + 1) == norm_path .. "/") then
-            match = true
-          end
-
-          if match then
-            pcall(function()
-              vim.bo[b].modified = false
-              vim.bo[b].buflisted = false
-            end)
-
-            for _, w in ipairs(vim.api.nvim_list_wins()) do
-              if vim.api.nvim_win_is_valid(w) and vim.api.nvim_win_get_buf(w) == b then
-                local other_buf = nil
-                for _, ob in ipairs(vim.fn.getbufinfo({ buflisted = 1 })) do
-                  if ob.bufnr ~= b and vim.api.nvim_buf_is_valid(ob.bufnr) then
-                    local ob_ft = vim.bo[ob.bufnr].filetype
-                    local ob_bt = vim.bo[ob.bufnr].buftype
-                    if ob_ft ~= "NvimTree" and ob_bt ~= "terminal" then
-                      other_buf = ob.bufnr
-                      break
-                    end
-                  end
-                end
-                if other_buf then
-                  vim.api.nvim_win_set_buf(w, other_buf)
-                else
-                  local new_empty = vim.api.nvim_create_buf(true, false)
-                  vim.api.nvim_win_set_buf(w, new_empty)
-                end
-              end
-            end
-
-            pcall(vim.cmd, "silent! bwipeout! " .. b)
-          end
-        end
-      end
-    end
-
-    pcall(vim.cmd, "redrawtabline")
-  end
 
   _G.sidebar_delete_node = function()
     local node = api.tree.get_node_under_cursor()
@@ -1993,6 +2108,37 @@ end -- end _G.ensure_ui_chrome
 
 vim.defer_fn(_G.ensure_ui_chrome, 1)
 
+-- Track file disk presence on read & write
+vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost" }, {
+  callback = function(args)
+    if args.buf and vim.api.nvim_buf_is_valid(args.buf) then
+      local n = vim.api.nvim_buf_get_name(args.buf)
+      if n ~= "" and (vim.uv or vim.loop).fs_stat(n) then
+        vim.b[args.buf].was_on_disk = true
+      end
+    end
+  end,
+})
+
+-- Auto-sync open buffers when returning to editor or switching buffers
+vim.api.nvim_create_autocmd({ "FocusGained", "TermLeave", "TermClose", "BufEnter" }, {
+  callback = function()
+    if not vim.g.minimal_is_quitting and _G.sync_buffers_with_disk then
+      _G.sync_buffers_with_disk()
+    end
+  end,
+})
+
+-- Continuous background sync timer (1.5s interval)
+local disk_sync_timer = (vim.uv or vim.loop).new_timer()
+if disk_sync_timer then
+  disk_sync_timer:start(1000, 1500, vim.schedule_wrap(function()
+    if not vim.g.minimal_is_quitting and _G.sync_buffers_with_disk then
+      _G.sync_buffers_with_disk()
+    end
+  end))
+end
+
 -- Toggle opened files inside editor like VS Code
 _G.tab_next = function()
   local bufs = get_listed_editor_bufs()
@@ -2506,7 +2652,7 @@ end
 -- Strictly disable spell checking in all terminal windows and instances
 vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter", "BufEnter" }, {
   callback = function(args)
-    if vim.bo[args.buf].buftype == "terminal" then
+    if args.buf and vim.api.nvim_buf_is_valid(args.buf) and vim.bo[args.buf].buftype == "terminal" then
       pcall(function()
         vim.wo.spell = false
       end)
@@ -2604,6 +2750,7 @@ _G.toggle_terminal = function()
 end
 
 _G.open_file_from_terminal = function(file_path)
+  if not file_path or file_path == "" then return "ERR" end
   _G.autosave_all_modified()
   vim.schedule(function()
     if vim.fn.mode() == "t" then
@@ -2630,12 +2777,55 @@ _G.open_file_from_terminal = function(file_path)
       vim.api.nvim_set_current_win(ed)
     end
 
-    vim.cmd.edit(vim.fn.fnameescape(file_path))
+    -- If target is a directory, change directory and reload tree root
+    if vim.fn.isdirectory(file_path) == 1 then
+      pcall(vim.cmd.cd, file_path)
+      if package.loaded["nvim-tree"] then
+        local ok_t, t_api = pcall(require, "nvim-tree.api")
+        if ok_t and t_api.tree and t_api.tree.change_root then
+          pcall(t_api.tree.change_root, file_path)
+          pcall(t_api.tree.reload)
+        end
+      end
+      return
+    end
+
+    -- If parent directories do not exist yet, create them automatically so compilers/builds/watchers find them
+    local parent_dir = vim.fs.dirname(file_path)
+    if parent_dir and parent_dir ~= "" and vim.fn.isdirectory(parent_dir) == 0 then
+      pcall(vim.fn.mkdir, parent_dir, "p")
+    end
+
+    local ok_edit = pcall(vim.cmd.edit, vim.fn.fnameescape(file_path))
+    if not ok_edit then
+      vim.cmd("enew")
+      pcall(vim.cmd.edit, vim.fn.fnameescape(file_path))
+    end
+    local cur_buf = vim.api.nvim_get_current_buf()
+    if (vim.uv or vim.loop).fs_stat(file_path) then
+      vim.b[cur_buf].was_on_disk = true
+    end
     vim.cmd("startinsert")
 
-    local ok_t, t_api = pcall(require, "nvim-tree.api")
-    if ok_t and t_api.tree.is_visible() then
-      pcall(t_api.tree.find_file, file_path)
+    if package.loaded["nvim-tree"] then
+      local ok_t, t_api = pcall(require, "nvim-tree.api")
+      if ok_t and t_api.tree and pcall(t_api.tree.is_visible) and t_api.tree.is_visible() then
+        pcall(t_api.tree.find_file, file_path)
+      end
+    end
+  end)
+  return "OK"
+end
+
+_G.focus_editor_from_terminal = function()
+  vim.schedule(function()
+    if vim.fn.mode() == "t" then
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-\\><C-n>", true, false, true), "nx", false)
+    end
+    local ed = find_editor_win()
+    if ed and is_valid_win(ed) then
+      vim.api.nvim_set_current_win(ed)
+      vim.cmd("startinsert")
     end
   end)
   return "OK"
@@ -6324,6 +6514,7 @@ vim.api.nvim_create_autocmd("VimResized", {
 vim.api.nvim_create_autocmd("BufEnter", {
   callback = function(args)
     local buf = args.buf
+    if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
     local ft = vim.bo[buf].filetype
     local bt = vim.bo[buf].buftype
     if ft ~= "minimal_home" and ft ~= "NvimTree" and bt ~= "terminal" and not vim.b[buf].is_picker then
