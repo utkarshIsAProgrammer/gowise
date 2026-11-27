@@ -341,6 +341,40 @@ vim.diagnostic.config({
   },
 })
 
+-- Guard diagnostic handlers against out-of-bounds line numbers (e.g. stale diagnostics on buffer switch)
+for _, handler_name in ipairs({ "underline", "virtual_text", "signs" }) do
+  local handler = vim.diagnostic.handlers[handler_name]
+  if handler and handler.show then
+    local orig_show = handler.show
+    handler.show = function(namespace, bufnr, diagnostics, opts)
+      bufnr = (bufnr == 0 or not bufnr) and vim.api.nvim_get_current_buf() or bufnr
+      if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) or not vim.api.nvim_buf_is_loaded(bufnr) then
+        return
+      end
+      local line_count = vim.api.nvim_buf_line_count(bufnr)
+      local safe_diags = {}
+      for _, d in ipairs(diagnostics or {}) do
+        if d and d.lnum and d.lnum >= 0 and d.lnum < line_count then
+          if d.end_lnum and d.end_lnum >= line_count then
+            local copy = vim.tbl_extend("force", {}, d)
+            copy.end_lnum = line_count - 1
+            table.insert(safe_diags, copy)
+          else
+            table.insert(safe_diags, d)
+          end
+        end
+      end
+      pcall(orig_show, namespace, bufnr, safe_diags, opts)
+    end
+  end
+  if handler and handler.hide then
+    local orig_hide = handler.hide
+    handler.hide = function(namespace, bufnr)
+      pcall(orig_hide, namespace, bufnr)
+    end
+  end
+end
+
 -- Error Lens Highlight Styling (Tinted backgrounds for error/warning lines)
 vim.api.nvim_set_hl(0, "DiagnosticVirtualTextError", { fg = "#f38ba8", bg = "#382325", bold = true })
 vim.api.nvim_set_hl(0, "DiagnosticVirtualTextWarn", { fg = "#fab387", bg = "#383223", bold = true })
@@ -1954,8 +1988,10 @@ if ok_bufferline then
       left_mouse_command = function(bufnr)
         local ed = find_editor_win()
         if ed then vim.api.nvim_set_current_win(ed) end
-        vim.api.nvim_set_current_buf(bufnr)
-        vim.cmd("startinsert")
+        if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
+          pcall(vim.api.nvim_set_current_buf, bufnr)
+          pcall(vim.cmd, "startinsert")
+        end
       end,
       middle_mouse_command = function(bufnr) _G.close_buffer(bufnr) end,
       indicator = {
@@ -2149,8 +2185,11 @@ _G.tab_next = function()
     if b == cur then idx = i break end
   end
   local next_idx = (idx % #bufs) + 1
-  vim.api.nvim_set_current_buf(bufs[next_idx])
-  vim.cmd("startinsert")
+  local target = bufs[next_idx]
+  if target and vim.api.nvim_buf_is_valid(target) then
+    pcall(vim.api.nvim_set_current_buf, target)
+    pcall(vim.cmd, "startinsert")
+  end
 end
 
 _G.tab_prev = function()
@@ -2163,8 +2202,11 @@ _G.tab_prev = function()
   end
   local prev_idx = idx - 1
   if prev_idx < 1 then prev_idx = #bufs end
-  vim.api.nvim_set_current_buf(bufs[prev_idx])
-  vim.cmd("startinsert")
+  local target = bufs[prev_idx]
+  if target and vim.api.nvim_buf_is_valid(target) then
+    pcall(vim.api.nvim_set_current_buf, target)
+    pcall(vim.cmd, "startinsert")
+  end
 end
 
 -- Close active file from editor (Ctrl+W)
@@ -7434,11 +7476,11 @@ map("t", "<C-v>", '<C-\\><C-n>"+pi', { desc = "Paste into Terminal" })
 for i = 1, 9 do
   map({ "i", "n", "v", "s", "t" }, "<M-" .. i .. ">", function()
     local bufs = get_listed_editor_bufs()
-    if bufs[i] then
+    if bufs[i] and vim.api.nvim_buf_is_valid(bufs[i]) then
       local ed = find_editor_win()
       if ed then vim.api.nvim_set_current_win(ed) end
-      vim.api.nvim_set_current_buf(bufs[i])
-      vim.cmd("startinsert")
+      pcall(vim.api.nvim_set_current_buf, bufs[i])
+      pcall(vim.cmd, "startinsert")
     end
   end, { desc = "Go to Tab " .. i })
 end
