@@ -1714,8 +1714,14 @@ _G.ensure_ui_chrome = function()
     vim.keymap.set("n", "F", function() api.live_filter.clear() end, { desc = "Clear Filter in Sidebar", buffer = bufnr, noremap = true, silent = true })
 
     -- Resize Sidebar with Alt+Left / Alt+Right
-    vim.keymap.set("n", "<M-Left>", function() _G.resize_sidebar(-2) end, { desc = "Shrink Sidebar Width", buffer = bufnr, noremap = true, silent = true })
-    vim.keymap.set("n", "<M-Right>", function() _G.resize_sidebar(2) end, { desc = "Grow Sidebar Width", buffer = bufnr, noremap = true, silent = true })
+    local function shrink_sb() _G.resize_sidebar(-2) end
+    local function grow_sb() _G.resize_sidebar(2) end
+    for _, k in ipairs({ "<M-Left>", "<A-Left>" }) do
+      vim.keymap.set({ "n", "i", "v", "s" }, k, shrink_sb, { desc = "Shrink Sidebar Width", buffer = bufnr, noremap = true, silent = true })
+    end
+    for _, k in ipairs({ "<M-Right>", "<A-Right>" }) do
+      vim.keymap.set({ "n", "i", "v", "s" }, k, grow_sb, { desc = "Grow Sidebar Width", buffer = bufnr, noremap = true, silent = true })
+    end
   end
 
   local initial_cfg = _G.FontEngine and _G.FontEngine.get_config() or {}
@@ -2317,13 +2323,35 @@ local function is_valid_buf(b) return b and vim.api.nvim_buf_is_valid(b) end
 
 _G.resize_sidebar = function(delta)
   local ok_t, api = pcall(require, "nvim-tree.api")
-  if not ok_t or not api.tree.is_visible() then return end
+  if not ok_t or not api.tree or not pcall(api.tree.is_visible) or not api.tree.is_visible() then
+    return
+  end
   local tw = api.tree.winid()
+  if not tw or not vim.api.nvim_win_is_valid(tw) then
+    local ok_v, view = pcall(require, "nvim-tree.view")
+    if ok_v and view.get_winnr then
+      tw = view.get_winnr()
+    end
+  end
   if not tw or not vim.api.nvim_win_is_valid(tw) then return end
   local cur_w = vim.api.nvim_win_get_width(tw)
-  local new_w = math.max(16, math.min(70, cur_w + delta))
+  local new_w = math.max(16, math.min(90, cur_w + delta))
   _G.sidebar_width = new_w
-  pcall(vim.api.nvim_win_set_width, tw, new_w)
+
+  local ok_v, view = pcall(require, "nvim-tree.view")
+  if ok_v and view.resize then
+    pcall(view.resize, new_w)
+  else
+    pcall(vim.api.nvim_win_set_width, tw, new_w)
+  end
+
+  if _G.FontEngine and _G.FontEngine.save_config then
+    local cfg = _G.FontEngine.get_config()
+    if cfg and cfg.sidebar then
+      cfg.sidebar.width = new_w
+      pcall(_G.FontEngine.save_config, cfg)
+    end
+  end
 end
 
 _G.resize_terminal = function(delta)
@@ -2336,25 +2364,27 @@ _G.resize_terminal = function(delta)
 end
 
 _G.handle_alt_left = function()
+  local ok_t, api = pcall(require, "nvim-tree.api")
+  if ok_t and api.tree and pcall(api.tree.is_visible) and api.tree.is_visible() then
+    _G.resize_sidebar(-2)
+    return
+  end
   local cur_win = vim.api.nvim_get_current_win()
   local cur_buf = vim.api.nvim_win_get_buf(cur_win)
-  local ft = vim.bo[cur_buf].filetype
-  local bt = vim.bo[cur_buf].buftype
-  if ft == "NvimTree" then
-    _G.resize_sidebar(-2)
-  elseif bt == "terminal" or cur_win == term_win then
+  if vim.bo[cur_buf].buftype == "terminal" or cur_win == term_win then
     _G.resize_terminal(-2)
   end
 end
 
 _G.handle_alt_right = function()
+  local ok_t, api = pcall(require, "nvim-tree.api")
+  if ok_t and api.tree and pcall(api.tree.is_visible) and api.tree.is_visible() then
+    _G.resize_sidebar(2)
+    return
+  end
   local cur_win = vim.api.nvim_get_current_win()
   local cur_buf = vim.api.nvim_win_get_buf(cur_win)
-  local ft = vim.bo[cur_buf].filetype
-  local bt = vim.bo[cur_buf].buftype
-  if ft == "NvimTree" then
-    _G.resize_sidebar(2)
-  elseif bt == "terminal" or cur_win == term_win then
+  if vim.bo[cur_buf].buftype == "terminal" or cur_win == term_win then
     _G.resize_terminal(2)
   end
 end
@@ -2692,9 +2722,13 @@ _G.new_terminal = function()
 
   -- Pane resize keys in terminal buffer
   vim.keymap.set("t", "<M-Left>", _G.handle_alt_left, { buffer = new_buf, silent = true })
+  vim.keymap.set("t", "<A-Left>", _G.handle_alt_left, { buffer = new_buf, silent = true })
   vim.keymap.set("t", "<M-Right>", _G.handle_alt_right, { buffer = new_buf, silent = true })
+  vim.keymap.set("t", "<A-Right>", _G.handle_alt_right, { buffer = new_buf, silent = true })
   vim.keymap.set("t", "<M-Up>", _G.handle_alt_up, { buffer = new_buf, silent = true })
+  vim.keymap.set("t", "<A-Up>", _G.handle_alt_up, { buffer = new_buf, silent = true })
   vim.keymap.set("t", "<M-Down>", _G.handle_alt_down, { buffer = new_buf, silent = true })
+  vim.keymap.set("t", "<A-Down>", _G.handle_alt_down, { buffer = new_buf, silent = true })
 
   -- Smart word navigation and word deletion inside integrated Bash terminal
   local function send_term(seq)
@@ -7459,6 +7493,15 @@ map({ "i", "n", "v", "s" }, "<PageDown>", _G.smart_page_down, { desc = "Smart Pa
 map({ "i", "n", "v", "s" }, "<PgDn>", _G.smart_page_down, { desc = "Smart Page Down" })
 map({ "i", "n", "v", "s" }, "<PageUp>", _G.smart_page_up, { desc = "Smart Page Up" })
 map({ "i", "n", "v", "s" }, "<PgUp>", _G.smart_page_up, { desc = "Smart Page Up" })
+
+-- Resize Sidebar / Terminal: Alt+Left / Alt+Right (and Alt+Up / Alt+Down)
+map({ "n", "i", "s", "t", "v" }, "<M-Left>", _G.handle_alt_left, { desc = "Shrink Sidebar Width" })
+map({ "n", "i", "s", "t", "v" }, "<A-Left>", _G.handle_alt_left, { desc = "Shrink Sidebar Width" })
+map({ "n", "i", "s", "t", "v" }, "<M-Right>", _G.handle_alt_right, { desc = "Grow Sidebar Width" })
+map({ "n", "i", "s", "t", "v" }, "<A-Right>", _G.handle_alt_right, { desc = "Grow Sidebar Width" })
+
+vim.api.nvim_create_user_command("SidebarGrow", function() _G.resize_sidebar(2) end, { desc = "Grow Sidebar Width" })
+vim.api.nvim_create_user_command("SidebarShrink", function() _G.resize_sidebar(-2) end, { desc = "Shrink Sidebar Width" })
 
 -- Move Line Above / Below: Alt+Up / Alt+Down (and Resize Terminal in terminal pane)
 map({ "n", "i", "s", "t", "v" }, "<M-Up>", _G.handle_alt_up, { desc = "Move Line Up (or Resize Terminal Up)" })
