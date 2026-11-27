@@ -89,9 +89,9 @@ vim.opt.laststatus = 3
 -- Insert / Typing mode (Editor, Rename prompt): NORMAL vertical bar cursor (|) (ver25)
 vim.opt.guicursor = "n:block-blinkon500-blinkoff500,i-c-v-ve:ver25-blinkon500-blinkoff500"
 
--- 2. Windows / Notepad-style Selection & Modeless Rules
+-- 2. Modeless Selection Rules
 vim.opt.keymodel = "startsel,stopsel"    -- Shift keys start selection, non-shift stops
-vim.opt.selection = "exclusive"          -- Selection ends before cursor col (Notepad standard)
+vim.opt.selection = "exclusive"          -- Selection ends before cursor col (modeless standard)
 vim.opt.selectmode = "mouse,key"         -- Mouse and Shift-keys start Select mode
 
 vim.g.startup_done = false
@@ -4013,12 +4013,7 @@ FontEngine.terminal_heights = {
   { val = 30, name = "30 rows (Expanded drawer)" },
 }
 
-FontEngine.terminal_shells = (vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1) and {
-  { id = "auto", name = "Auto-Detect Default PowerShell" },
-  { id = "pwsh", name = "PowerShell 7 (pwsh.exe)" },
-  { id = "powershell", name = "Windows PowerShell (powershell.exe)" },
-  { id = "cmd", name = "Command Prompt (cmd.exe)" },
-} or {
+FontEngine.terminal_shells = {
   { id = "auto", name = "Auto-Detect Default Shell" },
   { id = "bash", name = "Bash (/bin/bash)" },
   { id = "zsh", name = "Zsh (/usr/bin/zsh)" },
