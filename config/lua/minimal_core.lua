@@ -1332,6 +1332,7 @@ _G.ensure_ui_chrome = function()
   if ok_tree then
     local api = require("nvim-tree.api")
     local minimal_icon_decorator = ok_icons and minimal_icons.create_decorator(api) or nil
+    _G.minimal_icon_decorator = minimal_icon_decorator
 
   local function notify_lsp_file_deleted(filepath)
     if not filepath or filepath == "" then return end
@@ -1511,6 +1512,21 @@ _G.ensure_ui_chrome = function()
     vim.keymap.set("n", "<M-Right>", function() _G.resize_sidebar(2) end, { desc = "Grow Sidebar Width", buffer = bufnr, noremap = true, silent = true })
   end
 
+  local initial_cfg = _G.FontEngine and _G.FontEngine.get_config() or {}
+  local sb_cfg = initial_cfg.sidebar or { width = 24, icon_padding = " ", indent_width = 2, chevron_style = 1, git_badge = 1 }
+  local chev = (_G.FontEngine and _G.FontEngine.chevron_styles and _G.FontEngine.chevron_styles[sb_cfg.chevron_style]) or { id = "sleek", closed = "›", open = "⌄" }
+  local git_opt = (_G.FontEngine and _G.FontEngine.git_badge_styles and _G.FontEngine.git_badge_styles[sb_cfg.git_badge]) or { placement = "after", show = true, style = "letters" }
+  local git_glyphs = {
+    unstaged = (git_opt.style == "dot") and "·" or "M",
+    staged = (git_opt.style == "dot") and "·" or "A",
+    unmerged = "!",
+    renamed = "R",
+    untracked = (git_opt.style == "dot") and "·" or "U",
+    deleted = "D",
+    ignored = "·",
+  }
+  _G.sidebar_width = tonumber(sb_cfg.width) or _G.sidebar_width or 24
+
   tree.setup({
     on_attach = sidebar_on_attach,
     disable_netrw = true,
@@ -1550,7 +1566,7 @@ _G.ensure_ui_chrome = function()
       },
     },
     view = {
-      width = 24,
+      width = _G.sidebar_width,
       side = "left",
       signcolumn = "no",
       cursorline = true,           -- Highlights row under block cursor
@@ -1561,7 +1577,7 @@ _G.ensure_ui_chrome = function()
       highlight_diagnostics = "name", -- Highlights filename with Red/Yellow/Blue while preserving authentic logo icon colors!
       highlight_opened_files = "name",
       root_folder_label = false,     -- Hides '..' root line so Enter never executes cd ..
-      indent_width = 2,
+      indent_width = tonumber(sb_cfg.indent_width) or 2,
       decorators = minimal_icon_decorator and {
         "Git",
         "Open",
@@ -1595,13 +1611,15 @@ _G.ensure_ui_chrome = function()
             color = true,
           },
         },
-        padding = " ",
+        git_placement = git_opt.placement or "after",
+        modified_placement = "after",
+        padding = sb_cfg.icon_padding or " ",
         symlink_arrow = " 󰁔 ",
         show = {
           file = true,
           folder = true,
-          folder_arrow = true,
-          git = true,
+          folder_arrow = (chev.id ~= "hidden"),
+          git = git_opt.show,
           modified = true,
           diagnostics = true,
         },
@@ -1611,8 +1629,8 @@ _G.ensure_ui_chrome = function()
           bookmark = "󰆤",
           modified = "●",
           folder = {
-            arrow_closed = "›",
-            arrow_open = "⌄",
+            arrow_closed = chev.closed or "›",
+            arrow_open = chev.open or "⌄",
             default = "",
             open = "",
             empty = "",
@@ -1620,15 +1638,7 @@ _G.ensure_ui_chrome = function()
             symlink = "",
             symlink_open = "",
           },
-          git = {
-            unstaged = "󰜥",
-            staged = "󰄬",
-            unmerged = "",
-            renamed = "󰁔",
-            untracked = "󰄱",
-            deleted = "󰅖",
-            ignored = "󰅚",
-          },
+          git = git_glyphs,
         },
       },
     },
@@ -3922,8 +3932,11 @@ _G.open_theme_picker = function()
 end
 
 -- =============================================================================
--- DESKTOP FONTS & OPTIONS PANEL (Ctrl+Shift+K+T)
--- Multi-tab control: Family, Size, Weight, and Line Spacing with live preview
+-- UNIFIED APPEARANCE & FONT CONFIGURATION ENGINE (Ctrl+Shift+K+T)
+-- Multi-target control:
+--   1: Editor   -> Family (live filter), Size (9..24pt), Weight (b/w500/w600), Spacing
+--   2: Sidebar  -> Combined Scale Presets, Width, Icon Padding, Indent Depth, Chevrons, Git Badges
+--   3: Terminal -> Drawer Height, Shell Profile, Line Spacing
 -- =============================================================================
 _G.FontEngine = {}
 local FontEngine = _G.FontEngine
@@ -3945,6 +3958,79 @@ FontEngine.line_spacings = {
   { val = 4, name = "Spacious (+4 px)" },
 }
 
+FontEngine.scale_presets = {
+  { id = "compact", name = "Compact (20 cols, 1-sp icon, 1-sp indent)", width = 20, padding = " ", indent = 1 },
+  { id = "standard", name = "Standard (24 cols, 1-sp icon, 2-sp indent)", width = 24, padding = " ", indent = 2 },
+  { id = "comfortable", name = "Comfortable (28 cols, 2-sp icon, 2-sp indent)", width = 28, padding = "  ", indent = 2 },
+  { id = "spacious", name = "Spacious (32 cols, 2-sp icon, 3-sp indent)", width = 32, padding = "  ", indent = 3 },
+  { id = "expanded", name = "Expanded (36 cols, 3-sp icon, 4-sp indent)", width = 36, padding = "   ", indent = 4 },
+  { id = "roomy", name = "Roomy (40 cols, 3-sp icon, 4-sp indent)", width = 40, padding = "   ", indent = 4 },
+}
+
+FontEngine.sidebar_widths = {
+  { val = 20, name = "20 columns (Ultra-compact)" },
+  { val = 24, name = "24 columns (Standard compact)" },
+  { val = 28, name = "28 columns (Medium comfortable)" },
+  { val = 32, name = "32 columns (Spacious wide)" },
+  { val = 36, name = "36 columns (Expanded wide)" },
+  { val = 40, name = "40 columns (Extra roomy)" },
+}
+
+FontEngine.icon_paddings = {
+  { val = "", name = "None (0 spaces - flush with folder arrows)" },
+  { val = " ", name = "Compact (1 space - clean standard)" },
+  { val = "  ", name = "Spacious (2 spaces - distinct separation)" },
+  { val = "   ", name = "Expanded (3 spaces - wide layout)" },
+}
+
+FontEngine.indent_widths = {
+  { val = 1, name = "1 space (Tight tree)" },
+  { val = 2, name = "2 spaces (Standard clean tree)" },
+  { val = 3, name = "3 spaces (Spacious stepped tree)" },
+  { val = 4, name = "4 spaces (Deep indented hierarchy)" },
+}
+
+FontEngine.chevron_styles = {
+  { id = "sleek", name = "Minimalist Sleek (› / ⌄)", closed = "›", open = "⌄" },
+  { id = "nerd", name = "Nerd Font Angles ( / )", closed = "", open = "" },
+  { id = "arrows", name = "Solid Triangles (▶ / ▼)", closed = "▶", open = "▼" },
+  { id = "plusminus", name = "Plus / Minus (+ / -)", closed = "+", open = "-" },
+  { id = "hidden", name = "Hidden (No arrows, folder icons only)", closed = " ", open = " " },
+}
+
+FontEngine.git_badge_styles = {
+  { id = "after", name = "After Filename (Clean ASCII: M, A, U, !)", placement = "after", show = true, style = "letters" },
+  { id = "dot", name = "Subtle Middle Dot (·)", placement = "after", show = true, style = "dot" },
+  { id = "hidden", name = "Hidden (Distraction-Free, no git clutter)", placement = "after", show = false, style = "none" },
+}
+
+FontEngine.terminal_heights = {
+  { val = 10, name = "10 rows (Compact drawer)" },
+  { val = 14, name = "14 rows (Small drawer)" },
+  { val = 18, name = "18 rows (Standard balanced)" },
+  { val = 22, name = "22 rows (Medium comfort)" },
+  { val = 26, name = "26 rows (Large workstation)" },
+  { val = 30, name = "30 rows (Expanded drawer)" },
+}
+
+FontEngine.terminal_shells = (vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1) and {
+  { id = "auto", name = "Auto-Detect Default PowerShell" },
+  { id = "pwsh", name = "PowerShell 7 (pwsh.exe)" },
+  { id = "powershell", name = "Windows PowerShell (powershell.exe)" },
+  { id = "cmd", name = "Command Prompt (cmd.exe)" },
+} or {
+  { id = "auto", name = "Auto-Detect Default Shell" },
+  { id = "bash", name = "Bash (/bin/bash)" },
+  { id = "zsh", name = "Zsh (/usr/bin/zsh)" },
+  { id = "sh", name = "Standard POSIX Shell (/bin/sh)" },
+}
+
+FontEngine.terminal_line_spacings = {
+  { val = -2, name = "Compact (-2 px)" },
+  { val = 0, name = "Standard (0 px)" },
+  { val = 2, name = "Relaxed (+2 px)" },
+}
+
 function FontEngine.get_installed_fonts()
   if not FontEngine.cached_fonts then
     local list = vim.fn.systemlist("fc-list : family | tr ',' '\n' | sed 's/^[ \t]*//' | grep -v '^[.]' | grep -v '^$' | sort -u")
@@ -3964,18 +4050,6 @@ function FontEngine.get_installed_fonts()
 end
 
 function FontEngine.get_config()
-  if vim.fn.filereadable(FontEngine.config_file) == 1 then
-    local content = vim.fn.readfile(FontEngine.config_file)
-    if content and #content > 0 then
-      local ok, data = pcall(vim.fn.json_decode, table.concat(content, "\n"))
-      if ok and type(data) == "table" and data.family then
-        data.size = tostring(data.size or "11.5")
-        data.weight = data.weight or "regular"
-        data.line_space = tonumber(data.line_space) or 0
-        return data
-      end
-    end
-  end
   local legacy_name = "CaskaydiaCove Nerd Font"
   if vim.fn.filereadable(FontEngine.legacy_file) == 1 then
     local l = vim.fn.readfile(FontEngine.legacy_file)
@@ -3983,42 +4057,211 @@ function FontEngine.get_config()
       legacy_name = vim.trim(l[1])
     end
   end
-  return {
-    family = legacy_name,
-    size = "11.5",
-    bold = false,
-    weight = "regular",
-    line_space = 0,
+
+  local cfg = {
+    target = 1,
+    editor = {
+      family = legacy_name,
+      size = "11.5",
+      bold = false,
+      weight = "regular",
+      line_space = 0,
+    },
+    sidebar = {
+      scale = 2,
+      width = 24,
+      icon_padding = " ",
+      indent_width = 2,
+      chevron_style = 1,
+      git_badge = 1,
+    },
+    terminal = {
+      height = 18,
+      shell = "auto",
+      line_space = 0,
+    },
   }
+
+  if vim.fn.filereadable(FontEngine.config_file) == 1 then
+    local content = vim.fn.readfile(FontEngine.config_file)
+    if content and #content > 0 then
+      local ok, data = pcall(vim.fn.json_decode, table.concat(content, "\n"))
+      if ok and type(data) == "table" then
+        if data.editor and type(data.editor) == "table" then
+          cfg.editor.family = tostring(data.editor.family or cfg.editor.family)
+          cfg.editor.size = tostring(data.editor.size or cfg.editor.size)
+          cfg.editor.weight = tostring(data.editor.weight or cfg.editor.weight)
+          cfg.editor.bold = (data.editor.bold == true or cfg.editor.weight == "bold")
+          cfg.editor.line_space = tonumber(data.editor.line_space) or 0
+        elseif data.family then
+          cfg.editor.family = tostring(data.family)
+          cfg.editor.size = tostring(data.size or "11.5")
+          cfg.editor.weight = tostring(data.weight or "regular")
+          cfg.editor.bold = (data.bold == true or cfg.editor.weight == "bold")
+          cfg.editor.line_space = tonumber(data.line_space) or 0
+        end
+
+        if data.sidebar and type(data.sidebar) == "table" then
+          cfg.sidebar.scale = tonumber(data.sidebar.scale) or cfg.sidebar.scale
+          cfg.sidebar.width = tonumber(data.sidebar.width) or cfg.sidebar.width
+          if data.sidebar.icon_padding ~= nil then cfg.sidebar.icon_padding = data.sidebar.icon_padding end
+          cfg.sidebar.indent_width = tonumber(data.sidebar.indent_width) or cfg.sidebar.indent_width
+          cfg.sidebar.chevron_style = tonumber(data.sidebar.chevron_style) or cfg.sidebar.chevron_style
+          cfg.sidebar.git_badge = tonumber(data.sidebar.git_badge) or cfg.sidebar.git_badge
+        end
+
+        if data.terminal and type(data.terminal) == "table" then
+          cfg.terminal.height = tonumber(data.terminal.height) or cfg.terminal.height
+          if data.terminal.shell then cfg.terminal.shell = tostring(data.terminal.shell) end
+          cfg.terminal.line_space = tonumber(data.terminal.line_space) or cfg.terminal.line_space
+        end
+
+        cfg.target = tonumber(data.target) or 1
+      end
+    end
+  end
+
+  cfg.family = cfg.editor.family
+  cfg.size = cfg.editor.size
+  cfg.weight = cfg.editor.weight
+  cfg.bold = cfg.editor.bold
+  cfg.line_space = cfg.editor.line_space
+
+  return cfg
 end
 
 function FontEngine.save_config(cfg)
+  if not cfg then return end
   pcall(vim.fn.mkdir, vim.fn.fnamemodify(FontEngine.config_file, ":p:h"), "p")
-  local encoded = vim.fn.json_encode(cfg)
+  local out = {
+    target = cfg.target or 1,
+    family = (cfg.editor and cfg.editor.family) or cfg.family or "CaskaydiaCove Nerd Font",
+    size = (cfg.editor and cfg.editor.size) or cfg.size or "11.5",
+    weight = (cfg.editor and cfg.editor.weight) or cfg.weight or "regular",
+    bold = (cfg.editor and cfg.editor.bold) or cfg.bold or false,
+    line_space = (cfg.editor and cfg.editor.line_space) or cfg.line_space or 0,
+    editor = cfg.editor or {
+      family = cfg.family or "CaskaydiaCove Nerd Font",
+      size = cfg.size or "11.5",
+      weight = cfg.weight or "regular",
+      bold = cfg.bold or false,
+      line_space = cfg.line_space or 0,
+    },
+    sidebar = cfg.sidebar or {
+      scale = 2,
+      width = 24,
+      icon_padding = " ",
+      indent_width = 2,
+      chevron_style = 1,
+      git_badge = 1,
+    },
+    terminal = cfg.terminal or {
+      height = 18,
+      shell = "auto",
+      line_space = 0,
+    },
+  }
+  local encoded = vim.fn.json_encode(out)
   vim.fn.writefile({ encoded }, FontEngine.config_file)
-  pcall(vim.fn.writefile, { cfg.family }, FontEngine.legacy_file)
+  pcall(vim.fn.writefile, { out.family }, FontEngine.legacy_file)
 end
 
 function FontEngine.apply_config(cfg)
-  if not cfg or not cfg.family or cfg.family == "" then return end
-  -- Include Nerd Font Propo fallback so file/folder icons render at full normal size even when a non-Nerd font is chosen
-  local fam = cfg.family
-  if not fam:lower():find("nerd") and not fam:lower():find("nf") then
-    fam = fam .. ",CaskaydiaCove Nerd Font Propo,JetBrainsMono Nerd Font Propo"
-  end
-  local font_str = fam .. ":h" .. (cfg.size or "11.5")
-  if cfg.bold or cfg.weight == "bold" then
-    font_str = font_str .. ":b"
-  elseif cfg.weight and cfg.weight ~= "regular" and cfg.weight ~= "" then
-    font_str = font_str .. ":" .. cfg.weight
-  end
-  pcall(function()
-    vim.o.guifont = font_str
-  end)
-  if vim.g.neovide then
+  if not cfg then return end
+  local ed = cfg.editor or cfg
+  if ed and ed.family and ed.family ~= "" then
+    local fam = ed.family
+    if not fam:lower():find("nerd") and not fam:lower():find("nf") then
+      fam = fam .. ",CaskaydiaCove Nerd Font Propo,JetBrainsMono Nerd Font Propo"
+    end
+    local font_str = fam .. ":h" .. (ed.size or "11.5")
+    if ed.bold or ed.weight == "bold" then
+      font_str = font_str .. ":b"
+    elseif ed.weight and ed.weight ~= "regular" and ed.weight ~= "" then
+      font_str = font_str .. ":" .. ed.weight
+    end
     pcall(function()
-      vim.g.neovide_line_space = tonumber(cfg.line_space) or 0
+      vim.o.guifont = font_str
     end)
+    if vim.g.neovide then
+      pcall(function()
+        vim.g.neovide_line_space = tonumber(ed.line_space) or 0
+      end)
+    end
+  end
+
+  local sb = cfg.sidebar
+  if sb then
+    if sb.width then
+      _G.sidebar_width = tonumber(sb.width) or 24
+    end
+    local tree_loaded = package.loaded["nvim-tree"]
+    if tree_loaded then
+      local ok_api, api = pcall(require, "nvim-tree.api")
+      local chev = FontEngine.chevron_styles[sb.chevron_style] or FontEngine.chevron_styles[1]
+      local git_opt = FontEngine.git_badge_styles[sb.git_badge] or FontEngine.git_badge_styles[1]
+      local git_glyphs = {
+        unstaged = (git_opt.style == "dot") and "·" or "M",
+        staged = (git_opt.style == "dot") and "·" or "A",
+        unmerged = "!",
+        renamed = "R",
+        untracked = (git_opt.style == "dot") and "·" or "U",
+        deleted = "D",
+        ignored = "·",
+      }
+      local decorators = _G.minimal_icon_decorator and {
+        "Git", "Open", "Hidden", "Modified", "Bookmark", "Diagnostics", "Copied", _G.minimal_icon_decorator, "Cut"
+      } or nil
+
+      pcall(function()
+        tree_loaded.setup({
+          view = {
+            width = _G.sidebar_width,
+            side = "left",
+            signcolumn = "no",
+            cursorline = true,
+            preserve_window_proportions = true,
+          },
+          renderer = {
+            indent_width = tonumber(sb.indent_width) or 2,
+            decorators = decorators,
+            icons = {
+              padding = sb.icon_padding or " ",
+              git_placement = git_opt.placement or "after",
+              modified_placement = "after",
+              show = {
+                file = true,
+                folder = true,
+                folder_arrow = (chev.id ~= "hidden"),
+                git = git_opt.show,
+                modified = true,
+                diagnostics = true,
+              },
+              glyphs = {
+                folder = {
+                  arrow_closed = chev.closed or "›",
+                  arrow_open = chev.open or "⌄",
+                },
+                git = git_glyphs,
+              },
+            },
+          },
+        })
+        if ok_api and api.tree.is_visible() then
+          api.tree.resize({ width = _G.sidebar_width })
+          api.tree.reload()
+        end
+      end)
+    end
+  end
+
+  local tm = cfg.terminal
+  if tm and tm.height then
+    term_height = tonumber(tm.height) or 18
+    _G.term_height = term_height
+    if term_win and vim.api.nvim_win_is_valid(term_win) then
+      pcall(vim.api.nvim_win_set_height, term_win, term_height)
+    end
   end
 end
 
@@ -4028,12 +4271,14 @@ end
 
 function FontEngine.apply_font(font_name)
   local cfg = FontEngine.get_config()
+  cfg.editor.family = font_name
   cfg.family = font_name
   FontEngine.apply_config(cfg)
 end
 
 function FontEngine.save_active_font(font_name)
   local cfg = FontEngine.get_config()
+  cfg.editor.family = font_name
   cfg.family = font_name
   FontEngine.save_config(cfg)
 end
@@ -4043,33 +4288,110 @@ _G.open_font_picker = function()
   local initial_cfg = FontEngine.get_config()
   local working_cfg = vim.deepcopy(initial_cfg)
 
-  local active_tab = 1
-  local tab_names = { "Family", "Size", "Weight", "Spacing" }
-  local filtered_fonts = {}
-  local sel_idx = { [1] = 1, [2] = 1, [3] = 1, [4] = 1 }
+  local targets = {
+    { id = 1, name = "Editor" },
+    { id = 2, name = "Sidebar" },
+    { id = 3, name = "Terminal" },
+  }
 
-  -- Identify initial selections
+  local subtabs = {
+    [1] = {
+      { id = 1, name = "1: Family" },
+      { id = 2, name = "2: Size" },
+      { id = 3, name = "3: Weight" },
+      { id = 4, name = "4: Spacing" },
+    },
+    [2] = {
+      { id = 1, name = "1: Scale" },
+      { id = 2, name = "2: Width" },
+      { id = 3, name = "3: Icons" },
+      { id = 4, name = "4: Indent" },
+      { id = 5, name = "5: Chevrons" },
+      { id = 6, name = "6: Git Badges" },
+    },
+    [3] = {
+      { id = 1, name = "1: Drawer Height" },
+      { id = 2, name = "2: Shell Profile" },
+      { id = 3, name = "3: Line Spacing" },
+    },
+  }
+
+  local active_target = working_cfg.target or 1
+  if active_target < 1 or active_target > 3 then active_target = 1 end
+  local active_subtab = 1
+  local filtered_fonts = {}
+
+  local sel_idx = {
+    [1] = { [1] = 1, [2] = 1, [3] = 1, [4] = 1 },
+    [2] = { [1] = 1, [2] = 1, [3] = 1, [4] = 1, [5] = 1, [6] = 1 },
+    [3] = { [1] = 1, [2] = 1, [3] = 1 },
+  }
+
+  -- Target 1 (Editor) initial selections
   for i, f in ipairs(all_fonts) do
-    if f == working_cfg.family then
-      sel_idx[1] = i
+    if f == working_cfg.editor.family then
+      sel_idx[1][1] = i
       break
     end
   end
   for i, s in ipairs(FontEngine.font_sizes) do
-    if s == working_cfg.size then
-      sel_idx[2] = i
+    if s == working_cfg.editor.size then
+      sel_idx[1][2] = i
       break
     end
   end
   for i, w in ipairs(FontEngine.font_weights) do
-    if w.id == working_cfg.weight or (working_cfg.bold and w.id == "bold") then
-      sel_idx[3] = i
+    if w.id == working_cfg.editor.weight or (working_cfg.editor.bold and w.id == "bold") then
+      sel_idx[1][3] = i
       break
     end
   end
   for i, sp in ipairs(FontEngine.line_spacings) do
-    if sp.val == working_cfg.line_space then
-      sel_idx[4] = i
+    if sp.val == working_cfg.editor.line_space then
+      sel_idx[1][4] = i
+      break
+    end
+  end
+
+  -- Target 2 (Sidebar) initial selections
+  sel_idx[2][1] = working_cfg.sidebar.scale or 2
+  for i, w in ipairs(FontEngine.sidebar_widths) do
+    if w.val == working_cfg.sidebar.width then
+      sel_idx[2][2] = i
+      break
+    end
+  end
+  for i, p in ipairs(FontEngine.icon_paddings) do
+    if p.val == working_cfg.sidebar.icon_padding then
+      sel_idx[2][3] = i
+      break
+    end
+  end
+  for i, ind in ipairs(FontEngine.indent_widths) do
+    if ind.val == working_cfg.sidebar.indent_width then
+      sel_idx[2][4] = i
+      break
+    end
+  end
+  sel_idx[2][5] = working_cfg.sidebar.chevron_style or 1
+  sel_idx[2][6] = working_cfg.sidebar.git_badge or 1
+
+  -- Target 3 (Terminal) initial selections
+  for i, h in ipairs(FontEngine.terminal_heights) do
+    if h.val == working_cfg.terminal.height then
+      sel_idx[3][1] = i
+      break
+    end
+  end
+  for i, sh in ipairs(FontEngine.terminal_shells) do
+    if sh.id == working_cfg.terminal.shell then
+      sel_idx[3][2] = i
+      break
+    end
+  end
+  for i, sp in ipairs(FontEngine.terminal_line_spacings) do
+    if sp.val == working_cfg.terminal.line_space then
+      sel_idx[3][3] = i
       break
     end
   end
@@ -4081,8 +4403,8 @@ _G.open_font_picker = function()
   vim.bo[buf].undolevels = -1
 
   local ui = vim.api.nvim_list_uis()[1] or { width = 120, height = 40 }
-  local width = math.min(62, ui.width - 6)
-  local height = math.min(18, ui.height - 6)
+  local width = math.min(70, ui.width - 4)
+  local height = math.min(19, ui.height - 4)
   local row = math.max(1, math.floor((ui.height - height) / 3))
   local col = math.max(1, math.floor((ui.width - width) / 2))
 
@@ -4094,9 +4416,9 @@ _G.open_font_picker = function()
     height = height,
     style = "minimal",
     border = "rounded",
-    title = string.format(" Typography & Font Settings (%d Fonts) ", #all_fonts),
+    title = string.format(" Appearance, Font & Sizing Options (%d Fonts) ", #all_fonts),
     title_pos = "center",
-    footer = " Tab: Next Tab ",
+    footer = " Tab: Switch Target │ ←/→: Sub-tab │ ↑/↓: Select │ Enter: Save │ Esc: Cancel ",
     footer_pos = "center",
   })
 
@@ -4122,9 +4444,12 @@ _G.open_font_picker = function()
 
   _G.register_active_menu(cancel_selection, win)
 
-  vim.api.nvim_set_hl(0, "FontTabActive", { fg = "#ffffff", bg = "#3b4252", bold = true })
-  vim.api.nvim_set_hl(0, "FontTabInactive", { fg = "#7f848e", bg = "#21252b" })
+  vim.api.nvim_set_hl(0, "FontTargetActive", { fg = "#ffffff", bg = "#2b5278", bold = true })
+  vim.api.nvim_set_hl(0, "FontTargetInactive", { fg = "#7f848e", bg = "#21252b" })
+  vim.api.nvim_set_hl(0, "FontSubtabActive", { fg = "#61afef", bold = true, underline = true })
+  vim.api.nvim_set_hl(0, "FontSubtabInactive", { fg = "#abb2bf" })
   vim.api.nvim_set_hl(0, "FontItemArrow", { fg = "#61afef", bold = true })
+  vim.api.nvim_set_hl(0, "FontItemActive", { fg = "#ffffff", bold = true })
 
   local sb
   local function render(update_preview)
@@ -4132,66 +4457,129 @@ _G.open_font_picker = function()
     local query = sb and sb.get_text() or ""
     local lines = {}
 
-    -- Line 1: Tab headers with distinct pill background
-    local tab_parts = {
-      { id = 1, text = " 1: Family " },
-      { id = 2, text = " 2: Size " },
-      { id = 3, text = " 3: Weight " },
-      { id = 4, text = " 4: Spacing " },
-    }
-    local tab_spans = {}
-    local tab_line = "  "
-    for _, tp in ipairs(tab_parts) do
-      local s_col = #tab_line
-      tab_line = tab_line .. tp.text
-      local e_col = #tab_line
-      tab_line = tab_line .. "  "
-      table.insert(tab_spans, { id = tp.id, s = s_col, e = e_col })
+    -- Line 1: Target Selector Pills
+    local target_line = "  "
+    local target_spans = {}
+    for _, t in ipairs(targets) do
+      local s_col = #target_line
+      local label = " " .. t.id .. ": " .. t.name .. " "
+      target_line = target_line .. label
+      local e_col = #target_line
+      target_line = target_line .. "    "
+      table.insert(target_spans, { id = t.id, s = s_col, e = e_col })
     end
-    table.insert(lines, tab_line)
+    table.insert(lines, target_line)
 
-    -- Line 2: Subheader for search (Family tab only) & Separator
-    if active_tab == 1 then
-      local search_line = sb and sb.get_display_line("  Search Family: ", "(type to filter fonts...)") or "  Search Family: ▏ (type to filter fonts...)"
+    -- Line 2: Sub-tabs for the current active target
+    local cur_subtabs = subtabs[active_target] or {}
+    local subtab_line = "  "
+    local subtab_spans = {}
+    for idx, st in ipairs(cur_subtabs) do
+      local s_col = #subtab_line
+      local label = " " .. st.name .. " "
+      subtab_line = subtab_line .. label
+      local e_col = #subtab_line
+      if idx < #cur_subtabs then
+        subtab_line = subtab_line .. "│"
+      end
+      table.insert(subtab_spans, { id = st.id, s = s_col, e = e_col })
+    end
+    table.insert(lines, subtab_line)
+
+    -- Line 3: Search header (Family tab) or Clean Divider
+    if active_target == 1 and active_subtab == 1 then
+      local search_line = sb and sb.get_display_line("  Search Font: ", "(type to filter fonts...)") or "  Search Font: ▏ (type to filter fonts...)"
       table.insert(lines, search_line)
       table.insert(lines, "  ────────────────────────────────────────────────────────────")
     else
       table.insert(lines, "  ────────────────────────────────────────────────────────────")
     end
 
-    -- Tab-specific item rows (clean indicator, no redundant status text)
-    if active_tab == 1 then
-      filtered_fonts = {}
-      for _, f in ipairs(all_fonts) do
-        if query == "" or f:lower():find(query:lower(), 1, true) then
-          table.insert(filtered_fonts, f)
+    -- Tab-specific item rows
+    if active_target == 1 then
+      if active_subtab == 1 then
+        filtered_fonts = {}
+        for _, f in ipairs(all_fonts) do
+          if query == "" or f:lower():find(query:lower(), 1, true) then
+            table.insert(filtered_fonts, f)
+          end
+        end
+        if #filtered_fonts == 0 then
+          table.insert(lines, "   No fonts matching '" .. query .. "'")
+        else
+          if sel_idx[1][1] > #filtered_fonts then sel_idx[1][1] = #filtered_fonts end
+          if sel_idx[1][1] < 1 then sel_idx[1][1] = 1 end
+          for i, f in ipairs(filtered_fonts) do
+            local prefix = (i == sel_idx[1][1]) and " > " or "   "
+            table.insert(lines, prefix .. f)
+          end
+          working_cfg.editor.family = filtered_fonts[sel_idx[1][1]]
+          working_cfg.family = working_cfg.editor.family
+        end
+      elseif active_subtab == 2 then
+        for i, s in ipairs(FontEngine.font_sizes) do
+          local prefix = (i == sel_idx[1][2]) and " > " or "   "
+          table.insert(lines, prefix .. s .. " pt")
+        end
+      elseif active_subtab == 3 then
+        for i, w in ipairs(FontEngine.font_weights) do
+          local prefix = (i == sel_idx[1][3]) and " > " or "   "
+          table.insert(lines, prefix .. w.name)
+        end
+      elseif active_subtab == 4 then
+        for i, sp in ipairs(FontEngine.line_spacings) do
+          local prefix = (i == sel_idx[1][4]) and " > " or "   "
+          table.insert(lines, prefix .. sp.name)
         end
       end
-      if #filtered_fonts == 0 then
-        table.insert(lines, "   No fonts matching '" .. query .. "'")
-      else
-        if sel_idx[1] > #filtered_fonts then sel_idx[1] = #filtered_fonts end
-        if sel_idx[1] < 1 then sel_idx[1] = 1 end
-        for i, f in ipairs(filtered_fonts) do
-          local prefix = (i == sel_idx[1]) and " > " or "   "
-          table.insert(lines, prefix .. f)
+    elseif active_target == 2 then
+      if active_subtab == 1 then
+        for i, sc in ipairs(FontEngine.scale_presets) do
+          local prefix = (i == sel_idx[2][1]) and " > " or "   "
+          table.insert(lines, prefix .. sc.name)
         end
-        working_cfg.family = filtered_fonts[sel_idx[1]]
+      elseif active_subtab == 2 then
+        for i, w in ipairs(FontEngine.sidebar_widths) do
+          local prefix = (i == sel_idx[2][2]) and " > " or "   "
+          table.insert(lines, prefix .. w.name)
+        end
+      elseif active_subtab == 3 then
+        for i, p in ipairs(FontEngine.icon_paddings) do
+          local prefix = (i == sel_idx[2][3]) and " > " or "   "
+          table.insert(lines, prefix .. p.name)
+        end
+      elseif active_subtab == 4 then
+        for i, ind in ipairs(FontEngine.indent_widths) do
+          local prefix = (i == sel_idx[2][4]) and " > " or "   "
+          table.insert(lines, prefix .. ind.name)
+        end
+      elseif active_subtab == 5 then
+        for i, ch in ipairs(FontEngine.chevron_styles) do
+          local prefix = (i == sel_idx[2][5]) and " > " or "   "
+          table.insert(lines, prefix .. ch.name)
+        end
+      elseif active_subtab == 6 then
+        for i, gb in ipairs(FontEngine.git_badge_styles) do
+          local prefix = (i == sel_idx[2][6]) and " > " or "   "
+          table.insert(lines, prefix .. gb.name)
+        end
       end
-    elseif active_tab == 2 then
-      for i, s in ipairs(FontEngine.font_sizes) do
-        local prefix = (i == sel_idx[2]) and " > " or "   "
-        table.insert(lines, prefix .. s .. " pt")
-      end
-    elseif active_tab == 3 then
-      for i, w in ipairs(FontEngine.font_weights) do
-        local prefix = (i == sel_idx[3]) and " > " or "   "
-        table.insert(lines, prefix .. w.name)
-      end
-    elseif active_tab == 4 then
-      for i, sp in ipairs(FontEngine.line_spacings) do
-        local prefix = (i == sel_idx[4]) and " > " or "   "
-        table.insert(lines, prefix .. sp.name)
+    elseif active_target == 3 then
+      if active_subtab == 1 then
+        for i, h in ipairs(FontEngine.terminal_heights) do
+          local prefix = (i == sel_idx[3][1]) and " > " or "   "
+          table.insert(lines, prefix .. h.name)
+        end
+      elseif active_subtab == 2 then
+        for i, sh in ipairs(FontEngine.terminal_shells) do
+          local prefix = (i == sel_idx[3][2]) and " > " or "   "
+          table.insert(lines, prefix .. sh.name)
+        end
+      elseif active_subtab == 3 then
+        for i, sp in ipairs(FontEngine.terminal_line_spacings) do
+          local prefix = (i == sel_idx[3][3]) and " > " or "   "
+          table.insert(lines, prefix .. sp.name)
+        end
       end
     end
 
@@ -4201,13 +4589,20 @@ _G.open_font_picker = function()
 
     local ns_id = vim.api.nvim_create_namespace("font_picker_hl")
     vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
-    for _, sp in ipairs(tab_spans) do
-      local hl_group = (sp.id == active_tab) and "FontTabActive" or "FontTabInactive"
-      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, hl_group, 0, sp.s, sp.e)
+
+    for _, tp in ipairs(target_spans) do
+      local hl_grp = (tp.id == active_target) and "FontTargetActive" or "FontTargetInactive"
+      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, hl_grp, 0, tp.s, tp.e)
     end
 
-    local header_lines = (active_tab == 1 and 3 or 2)
-    local target_row = header_lines + sel_idx[active_tab]
+    for _, st in ipairs(subtab_spans) do
+      local hl_grp = (st.id == active_subtab) and "FontSubtabActive" or "FontSubtabInactive"
+      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, hl_grp, 1, st.s, st.e)
+    end
+
+    local header_lines = (active_target == 1 and active_subtab == 1) and 4 or 3
+    local cur_sel = sel_idx[active_target][active_subtab] or 1
+    local target_row = header_lines + cur_sel
     local total_lines = #lines
     if target_row > total_lines then target_row = total_lines end
     if target_row < (header_lines + 1) and total_lines >= (header_lines + 1) then
@@ -4217,27 +4612,30 @@ _G.open_font_picker = function()
       pcall(vim.api.nvim_win_set_cursor, win, { target_row, 1 })
       if target_row <= total_lines then
         pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FontItemArrow", target_row - 1, 0, 4)
+        pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FontItemActive", target_row - 1, 4, -1)
       end
     end
 
     if update_preview ~= false then
+      working_cfg.target = active_target
       FontEngine.apply_config(working_cfg)
     end
   end
 
   sb = make_searchbar("", function()
-    if active_tab == 1 then
-      sel_idx[1] = 1
+    if active_target == 1 and active_subtab == 1 then
+      sel_idx[1][1] = 1
       render(true)
     end
   end)
 
-  bind_searchbar_keys(buf, sb, function() return active_tab == 1 end)
+  bind_searchbar_keys(buf, sb, function() return active_target == 1 and active_subtab == 1 end)
 
   render(false)
 
   local function confirm_selection()
     confirmed = true
+    working_cfg.target = active_target
     FontEngine.save_config(working_cfg)
     FontEngine.apply_config(working_cfg)
     pcall(vim.api.nvim_win_close, win, true)
@@ -4247,72 +4645,224 @@ _G.open_font_picker = function()
     end
     vim.cmd("startinsert")
     _G.clear_active_menu(cancel_selection)
-    vim.notify(string.format("Font saved: %s, %s pt, %s", working_cfg.family, working_cfg.size, working_cfg.bold and "Bold" or working_cfg.weight), vim.log.levels.INFO)
+    vim.notify(string.format("Appearance saved: %s, %s pt, Sidebar: %s cols", working_cfg.editor.family, working_cfg.editor.size, working_cfg.sidebar.width), vim.log.levels.INFO)
   end
 
-  local function next_tab()
-    active_tab = (active_tab % #tab_names) + 1
+  local function next_target()
+    active_target = (active_target % #targets) + 1
+    active_subtab = 1
     render(false)
   end
 
-  local function prev_tab()
-    active_tab = active_tab - 1
-    if active_tab < 1 then active_tab = #tab_names end
+  local function prev_target()
+    active_target = active_target - 1
+    if active_target < 1 then active_target = #targets end
+    active_subtab = 1
+    render(false)
+  end
+
+  local function next_subtab()
+    local count = #subtabs[active_target]
+    active_subtab = (active_subtab % count) + 1
+    render(false)
+  end
+
+  local function prev_subtab()
+    local count = #subtabs[active_target]
+    active_subtab = active_subtab - 1
+    if active_subtab < 1 then active_subtab = count end
     render(false)
   end
 
   local function move_up()
-    if active_tab == 1 then
-      if #filtered_fonts == 0 then return end
-      sel_idx[1] = sel_idx[1] - 1
-      if sel_idx[1] < 1 then sel_idx[1] = #filtered_fonts end
-      working_cfg.family = filtered_fonts[sel_idx[1]]
-    elseif active_tab == 2 then
-      sel_idx[2] = sel_idx[2] - 1
-      if sel_idx[2] < 1 then sel_idx[2] = #FontEngine.font_sizes end
-      working_cfg.size = FontEngine.font_sizes[sel_idx[2]]
-    elseif active_tab == 3 then
-      sel_idx[3] = sel_idx[3] - 1
-      if sel_idx[3] < 1 then sel_idx[3] = #FontEngine.font_weights end
-      local sel = FontEngine.font_weights[sel_idx[3]]
-      working_cfg.weight = sel.id
-      working_cfg.bold = sel.bold
-    elseif active_tab == 4 then
-      sel_idx[4] = sel_idx[4] - 1
-      if sel_idx[4] < 1 then sel_idx[4] = #FontEngine.line_spacings end
-      working_cfg.line_space = FontEngine.line_spacings[sel_idx[4]].val
+    local cur = sel_idx[active_target][active_subtab] or 1
+    if active_target == 1 then
+      if active_subtab == 1 then
+        if #filtered_fonts == 0 then return end
+        cur = cur - 1
+        if cur < 1 then cur = #filtered_fonts end
+        sel_idx[1][1] = cur
+        working_cfg.editor.family = filtered_fonts[cur]
+        working_cfg.family = working_cfg.editor.family
+      elseif active_subtab == 2 then
+        cur = cur - 1
+        if cur < 1 then cur = #FontEngine.font_sizes end
+        sel_idx[1][2] = cur
+        working_cfg.editor.size = FontEngine.font_sizes[cur]
+        working_cfg.size = working_cfg.editor.size
+      elseif active_subtab == 3 then
+        cur = cur - 1
+        if cur < 1 then cur = #FontEngine.font_weights end
+        sel_idx[1][3] = cur
+        local w = FontEngine.font_weights[cur]
+        working_cfg.editor.weight = w.id
+        working_cfg.editor.bold = w.bold
+        working_cfg.weight = w.id
+        working_cfg.bold = w.bold
+      elseif active_subtab == 4 then
+        cur = cur - 1
+        if cur < 1 then cur = #FontEngine.line_spacings end
+        sel_idx[1][4] = cur
+        working_cfg.editor.line_space = FontEngine.line_spacings[cur].val
+        working_cfg.line_space = working_cfg.editor.line_space
+      end
+    elseif active_target == 2 then
+      if active_subtab == 1 then
+        cur = cur - 1
+        if cur < 1 then cur = #FontEngine.scale_presets end
+        sel_idx[2][1] = cur
+        local sc = FontEngine.scale_presets[cur]
+        working_cfg.sidebar.scale = cur
+        working_cfg.sidebar.width = sc.width
+        working_cfg.sidebar.icon_padding = sc.padding
+        working_cfg.sidebar.indent_width = sc.indent
+        for i, w in ipairs(FontEngine.sidebar_widths) do if w.val == sc.width then sel_idx[2][2] = i break end end
+        for i, p in ipairs(FontEngine.icon_paddings) do if p.val == sc.padding then sel_idx[2][3] = i break end end
+        for i, ind in ipairs(FontEngine.indent_widths) do if ind.val == sc.indent then sel_idx[2][4] = i break end end
+      elseif active_subtab == 2 then
+        cur = cur - 1
+        if cur < 1 then cur = #FontEngine.sidebar_widths end
+        sel_idx[2][2] = cur
+        working_cfg.sidebar.width = FontEngine.sidebar_widths[cur].val
+      elseif active_subtab == 3 then
+        cur = cur - 1
+        if cur < 1 then cur = #FontEngine.icon_paddings end
+        sel_idx[2][3] = cur
+        working_cfg.sidebar.icon_padding = FontEngine.icon_paddings[cur].val
+      elseif active_subtab == 4 then
+        cur = cur - 1
+        if cur < 1 then cur = #FontEngine.indent_widths end
+        sel_idx[2][4] = cur
+        working_cfg.sidebar.indent_width = FontEngine.indent_widths[cur].val
+      elseif active_subtab == 5 then
+        cur = cur - 1
+        if cur < 1 then cur = #FontEngine.chevron_styles end
+        sel_idx[2][5] = cur
+        working_cfg.sidebar.chevron_style = cur
+      elseif active_subtab == 6 then
+        cur = cur - 1
+        if cur < 1 then cur = #FontEngine.git_badge_styles end
+        sel_idx[2][6] = cur
+        working_cfg.sidebar.git_badge = cur
+      end
+    elseif active_target == 3 then
+      if active_subtab == 1 then
+        cur = cur - 1
+        if cur < 1 then cur = #FontEngine.terminal_heights end
+        sel_idx[3][1] = cur
+        working_cfg.terminal.height = FontEngine.terminal_heights[cur].val
+      elseif active_subtab == 2 then
+        cur = cur - 1
+        if cur < 1 then cur = #FontEngine.terminal_shells end
+        sel_idx[3][2] = cur
+        working_cfg.terminal.shell = FontEngine.terminal_shells[cur].id
+      elseif active_subtab == 3 then
+        cur = cur - 1
+        if cur < 1 then cur = #FontEngine.terminal_line_spacings end
+        sel_idx[3][3] = cur
+        working_cfg.terminal.line_space = FontEngine.terminal_line_spacings[cur].val
+      end
     end
     render(true)
   end
 
   local function move_down()
-    if active_tab == 1 then
-      if #filtered_fonts == 0 then return end
-      sel_idx[1] = sel_idx[1] + 1
-      if sel_idx[1] > #filtered_fonts then sel_idx[1] = 1 end
-      working_cfg.family = filtered_fonts[sel_idx[1]]
-    elseif active_tab == 2 then
-      sel_idx[2] = sel_idx[2] + 1
-      if sel_idx[2] > #FontEngine.font_sizes then sel_idx[2] = 1 end
-      working_cfg.size = FontEngine.font_sizes[sel_idx[2]]
-    elseif active_tab == 3 then
-      sel_idx[3] = sel_idx[3] + 1
-      if sel_idx[3] > #FontEngine.font_weights then sel_idx[3] = 1 end
-      local sel = FontEngine.font_weights[sel_idx[3]]
-      working_cfg.weight = sel.id
-      working_cfg.bold = sel.bold
-    elseif active_tab == 4 then
-      sel_idx[4] = sel_idx[4] + 1
-      if sel_idx[4] > #FontEngine.line_spacings then sel_idx[4] = 1 end
-      working_cfg.line_space = FontEngine.line_spacings[sel_idx[4]].val
+    local cur = sel_idx[active_target][active_subtab] or 1
+    if active_target == 1 then
+      if active_subtab == 1 then
+        if #filtered_fonts == 0 then return end
+        cur = cur + 1
+        if cur > #filtered_fonts then cur = 1 end
+        sel_idx[1][1] = cur
+        working_cfg.editor.family = filtered_fonts[cur]
+        working_cfg.family = working_cfg.editor.family
+      elseif active_subtab == 2 then
+        cur = cur + 1
+        if cur > #FontEngine.font_sizes then cur = 1 end
+        sel_idx[1][2] = cur
+        working_cfg.editor.size = FontEngine.font_sizes[cur]
+        working_cfg.size = working_cfg.editor.size
+      elseif active_subtab == 3 then
+        cur = cur + 1
+        if cur > #FontEngine.font_weights then cur = 1 end
+        sel_idx[1][3] = cur
+        local w = FontEngine.font_weights[cur]
+        working_cfg.editor.weight = w.id
+        working_cfg.editor.bold = w.bold
+        working_cfg.weight = w.id
+        working_cfg.bold = w.bold
+      elseif active_subtab == 4 then
+        cur = cur + 1
+        if cur > #FontEngine.line_spacings then cur = 1 end
+        sel_idx[1][4] = cur
+        working_cfg.editor.line_space = FontEngine.line_spacings[cur].val
+        working_cfg.line_space = working_cfg.editor.line_space
+      end
+    elseif active_target == 2 then
+      if active_subtab == 1 then
+        cur = cur + 1
+        if cur > #FontEngine.scale_presets then cur = 1 end
+        sel_idx[2][1] = cur
+        local sc = FontEngine.scale_presets[cur]
+        working_cfg.sidebar.scale = cur
+        working_cfg.sidebar.width = sc.width
+        working_cfg.sidebar.icon_padding = sc.padding
+        working_cfg.sidebar.indent_width = sc.indent
+        for i, w in ipairs(FontEngine.sidebar_widths) do if w.val == sc.width then sel_idx[2][2] = i break end end
+        for i, p in ipairs(FontEngine.icon_paddings) do if p.val == sc.padding then sel_idx[2][3] = i break end end
+        for i, ind in ipairs(FontEngine.indent_widths) do if ind.val == sc.indent then sel_idx[2][4] = i break end end
+      elseif active_subtab == 2 then
+        cur = cur + 1
+        if cur > #FontEngine.sidebar_widths then cur = 1 end
+        sel_idx[2][2] = cur
+        working_cfg.sidebar.width = FontEngine.sidebar_widths[cur].val
+      elseif active_subtab == 3 then
+        cur = cur + 1
+        if cur > #FontEngine.icon_paddings then cur = 1 end
+        sel_idx[2][3] = cur
+        working_cfg.sidebar.icon_padding = FontEngine.icon_paddings[cur].val
+      elseif active_subtab == 4 then
+        cur = cur + 1
+        if cur > #FontEngine.indent_widths then cur = 1 end
+        sel_idx[2][4] = cur
+        working_cfg.sidebar.indent_width = FontEngine.indent_widths[cur].val
+      elseif active_subtab == 5 then
+        cur = cur + 1
+        if cur > #FontEngine.chevron_styles then cur = 1 end
+        sel_idx[2][5] = cur
+        working_cfg.sidebar.chevron_style = cur
+      elseif active_subtab == 6 then
+        cur = cur + 1
+        if cur > #FontEngine.git_badge_styles then cur = 1 end
+        sel_idx[2][6] = cur
+        working_cfg.sidebar.git_badge = cur
+      end
+    elseif active_target == 3 then
+      if active_subtab == 1 then
+        cur = cur + 1
+        if cur > #FontEngine.terminal_heights then cur = 1 end
+        sel_idx[3][1] = cur
+        working_cfg.terminal.height = FontEngine.terminal_heights[cur].val
+      elseif active_subtab == 2 then
+        cur = cur + 1
+        if cur > #FontEngine.terminal_shells then cur = 1 end
+        sel_idx[3][2] = cur
+        working_cfg.terminal.shell = FontEngine.terminal_shells[cur].id
+      elseif active_subtab == 3 then
+        cur = cur + 1
+        if cur > #FontEngine.terminal_line_spacings then cur = 1 end
+        sel_idx[3][3] = cur
+        working_cfg.terminal.line_space = FontEngine.terminal_line_spacings[cur].val
+      end
     end
     render(true)
   end
 
   local function page_up()
-    if active_tab == 1 and #filtered_fonts > 0 then
-      sel_idx[1] = math.max(1, sel_idx[1] - 8)
-      working_cfg.family = filtered_fonts[sel_idx[1]]
+    if active_target == 1 and active_subtab == 1 and #filtered_fonts > 0 then
+      sel_idx[1][1] = math.max(1, sel_idx[1][1] - 8)
+      working_cfg.editor.family = filtered_fonts[sel_idx[1][1]]
+      working_cfg.family = working_cfg.editor.family
       render(true)
     else
       move_up()
@@ -4320,31 +4870,57 @@ _G.open_font_picker = function()
   end
 
   local function page_down()
-    if active_tab == 1 and #filtered_fonts > 0 then
-      sel_idx[1] = math.min(#filtered_fonts, sel_idx[1] + 8)
-      working_cfg.family = filtered_fonts[sel_idx[1]]
+    if active_target == 1 and active_subtab == 1 and #filtered_fonts > 0 then
+      sel_idx[1][1] = math.min(#filtered_fonts, sel_idx[1][1] + 8)
+      working_cfg.editor.family = filtered_fonts[sel_idx[1][1]]
+      working_cfg.family = working_cfg.editor.family
       render(true)
     else
       move_down()
     end
   end
 
-  -- Left / Right: search cursor movement on Family tab, or previous/next tab on other tabs
+  -- Tab navigation
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Tab>", next_target, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<S-Tab>", prev_target, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-1>", function() active_target = 1; active_subtab = 1; render(false) end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-2>", function() active_target = 2; active_subtab = 1; render(false) end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-3>", function() active_target = 3; active_subtab = 1; render(false) end, { buffer = buf, nowait = true })
+
+  -- Subtab navigation via Left / Right
   vim.keymap.set({ "n", "i", "s", "v" }, "<Left>", function()
-    if active_tab == 1 then
+    if active_target == 1 and active_subtab == 1 and #sb.get_text() > 0 then
       sb.move_left()
     else
-      prev_tab()
+      prev_subtab()
     end
   end, { buffer = buf, nowait = true })
 
   vim.keymap.set({ "n", "i", "s", "v" }, "<Right>", function()
-    if active_tab == 1 then
+    if active_target == 1 and active_subtab == 1 and #sb.get_text() > 0 then
       sb.move_right()
     else
-      next_tab()
+      next_subtab()
     end
   end, { buffer = buf, nowait = true })
+
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-Left>", prev_subtab, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-Right>", next_subtab, { buffer = buf, nowait = true })
+
+  -- Subtab direct jump via number keys 1..6
+  for num = 1, 6 do
+    vim.keymap.set({ "n", "i", "s", "v" }, tostring(num), function()
+      if active_target == 1 and active_subtab == 1 then
+        sb.insert(tostring(num))
+      else
+        local count = #subtabs[active_target]
+        if num <= count then
+          active_subtab = num
+          render(false)
+        end
+      end
+    end, { buffer = buf, nowait = true })
+  end
 
   vim.api.nvim_create_autocmd("WinLeave", {
     buffer = buf,
@@ -4352,19 +4928,11 @@ _G.open_font_picker = function()
     callback = cancel_selection,
   })
 
-  -- Tab navigation
-  vim.keymap.set({ "n", "i", "s", "v" }, "<Tab>", next_tab, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<S-Tab>", prev_tab, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-1>", function() active_tab = 1; render(false) end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-2>", function() active_tab = 2; render(false) end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-3>", function() active_tab = 3; render(false) end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-4>", function() active_tab = 4; render(false) end, { buffer = buf, nowait = true })
-
   vim.keymap.set({ "n", "i", "s", "v" }, "<CR>", confirm_selection, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<Esc>", cancel_selection, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<C-c>", cancel_selection, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "q", function()
-    if active_tab == 1 then
+    if active_target == 1 and active_subtab == 1 then
       sb.insert("q")
     else
       cancel_selection()
