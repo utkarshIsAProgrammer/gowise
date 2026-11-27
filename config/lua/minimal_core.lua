@@ -4302,7 +4302,7 @@ _G.open_font_picker = function()
       { id = 3, name = "3: Icons" },
       { id = 4, name = "4: Indent" },
       { id = 5, name = "5: Chevrons" },
-      { id = 6, name = "6: Git Badges" },
+      { id = 6, name = "6: Badges" },
     },
     [3] = {
       { id = 1, name = "1: Drawer Height" },
@@ -4397,9 +4397,9 @@ _G.open_font_picker = function()
   vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].undolevels = -1
 
-  local ui = vim.api.nvim_list_uis()[1] or { width = 120, height = 40 }
-  local width = math.min(70, ui.width - 4)
-  local height = math.min(19, ui.height - 4)
+  local ui = vim.api.nvim_list_uis()[1] or { width = vim.o.columns or 120, height = vim.o.lines or 40 }
+  local width = math.min(84, math.max(68, ui.width - 4))
+  local height = math.min(22, math.max(14, ui.height - 4))
   local row = math.max(1, math.floor((ui.height - height) / 3))
   local col = math.max(1, math.floor((ui.width - width) / 2))
 
@@ -4411,15 +4411,17 @@ _G.open_font_picker = function()
     height = height,
     style = "minimal",
     border = "rounded",
-    title = string.format(" Appearance, Font & Sizing Options (%d Fonts) ", #all_fonts),
+    title = string.format(" Appearance & Font Settings (%d Fonts) ", #all_fonts),
     title_pos = "center",
-    footer = " Tab: Switch Target │ ←/→: Sub-tab │ ↑/↓: Select │ Enter: Save │ Esc: Cancel ",
+    footer = " Tab: Target │ ←/→: Sub-tab │ ↑/↓: Select │ Enter: Save │ Esc: Close ",
     footer_pos = "center",
   })
 
   vim.cmd("stopinsert")
   vim.wo[win].cursorline = false
   vim.wo[win].wrap = false
+  vim.wo[win].sidescrolloff = 0
+  vim.wo[win].scrolloff = 2
   vim.wo[win].winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder"
 
   local confirmed = false
@@ -4445,30 +4447,48 @@ _G.open_font_picker = function()
   vim.api.nvim_set_hl(0, "FontSubtabInactive", { fg = "#abb2bf" })
   vim.api.nvim_set_hl(0, "FontItemArrow", { fg = "#61afef", bold = true })
   vim.api.nvim_set_hl(0, "FontItemActive", { fg = "#ffffff", bold = true })
+  vim.api.nvim_set_hl(0, "FontItemInactive", { fg = "#9da5b4" })
+  vim.api.nvim_set_hl(0, "FontDivider", { fg = "#3e4451" })
+  vim.api.nvim_set_hl(0, "FontSearchPrompt", { fg = "#61afef", bold = true })
+  vim.api.nvim_set_hl(0, "FontSearchPlaceholder", { fg = "#5c6370", italic = true })
 
   local sb
+  local item_line_map = {}
+  local target_row_idx = 2
+  local subtab_row_idx = 4
+  local target_spans = {}
+  local subtab_spans = {}
+
   local function render(update_preview)
     if not vim.api.nvim_buf_is_valid(buf) then return end
     local query = sb and sb.get_text() or ""
     local lines = {}
+    item_line_map = {}
 
-    -- Line 1: Target Selector Pills
+    -- Top spacing
+    table.insert(lines, "")
+
+    -- Target Selector Pills
     local target_line = "  "
-    local target_spans = {}
+    target_spans = {}
     for _, t in ipairs(targets) do
       local s_col = #target_line
-      local label = " " .. t.id .. ": " .. t.name .. " "
+      local label = "  " .. t.id .. ": " .. t.name .. "  "
       target_line = target_line .. label
       local e_col = #target_line
       target_line = target_line .. "    "
       table.insert(target_spans, { id = t.id, s = s_col, e = e_col })
     end
     table.insert(lines, target_line)
+    target_row_idx = #lines
 
-    -- Line 2: Sub-tabs for the current active target
+    -- Spacing between targets and subtabs
+    table.insert(lines, "")
+
+    -- Sub-tabs for the current active target
     local cur_subtabs = subtabs[active_target] or {}
     local subtab_line = "  "
-    local subtab_spans = {}
+    subtab_spans = {}
     for idx, st in ipairs(cur_subtabs) do
       local s_col = #subtab_line
       local label = " " .. st.name .. " "
@@ -4480,17 +4500,30 @@ _G.open_font_picker = function()
       table.insert(subtab_spans, { id = st.id, s = s_col, e = e_col })
     end
     table.insert(lines, subtab_line)
+    subtab_row_idx = #lines
 
-    -- Line 3: Search header (Family tab) or Clean Divider
+    -- Spacing below subtabs
+    table.insert(lines, "")
+
+    -- Clean Divider line
+    local div_len = math.min(width - 6, 72)
+    local div_line = "  " .. string.rep("─", math.max(10, div_len))
+    table.insert(lines, div_line)
+    local divider_row_idx = #lines
+
+    -- Spacing below divider
+    table.insert(lines, "")
+
+    -- Search header (Family tab only)
+    local search_row_idx = nil
     if active_target == 1 and active_subtab == 1 then
       local search_line = sb and sb.get_display_line("  Search Font: ", "(type to filter fonts...)") or "  Search Font: ▏ (type to filter fonts...)"
       table.insert(lines, search_line)
-      table.insert(lines, "  ────────────────────────────────────────────────────────────")
-    else
-      table.insert(lines, "  ────────────────────────────────────────────────────────────")
+      search_row_idx = #lines
+      table.insert(lines, "")
     end
 
-    -- Tab-specific item rows
+    -- Tab-specific item rows with breathable line gap above and below each line
     if active_target == 1 then
       if active_subtab == 1 then
         filtered_fonts = {}
@@ -4500,80 +4533,109 @@ _G.open_font_picker = function()
           end
         end
         if #filtered_fonts == 0 then
-          table.insert(lines, "   No fonts matching '" .. query .. "'")
+          table.insert(lines, "    No fonts matching '" .. query .. "'")
+          table.insert(lines, "")
         else
           if sel_idx[1][1] > #filtered_fonts then sel_idx[1][1] = #filtered_fonts end
           if sel_idx[1][1] < 1 then sel_idx[1][1] = 1 end
           for i, f in ipairs(filtered_fonts) do
-            local prefix = (i == sel_idx[1][1]) and " > " or "   "
-            table.insert(lines, prefix .. f)
+            local max_f_len = width - 10
+            local display_f = (#f > max_f_len) and (f:sub(1, max_f_len - 1) .. "…") or f
+            local prefix = (i == sel_idx[1][1]) and "  > " or "    "
+            table.insert(lines, prefix .. display_f)
+            item_line_map[i] = #lines
+            table.insert(lines, "")
           end
           working_cfg.editor.family = filtered_fonts[sel_idx[1][1]]
           working_cfg.family = working_cfg.editor.family
         end
       elseif active_subtab == 2 then
         for i, s in ipairs(FontEngine.font_sizes) do
-          local prefix = (i == sel_idx[1][2]) and " > " or "   "
+          local prefix = (i == sel_idx[1][2]) and "  > " or "    "
           table.insert(lines, prefix .. s .. " pt")
+          item_line_map[i] = #lines
+          table.insert(lines, "")
         end
       elseif active_subtab == 3 then
         for i, w in ipairs(FontEngine.font_weights) do
-          local prefix = (i == sel_idx[1][3]) and " > " or "   "
+          local prefix = (i == sel_idx[1][3]) and "  > " or "    "
           table.insert(lines, prefix .. w.name)
+          item_line_map[i] = #lines
+          table.insert(lines, "")
         end
       elseif active_subtab == 4 then
         for i, sp in ipairs(FontEngine.line_spacings) do
-          local prefix = (i == sel_idx[1][4]) and " > " or "   "
+          local prefix = (i == sel_idx[1][4]) and "  > " or "    "
           table.insert(lines, prefix .. sp.name)
+          item_line_map[i] = #lines
+          table.insert(lines, "")
         end
       end
     elseif active_target == 2 then
       if active_subtab == 1 then
         for i, sc in ipairs(FontEngine.scale_presets) do
-          local prefix = (i == sel_idx[2][1]) and " > " or "   "
+          local prefix = (i == sel_idx[2][1]) and "  > " or "    "
           table.insert(lines, prefix .. sc.name)
+          item_line_map[i] = #lines
+          table.insert(lines, "")
         end
       elseif active_subtab == 2 then
         for i, w in ipairs(FontEngine.sidebar_widths) do
-          local prefix = (i == sel_idx[2][2]) and " > " or "   "
+          local prefix = (i == sel_idx[2][2]) and "  > " or "    "
           table.insert(lines, prefix .. w.name)
+          item_line_map[i] = #lines
+          table.insert(lines, "")
         end
       elseif active_subtab == 3 then
         for i, p in ipairs(FontEngine.icon_paddings) do
-          local prefix = (i == sel_idx[2][3]) and " > " or "   "
+          local prefix = (i == sel_idx[2][3]) and "  > " or "    "
           table.insert(lines, prefix .. p.name)
+          item_line_map[i] = #lines
+          table.insert(lines, "")
         end
       elseif active_subtab == 4 then
         for i, ind in ipairs(FontEngine.indent_widths) do
-          local prefix = (i == sel_idx[2][4]) and " > " or "   "
+          local prefix = (i == sel_idx[2][4]) and "  > " or "    "
           table.insert(lines, prefix .. ind.name)
+          item_line_map[i] = #lines
+          table.insert(lines, "")
         end
       elseif active_subtab == 5 then
         for i, ch in ipairs(FontEngine.chevron_styles) do
-          local prefix = (i == sel_idx[2][5]) and " > " or "   "
+          local prefix = (i == sel_idx[2][5]) and "  > " or "    "
           table.insert(lines, prefix .. ch.name)
+          item_line_map[i] = #lines
+          table.insert(lines, "")
         end
       elseif active_subtab == 6 then
         for i, gb in ipairs(FontEngine.git_badge_styles) do
-          local prefix = (i == sel_idx[2][6]) and " > " or "   "
+          local prefix = (i == sel_idx[2][6]) and "  > " or "    "
           table.insert(lines, prefix .. gb.name)
+          item_line_map[i] = #lines
+          table.insert(lines, "")
         end
       end
     elseif active_target == 3 then
       if active_subtab == 1 then
         for i, h in ipairs(FontEngine.terminal_heights) do
-          local prefix = (i == sel_idx[3][1]) and " > " or "   "
+          local prefix = (i == sel_idx[3][1]) and "  > " or "    "
           table.insert(lines, prefix .. h.name)
+          item_line_map[i] = #lines
+          table.insert(lines, "")
         end
       elseif active_subtab == 2 then
         for i, sh in ipairs(FontEngine.terminal_shells) do
-          local prefix = (i == sel_idx[3][2]) and " > " or "   "
+          local prefix = (i == sel_idx[3][2]) and "  > " or "    "
           table.insert(lines, prefix .. sh.name)
+          item_line_map[i] = #lines
+          table.insert(lines, "")
         end
       elseif active_subtab == 3 then
         for i, sp in ipairs(FontEngine.terminal_line_spacings) do
-          local prefix = (i == sel_idx[3][3]) and " > " or "   "
+          local prefix = (i == sel_idx[3][3]) and "  > " or "    "
           table.insert(lines, prefix .. sp.name)
+          item_line_map[i] = #lines
+          table.insert(lines, "")
         end
       end
     end
@@ -4587,28 +4649,36 @@ _G.open_font_picker = function()
 
     for _, tp in ipairs(target_spans) do
       local hl_grp = (tp.id == active_target) and "FontTargetActive" or "FontTargetInactive"
-      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, hl_grp, 0, tp.s, tp.e)
+      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, hl_grp, target_row_idx - 1, tp.s, tp.e)
     end
 
     for _, st in ipairs(subtab_spans) do
       local hl_grp = (st.id == active_subtab) and "FontSubtabActive" or "FontSubtabInactive"
-      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, hl_grp, 1, st.s, st.e)
+      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, hl_grp, subtab_row_idx - 1, st.s, st.e)
     end
 
-    local header_lines = (active_target == 1 and active_subtab == 1) and 4 or 3
-    local cur_sel = sel_idx[active_target][active_subtab] or 1
-    local target_row = header_lines + cur_sel
-    local total_lines = #lines
-    if target_row > total_lines then target_row = total_lines end
-    if target_row < (header_lines + 1) and total_lines >= (header_lines + 1) then
-      target_row = header_lines + 1
-    end
-    if vim.api.nvim_win_is_valid(win) then
-      pcall(vim.api.nvim_win_set_cursor, win, { target_row, 1 })
-      if target_row <= total_lines then
-        pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FontItemArrow", target_row - 1, 0, 4)
-        pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FontItemActive", target_row - 1, 4, -1)
+    pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FontDivider", divider_row_idx - 1, 0, -1)
+
+    if search_row_idx then
+      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FontSearchPrompt", search_row_idx - 1, 0, 16)
+      if sb and sb.get_text() == "" then
+        pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FontSearchPlaceholder", search_row_idx - 1, 16, -1)
       end
+    end
+
+    local cur_sel = sel_idx[active_target][active_subtab] or 1
+    local target_row = item_line_map[cur_sel]
+    if target_row and vim.api.nvim_win_is_valid(win) then
+      pcall(vim.api.nvim_win_set_cursor, win, { target_row, 2 })
+      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FontItemArrow", target_row - 1, 0, 4)
+      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "FontItemActive", target_row - 1, 4, -1)
+    end
+
+    -- Strictly reset horizontal view to leftcol = 0
+    if vim.api.nvim_win_is_valid(win) then
+      pcall(vim.api.nvim_win_call, win, function()
+        vim.fn.winrestview({ leftcol = 0 })
+      end)
     end
 
     if update_preview ~= false then
@@ -4941,6 +5011,50 @@ _G.open_font_picker = function()
 
   vim.keymap.set({ "n", "i", "s", "v" }, "<PageUp>", page_up, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<PageDown>", page_down, { buffer = buf, nowait = true })
+
+  local function on_mouse_click()
+    local pos = vim.fn.getmousepos()
+    if pos and pos.winid == win and pos.line then
+      if pos.line == target_row_idx then
+        for _, tp in ipairs(target_spans) do
+          if pos.column >= tp.s and pos.column <= tp.e then
+            active_target = tp.id
+            active_subtab = 1
+            render(false)
+            return
+          end
+        end
+      elseif pos.line == subtab_row_idx then
+        for _, st in ipairs(subtab_spans) do
+          if pos.column >= st.s and pos.column <= st.e then
+            active_subtab = st.id
+            render(false)
+            return
+          end
+        end
+      else
+        for i, lnum in pairs(item_line_map) do
+          if pos.line == lnum or pos.line == lnum - 1 or pos.line == lnum + 1 then
+            sel_idx[active_target][active_subtab] = i
+            render(true)
+            return
+          end
+        end
+      end
+    end
+  end
+
+  vim.keymap.set({ "n", "i", "s", "v" }, "<LeftMouse>", on_mouse_click, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<2-LeftMouse>", function()
+    on_mouse_click()
+    confirm_selection()
+  end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<ScrollWheelLeft>", "<nop>", { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<ScrollWheelRight>", "<nop>", { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "zl", "<nop>", { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "zh", "<nop>", { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "zL", "<nop>", { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "zH", "<nop>", { buffer = buf, nowait = true })
 end
 
 -- =============================================================================
