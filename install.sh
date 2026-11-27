@@ -311,7 +311,35 @@ provision_plugins() {
   log_success "All 20 editor plugins ready."
 }
 
-# 7. Install CLI Launcher
+# 7. Ensure Essential Formatters
+provision_formatters() {
+  log_info "Ensuring essential formatters (Prettier, Stylua, Shfmt, Goimports)..."
+  if command -v npm &>/dev/null; then
+    local missing_npm_tools=()
+    command -v prettier &>/dev/null || missing_npm_tools+=("prettier")
+    command -v stylua &>/dev/null || missing_npm_tools+=("@johnnymorganz/stylua-bin")
+    command -v sql-formatter &>/dev/null || missing_npm_tools+=("sql-formatter")
+    if [ ${#missing_npm_tools[@]} -gt 0 ]; then
+      log_step "Installing ${missing_npm_tools[*]} via npm..."
+      npm install -g --prefix "$HOME/.local" "${missing_npm_tools[@]}" --quiet 2>/dev/null || true
+    fi
+  fi
+  if command -v go &>/dev/null; then
+    if ! command -v shfmt &>/dev/null; then
+      log_step "Installing shfmt via go..."
+      go install mvdan.cc/sh/v3/cmd/shfmt@latest 2>/dev/null || true
+      [ -f "$HOME/go/bin/shfmt" ] && ln -sf "$HOME/go/bin/shfmt" "$BIN_DIR/shfmt"
+    fi
+    if ! command -v goimports &>/dev/null; then
+      log_step "Installing goimports via go..."
+      go install golang.org/x/tools/cmd/goimports@latest 2>/dev/null || true
+      [ -f "$HOME/go/bin/goimports" ] && ln -sf "$HOME/go/bin/goimports" "$BIN_DIR/goimports"
+    fi
+  fi
+  log_success "Formatters verification complete."
+}
+
+# 8. Install CLI Launcher
 install_launcher() {
   log_info "Installing 'minimal' command launcher..."
   chmod +x "$INSTALL_DIR/bin/minimal"
@@ -417,6 +445,7 @@ main() {
   sync_repository
   deploy_config
   provision_plugins
+  provision_formatters
   install_launcher
   install_desktop_integration
   preheat_cache

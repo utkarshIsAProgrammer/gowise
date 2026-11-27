@@ -17,7 +17,7 @@ fi
 export NVIM_APPNAME="minimal"
 
 # Add standard local bin directory to PATH
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/go/bin:$PATH"
 
 # Version flag
 if [ "$1" = "--version" ] || [ "$1" = "-v" ]; then

@@ -478,8 +478,24 @@ local function setup_lsp()
     },
   }
 
+  local ts_server_path = "/usr/lib/node_modules/typescript/lib/tsserver.js"
+  if vim.fn.filereadable(ts_server_path) == 0 then
+    local node_global_ts = vim.fn.system("npm root -g 2>/dev/null"):gsub("%s+", "") .. "/typescript/lib/tsserver.js"
+    if vim.fn.filereadable(node_global_ts) == 1 then
+      ts_server_path = node_global_ts
+    else
+      ts_server_path = nil
+    end
+  end
+
   vim.lsp.config["ts_ls"] = {
     capabilities = lsp_capabilities,
+    init_options = {
+      hostInfo = "neovim",
+      tsserver = ts_server_path and {
+        path = ts_server_path,
+      } or nil,
+    },
     settings = {
       typescript = {
         suggest = { autoImports = true },
@@ -921,6 +937,7 @@ local function ensure_conform()
   if ok_conform then
     conform.setup({
       formatters_by_ft = {
+        lua = { "stylua" },
         javascript = { "prettier" },
         typescript = { "prettier" },
         javascriptreact = { "prettier" },
@@ -947,6 +964,7 @@ local function ensure_conform()
       },
       default_format_opts = {
         lsp_format = "fallback",
+        timeout_ms = 3000,
       },
     })
   end
@@ -972,14 +990,53 @@ local function organize_lsp_imports(bufnr)
   end
 end
 
-_G.format_buffer = function()
+_G.format_buffer = function(opts)
+  opts = opts or {}
+  local bufnr = opts.bufnr or vim.api.nvim_get_current_buf()
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return end
+  if vim.bo[bufnr].buftype ~= "" or vim.bo[bufnr].readonly or not vim.bo[bufnr].modifiable then
+    return
+  end
+
   ensure_conform()
-  organize_lsp_imports(0)
+  pcall(organize_lsp_imports, bufnr)
+
+  local formatted = false
   local ok, conf = pcall(require, "conform")
   if ok then
-    conf.format({ async = false, lsp_format = "fallback" })
+    local res = conf.format({ bufnr = bufnr, async = false, timeout_ms = 3000, lsp_format = "fallback" })
+    if res then
+      formatted = true
+    end
   end
-  vim.cmd("startinsert")
+
+  -- Fallback to direct LSP formatting if conform did not format
+  if not formatted then
+    local lsp_clients = vim.lsp.get_clients({ bufnr = bufnr })
+    for _, client in ipairs(lsp_clients) do
+      if client:supports_method("textDocument/formatting") then
+        local lsp_ok = pcall(vim.lsp.buf.format, { bufnr = bufnr, timeout_ms = 3000 })
+        if lsp_ok then
+          formatted = true
+          break
+        end
+      end
+    end
+  end
+
+  -- Fallback to Vim smart indentation if no external/LSP formatter was applied
+  if not formatted and not opts.silent then
+    local view = vim.fn.winsaveview()
+    pcall(vim.cmd, "silent! keepjumps normal! gg=G")
+    vim.fn.winrestview(view)
+    formatted = true
+  end
+
+  if not opts.silent then
+    vim.notify("Document formatted", vim.log.levels.INFO)
+  end
+
+  pcall(vim.cmd, "startinsert")
 end
 
 -- 13. Word Navigation & Deletion Helpers
@@ -5302,6 +5359,7 @@ _G.open_keybindings_panel = function()
     { cat = "EDITING", key = "Ctrl + A", desc = "Select all text in document" },
     { cat = "EDITING", key = "Ctrl + /", desc = "Toggle single line comment" },
     { cat = "EDITING", key = "Shift + Alt + A", desc = "Toggle multiline block comment" },
+    { cat = "EDITING", key = "Shift + Alt + F / Ctrl+Shift+I", desc = "Format Document (Prettier / LSP / Indent)" },
     { cat = "EDITING", key = "Tab / Ctrl + ]", desc = "Indent line or selection (add tab space)" },
     { cat = "EDITING", key = "Shift + Tab / Ctrl + [", desc = "Unindent line or selection (remove tab space)" },
     { cat = "EDITING", key = "Ctrl + Enter", desc = "Insert line below and type" },
@@ -6737,7 +6795,7 @@ map({ "i", "n", "v", "s" }, "<C-z>", "<cmd>undo<cr><cmd>startinsert<cr>", { desc
 map({ "i", "n", "v", "s" }, "<C-y>", "<cmd>redo<cr><cmd>startinsert<cr>", { desc = "Redo" })
 map({ "i", "n", "v", "s" }, "<C-S-z>", "<cmd>redo<cr><cmd>startinsert<cr>", { desc = "Redo" })
 
--- Automatically create parent directories on save if they don't exist
+-- Automatically create parent directories on save if they don't exist, and auto-format
 vim.api.nvim_create_autocmd("BufWritePre", {
   callback = function(args)
     if args.file and args.file ~= "" and not args.file:match("^%a+://") then
@@ -6746,17 +6804,15 @@ vim.api.nvim_create_autocmd("BufWritePre", {
         pcall(vim.fn.mkdir, dir, "p")
       end
     end
+    if args.buf and vim.api.nvim_buf_is_valid(args.buf) and vim.bo[args.buf].buftype == "" and vim.bo[args.buf].modifiable then
+      pcall(_G.format_buffer, { bufnr = args.buf, silent = true })
+    end
   end,
 })
 
 -- Save (Ctrl+S) with auto-imports and formatting
 map({ "i", "n", "v", "s" }, "<C-s>", function()
-  ensure_conform()
-  organize_lsp_imports(0)
-  local ok, conf = pcall(require, "conform")
-  if ok then
-    conf.format({ async = false, lsp_format = "fallback" })
-  end
+  _G.format_buffer({ silent = true })
   vim.cmd("silent! write")
   vim.cmd("startinsert")
 end, { desc = "Auto-Import, Format & Save File" })
@@ -6765,8 +6821,14 @@ end, { desc = "Auto-Import, Format & Save File" })
 map({ "i", "n", "v", "s" }, "<M-F>", _G.format_buffer, { desc = "Format Document" })
 map({ "i", "n", "v", "s" }, "<M-S-f>", _G.format_buffer, { desc = "Format Document" })
 map({ "i", "n", "v", "s" }, "<M-S-F>", _G.format_buffer, { desc = "Format Document" })
+map({ "i", "n", "v", "s" }, "<A-F>", _G.format_buffer, { desc = "Format Document" })
+map({ "i", "n", "v", "s" }, "<A-S-f>", _G.format_buffer, { desc = "Format Document" })
+map({ "i", "n", "v", "s" }, "<A-S-F>", _G.format_buffer, { desc = "Format Document" })
 map({ "i", "n", "v", "s" }, "<C-S-i>", _G.format_buffer, { desc = "Format Document" })
 map({ "i", "n", "v", "s" }, "<C-S-I>", _G.format_buffer, { desc = "Format Document" })
+
+vim.api.nvim_create_user_command("Format", function() _G.format_buffer() end, { desc = "Format Document" })
+vim.api.nvim_create_user_command("FormatDocument", function() _G.format_buffer() end, { desc = "Format Document" })
 
 -- Toggle Comments (Ctrl+/) for Single Line & Multiline in all languages
 local function get_comment_parts(buf)
