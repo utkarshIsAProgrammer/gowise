@@ -3011,7 +3011,8 @@ _G.new_terminal = function()
     "HISTFILE=" .. bash_hist,
     "TERM=xterm-256color",
     "COLORTERM=truecolor",
-    "/bin/bash", "--rcfile", rc_file,
+    "HYDE_ACTIVATED=1",
+    "/bin/bash", "--rcfile", rc_file, "-i",
   }
   vim.fn.termopen(cmd)
   vim.b[new_buf].is_picker = nil

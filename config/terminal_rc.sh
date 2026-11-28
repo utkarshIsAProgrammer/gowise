@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+export HYDE_ACTIVATED=1
 export SHELL=/bin/bash
 export TERM=xterm-256color
 export COLORTERM=truecolor
@@ -42,14 +43,6 @@ bind '"\eb": backward-word' 2>/dev/null || true
 bind '"\ef": forward-word' 2>/dev/null || true
 bind '"\ed": kill-word' 2>/dev/null || true
 
-# Auto-sync editor buffers and sidebar tree whenever terminal command completes
-_minimal_prompt_sync() {
-  if [ -n "$NVIM" ]; then
-    nvim --server "$NVIM" --remote-send "<Cmd>lua _G.sync_buffers_with_disk()<CR>" 2>/dev/null || true
-  fi
-}
-export PROMPT_COMMAND="_minimal_prompt_sync"
-
 # Git branch parser with vibrant status colors
 parse_git_branch() {
   local branch
@@ -78,7 +71,7 @@ _minimal_forward_open() {
     return
   fi
   if [ "$#" -eq 0 ]; then
-    nvim --server "$NVIM" --remote-send "<Cmd>lua _G.focus_editor_from_terminal()<CR>" 2>/dev/null || true
+    nvim --server "$NVIM" --remote-expr "luaeval('_G.focus_editor_from_terminal()')" 2>/dev/null || true
     return
   fi
   for target in "$@"; do
@@ -91,7 +84,7 @@ _minimal_forward_open() {
       fi
       local escaped="${abs_path//\\/\\\\}"
       escaped="${escaped//\'/\\\'}"
-      nvim --server "$NVIM" --remote-send "<Cmd>lua _G.open_file_from_terminal('$escaped')<CR>" 2>/dev/null || true
+      nvim --server "$NVIM" --remote-expr "luaeval('_G.open_file_from_terminal(\"'$escaped'\")')" 2>/dev/null || true
     fi
   done
 }
