@@ -98,7 +98,7 @@ vim.opt.laststatus = 3
 
 -- Cursors: Permanent sleek vertical bar cursor (|) across ALL editor modes (insert, normal, visual, command)
 -- Zero block cursors anywhere in the editor.
-vim.opt.guicursor = "n-v-c-sm:ver25-blinkon500-blinkoff500,i-ci-ve:ver25-blinkon500-blinkoff500,r-cr-o:hor20"
+vim.opt.guicursor = "n-v-c-sm:ver25-blinkon500-blinkoff500,i-ci-ve:ver25-blinkon500-blinkoff500,r-cr-o:hor20,t:block-blinkon500-blinkoff500"
 
 -- 2. Modeless Selection Rules
 vim.opt.keymodel = "startsel,stopsel"    -- Shift keys start selection, non-shift stops
@@ -1544,7 +1544,7 @@ end
 
 _G.restore_picker_cursor = function()
   pcall(function()
-    vim.opt.guicursor = "n-v-c-sm:ver25-blinkon500-blinkoff500,i-ci-ve:ver25-blinkon500-blinkoff500,r-cr-o:hor20"
+    vim.opt.guicursor = "n-v-c-sm:ver25-blinkon500-blinkoff500,i-ci-ve:ver25-blinkon500-blinkoff500,r-cr-o:hor20,t:block-blinkon500-blinkoff500"
   end)
 end
 
@@ -3022,10 +3022,35 @@ _G.new_terminal = function()
   vim.wo[term_win].signcolumn = "no"
   vim.wo[term_win].spell = false
 
-  -- Click anywhere in terminal enters terminal insert mode immediately
-  vim.keymap.set("n", "<LeftMouse>", "<LeftMouse><cmd>startinsert<cr>", { buffer = new_buf, silent = true })
-  vim.keymap.set("n", "<LeftRelease>", "<cmd>startinsert<cr>", { buffer = new_buf, silent = true })
-  vim.keymap.set("t", "<LeftMouse>", "<LeftMouse><cmd>startinsert<cr>", { buffer = new_buf, silent = true })
+  -- Click anywhere in terminal enters terminal mode immediately
+  vim.keymap.set("n", "<LeftMouse>", function()
+    vim.cmd("startinsert")
+  end, { buffer = new_buf, silent = true })
+  vim.keymap.set("n", "<LeftRelease>", function()
+    vim.cmd("startinsert")
+  end, { buffer = new_buf, silent = true })
+
+  -- Safety: Any key typed in Normal mode in terminal immediately enters Terminal mode and sends key (never modifiable is off error)
+  for c = 32, 126 do
+    local ch = string.char(c)
+    vim.keymap.set("n", ch, function()
+      vim.cmd("startinsert")
+      local chan = vim.bo[new_buf].channel
+      if chan and chan > 0 then
+        pcall(vim.api.nvim_chan_send, chan, ch)
+      end
+    end, { buffer = new_buf, nowait = true, silent = true })
+  end
+  for _, k in ipairs({ "<CR>", "<BS>", "<Tab>", "<Esc>", "<Space>" }) do
+    vim.keymap.set("n", k, function()
+      vim.cmd("startinsert")
+      local seq = (k == "<CR>" and "\r") or (k == "<BS>" and "\x7f") or (k == "<Tab>" and "\t") or (k == "<Esc>" and "\x1b") or " "
+      local chan = vim.bo[new_buf].channel
+      if chan and chan > 0 then
+        pcall(vim.api.nvim_chan_send, chan, seq)
+      end
+    end, { buffer = new_buf, nowait = true, silent = true })
+  end
 
   -- Pane resize keys in terminal buffer
   vim.keymap.set("t", "<M-Left>", _G.handle_alt_left, { buffer = new_buf, silent = true })
@@ -3097,13 +3122,24 @@ _G.new_terminal = function()
   vim.cmd("startinsert")
 end
 
--- Strictly disable spell checking in all terminal windows and instances
+-- Strictly disable spell checking in all terminal windows and instances, and ensure terminal mode
 vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter", "BufEnter" }, {
   callback = function(args)
     if args.buf and vim.api.nvim_buf_is_valid(args.buf) and vim.bo[args.buf].buftype == "terminal" then
       pcall(function()
         vim.wo.spell = false
       end)
+      if vim.fn.mode() ~= "t" then
+        vim.schedule(function()
+          local cur_win = vim.api.nvim_get_current_win()
+          if vim.api.nvim_win_is_valid(cur_win) then
+            local b = vim.api.nvim_win_get_buf(cur_win)
+            if vim.bo[b].buftype == "terminal" and vim.fn.mode() ~= "t" then
+              pcall(vim.cmd, "startinsert")
+            end
+          end
+        end)
+      end
     end
   end,
 })
@@ -7101,12 +7137,28 @@ local function ensure_multicursor()
           { "i", "n", "x" },
           "<LeftMouse>",
           function()
-            _G.handle_escape()
             local mp = vim.fn.getmousepos()
-            if mp and mp.winid > 0 and vim.api.nvim_win_is_valid(mp.winid) and mp.line > 0 then
+            if mp and mp.winid > 0 and vim.api.nvim_win_is_valid(mp.winid) then
+              local target_buf = vim.api.nvim_win_get_buf(mp.winid)
+              local target_bt = vim.bo[target_buf].buftype
+              local target_ft = vim.bo[target_buf].filetype
+              if target_bt == "terminal" then
+                _G.handle_escape()
+                pcall(vim.api.nvim_set_current_win, mp.winid)
+                pcall(vim.cmd, "startinsert")
+                return
+              end
+              if target_ft == "NvimTree" then
+                pcall(vim.api.nvim_set_current_win, mp.winid)
+                return
+              end
+              _G.handle_escape()
               pcall(vim.api.nvim_set_current_win, mp.winid)
-              local col = math.max(0, (mp.column or 1) - 1)
-              pcall(vim.api.nvim_win_set_cursor, mp.winid, { mp.line, col })
+              if mp.line > 0 then
+                local col = math.max(0, (mp.column or 1) - 1)
+                pcall(vim.api.nvim_win_set_cursor, mp.winid, { mp.line, col })
+              end
+              pcall(vim.cmd, "startinsert")
             end
           end,
           "nowrap",
@@ -8173,8 +8225,16 @@ end
 -- Escape: Deselects / Clears multi-cursors and search, stays in Insert Mode
 map({ "i", "s", "x", "n" }, "<Esc>", _G.handle_escape, { desc = "Clear Selection / Multi-Cursors / Keep Typing" })
 
--- Single LeftMouse click in Normal mode enters Insert mode immediately
-map("n", "<LeftMouse>", "<LeftMouse><cmd>startinsert<cr>", { desc = "Click and Start Typing" })
+-- Single LeftMouse click in Normal mode enters Insert mode immediately (and terminal mode in terminal)
+map("n", "<LeftMouse>", function()
+  local cur_bt = vim.bo.buftype
+  if cur_bt == "terminal" then
+    pcall(vim.cmd, "startinsert")
+    return
+  end
+  pcall(vim.cmd, "normal! <LeftMouse>")
+  pcall(vim.cmd, "startinsert")
+end, { desc = "Click and Start Typing" })
 
 -- Disable colon command line access
 map("n", ":", "<cmd>startinsert<cr>")
