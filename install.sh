@@ -308,6 +308,12 @@ provision_plugins() {
     nvim --headless -c "silent! mkspell! $CONFIG_DIR/spell/en.utf-8.add" -c "qall!" 2>/dev/null || true
   fi
 
+  # Link treesitter queries runtime so Neovim native syntax highlighting finds all parsers
+  if [ -d "$OPT_PLUGINS_DIR/nvim-treesitter/runtime/queries" ]; then
+    log_step "Linking Treesitter queries runtime..."
+    ln -sfn "$OPT_PLUGINS_DIR/nvim-treesitter/runtime/queries" "$DATA_DIR/site/queries"
+  fi
+
   log_success "All 20 editor plugins ready."
 }
 

@@ -3,6 +3,15 @@
 -- Crafted by indiedev
 -- =============================================================================
 
+-- Ensure local user paths are available for LSPs and tools
+local home_dir = vim.fn.expand("~")
+local extra_paths = { home_dir .. "/.local/bin", home_dir .. "/go/bin" }
+for _, p in ipairs(extra_paths) do
+  if vim.fn.isdirectory(p) == 1 and not (vim.env.PATH or ""):find(p, 1, true) then
+    vim.env.PATH = p .. ":" .. (vim.env.PATH or "")
+  end
+end
+
 local loaded_opt_plugins = {}
 local function packadd_safe(name)
   if loaded_opt_plugins[name] then return end
@@ -52,6 +61,8 @@ vim.opt.fillchars = {
   vertright = "│",
   verthoriz = "│",
   horiz = "─",
+  horizup = "┴",
+  horizdown = "┬",
   eob = " ",
 }
 vim.opt.showmode = false                 -- Hide '-- INSERT --' (always typing)
@@ -85,10 +96,9 @@ vim.opt.showtabline = 2
 -- Global single status bar at the bottom like VS Code (no duplicate window status bars)
 vim.opt.laststatus = 3
 
--- Cursors:
--- Normal mode (Sidebar): BLOCK cursor (block)
--- Insert / Typing mode (Editor, Rename prompt): NORMAL vertical bar cursor (|) (ver25)
-vim.opt.guicursor = "n:block-blinkon500-blinkoff500,i-c-v-ve:ver25-blinkon500-blinkoff500"
+-- Cursors: Permanent sleek vertical bar cursor (|) across ALL editor modes (insert, normal, visual, command)
+-- Zero block cursors anywhere in the editor.
+vim.opt.guicursor = "n-v-c-sm:ver25-blinkon500-blinkoff500,i-ci-ve:ver25-blinkon500-blinkoff500,r-cr-o:hor20"
 
 -- 2. Modeless Selection Rules
 vim.opt.keymodel = "startsel,stopsel"    -- Shift keys start selection, non-shift stops
@@ -128,21 +138,14 @@ local function enforce_buffer_mode()
       vim.cmd("startinsert")
     end
   elseif cur_bt == "" and cur_ft ~= "NvimTree" and not name:match("NvimTree") and cur_ft ~= "minimal_home" and not vim.b[cur_buf].is_homescreen then
-    if not vim.g.startup_done then
-      return
-    end
     if name ~= "" then
       vim.bo[cur_buf].buflisted = true
-    end
-    -- Newly created or unwritten files immediately display the unsaved dot icon ● in top tab bar
-    if name == "" or vim.fn.filereadable(name) == 0 then
-      vim.bo[cur_buf].modified = true
     end
     if vim.g.minimal_mc_active and vim.fn.mode():match("^[vVxXn\22]") then
       return
     end
     if vim.fn.mode() ~= "i" and vim.fn.mode() ~= "s" then
-      vim.cmd("startinsert")
+      pcall(vim.cmd, "startinsert")
     end
   end
 end
@@ -264,7 +267,30 @@ _G.open_color_picker = function()
   end
 end
 
--- 5. Colorful Rainbow Indentations & Colored Filled Space (deferred after first paint)
+-- 5. Colorful Rainbow Indentations & Rainbow Delimiters
+local function apply_rainbow_hls()
+  -- Colorful Rainbow Indentations & Colored Filled Space
+  vim.api.nvim_set_hl(0, "RainbowRed", { fg = "#E06C75", bg = "#2e1f21" })
+  vim.api.nvim_set_hl(0, "RainbowYellow", { fg = "#E5C07B", bg = "#2e2c1f" })
+  vim.api.nvim_set_hl(0, "RainbowBlue", { fg = "#61AFEF", bg = "#1f272e" })
+  vim.api.nvim_set_hl(0, "RainbowOrange", { fg = "#D19A66", bg = "#2e241f" })
+  vim.api.nvim_set_hl(0, "RainbowGreen", { fg = "#98C379", bg = "#202e1f" })
+  vim.api.nvim_set_hl(0, "RainbowViolet", { fg = "#C678DD", bg = "#2b1f2e" })
+  vim.api.nvim_set_hl(0, "RainbowCyan", { fg = "#56B6C2", bg = "#1f2d2e" })
+
+  -- Matching pastel highlights for Rainbow Delimiters / Bracket pairs () [] {}
+  vim.api.nvim_set_hl(0, "RainbowDelimiterRed", { fg = "#E06C75" })
+  vim.api.nvim_set_hl(0, "RainbowDelimiterYellow", { fg = "#E5C07B" })
+  vim.api.nvim_set_hl(0, "RainbowDelimiterBlue", { fg = "#61AFEF" })
+  vim.api.nvim_set_hl(0, "RainbowDelimiterOrange", { fg = "#D19A66" })
+  vim.api.nvim_set_hl(0, "RainbowDelimiterGreen", { fg = "#98C379" })
+  vim.api.nvim_set_hl(0, "RainbowDelimiterViolet", { fg = "#C678DD" })
+  vim.api.nvim_set_hl(0, "RainbowDelimiterCyan", { fg = "#56B6C2" })
+end
+
+_G.apply_rainbow_hls = apply_rainbow_hls
+apply_rainbow_hls()
+
 vim.defer_fn(function()
   packadd_safe("indent-blankline.nvim")
   local ok_ibl, ibl = pcall(require, "ibl")
@@ -280,20 +306,22 @@ vim.defer_fn(function()
     }
 
     local hooks = require("ibl.hooks")
-    hooks.register(hooks.type.HIGHLIGHT_SETUP, function()
-      vim.api.nvim_set_hl(0, "RainbowRed", { fg = "#E06C75", bg = "#3b2628" })
-      vim.api.nvim_set_hl(0, "RainbowYellow", { fg = "#E5C07B", bg = "#3b3626" })
-      vim.api.nvim_set_hl(0, "RainbowBlue", { fg = "#61AFEF", bg = "#26333b" })
-      vim.api.nvim_set_hl(0, "RainbowOrange", { fg = "#D19A66", bg = "#3b3026" })
-      vim.api.nvim_set_hl(0, "RainbowGreen", { fg = "#98C379", bg = "#283b26" })
-      vim.api.nvim_set_hl(0, "RainbowViolet", { fg = "#C678DD", bg = "#36263b" })
-      vim.api.nvim_set_hl(0, "RainbowCyan", { fg = "#56B6C2", bg = "#26383b" })
-    end)
+    hooks.register(hooks.type.HIGHLIGHT_SETUP, apply_rainbow_hls)
+
+    -- Clean indentation: No arrows (>) on tabs or indents
+    vim.opt.list = false
+    vim.opt.listchars = {
+      tab = "  ",
+      trail = " ",
+      nbsp = " ",
+      space = " ",
+    }
 
     ibl.setup({
       indent = {
         highlight = rainbow_hl,
         char = "│",
+        tab_char = "│",
       },
       whitespace = {
         highlight = rainbow_hl,
@@ -310,12 +338,69 @@ vim.defer_fn(function()
       },
     })
   end
-end, 20)
 
--- 6. Diagnostics, Error Gutters & VS Code Error Lens
+  -- Rainbow Delimiters for nested brackets/parentheses () [] {}
+  packadd_safe("rainbow-delimiters.nvim")
+  local ok_rd, rd = pcall(require, "rainbow-delimiters.setup")
+  if ok_rd then
+    rd.setup({
+      highlight = {
+        "RainbowDelimiterRed",
+        "RainbowDelimiterYellow",
+        "RainbowDelimiterBlue",
+        "RainbowDelimiterOrange",
+        "RainbowDelimiterGreen",
+        "RainbowDelimiterViolet",
+        "RainbowDelimiterCyan",
+      },
+    })
+  end
+end, 10)
+
+-- Modern Git Gutter Signs (deferred after first paint)
+vim.defer_fn(function()
+  packadd_safe("gitsigns.nvim")
+  local ok_gs, gs = pcall(require, "gitsigns")
+  if ok_gs then
+    gs.setup({
+      signs = {
+        add = { text = "▎" },
+        change = { text = "▎" },
+        delete = { text = "▎" },
+        topdelete = { text = "▔" },
+        changedelete = { text = "▎" },
+        untracked = { text = "▎" },
+      },
+      signs_staged = {
+        add = { text = "▎" },
+        change = { text = "▎" },
+        delete = { text = "▎" },
+        topdelete = { text = "▔" },
+        changedelete = { text = "▎" },
+        untracked = { text = "▎" },
+      },
+      signcolumn = true,
+      numhl = false,
+      linehl = false,
+      word_diff = false,
+      watch_gitdir = { interval = 1000, follow_files = true },
+      attach_to_untracked = true,
+      current_line_blame = false,
+      preview_config = {
+        border = "rounded",
+        style = "minimal",
+        relative = "cursor",
+        row = 0,
+        col = 1,
+      },
+    })
+  end
+end, 15)
+
+-- 6. Diagnostics, Error Gutters & Modern Soft Signs
 vim.diagnostic.config({
   virtual_text = {
-    prefix = "■ ",
+    prefix = " ● ",
     spacing = 4,
     severity = { min = vim.diagnostic.severity.HINT },
     format = function(diag)
@@ -324,10 +409,10 @@ vim.diagnostic.config({
   },
   signs = {
     text = {
-      [vim.diagnostic.severity.ERROR] = "󰅚",
-      [vim.diagnostic.severity.WARN] = "󰀪",
-      [vim.diagnostic.severity.INFO] = "󰋽",
-      [vim.diagnostic.severity.HINT] = "󰌶",
+      [vim.diagnostic.severity.ERROR] = "●",
+      [vim.diagnostic.severity.WARN] = "●",
+      [vim.diagnostic.severity.INFO] = "●",
+      [vim.diagnostic.severity.HINT] = "●",
     },
   },
   underline = true,
@@ -552,9 +637,8 @@ local function setup_lsp()
     pcall(vim.lsp.enable, enabled_lsp_servers)
     for _, b in ipairs(vim.api.nvim_list_bufs()) do
       if vim.api.nvim_buf_is_valid(b) and vim.api.nvim_buf_is_loaded(b) and vim.bo[b].buftype == "" and vim.bo[b].filetype ~= "" then
-        local ft = vim.bo[b].filetype
         vim.api.nvim_buf_call(b, function()
-          pcall(vim.cmd, "doautocmd <nomodeline> nvim.lsp.enable FileType " .. ft)
+          pcall(vim.cmd, "doautocmd <nomodeline> FileType")
         end)
       end
     end
@@ -936,6 +1020,8 @@ local function ensure_conform()
   local ok_conform, conform = pcall(require, "conform")
   if ok_conform then
     conform.setup({
+      notify_on_error = false,
+      notify_no_formatters = false,
       formatters_by_ft = {
         lua = { "stylua" },
         javascript = { "prettier" },
@@ -1004,7 +1090,7 @@ _G.format_buffer = function(opts)
   local formatted = false
   local ok, conf = pcall(require, "conform")
   if ok then
-    local res = conf.format({ bufnr = bufnr, async = false, timeout_ms = 3000, lsp_format = "fallback" })
+    local res = conf.format({ bufnr = bufnr, async = false, timeout_ms = 3000, lsp_format = "fallback", quiet = true })
     if res then
       formatted = true
     end
@@ -1382,10 +1468,67 @@ _G.get_listed_editor_bufs = get_listed_editor_bufs
 
 -- Global Menu Management & Modal Isolation (Only 1 menu open at a time)
 _G.active_menu_close_fn = nil
+local spotlight_dim_win = nil
+local spotlight_dim_buf = nil
 
+vim.api.nvim_set_hl(0, "SpotlightBackdrop", { bg = "#000000" })
 vim.api.nvim_set_hl(0, "MenuCursorHidden", { blend = 100, fg = "#1e222a", bg = "#1e222a" })
 vim.api.nvim_set_hl(0, "FolderCursorHidden", { blend = 100, fg = "#2d3545", bg = "#2d3545" })
 vim.api.nvim_set_hl(0, "FolderPickerSelected", { fg = "#ffffff", bg = "#2d3545", bold = true })
+
+_G.spotlight_dimmer_enabled = false
+
+local function show_spotlight_dimmer(current_win)
+  if not _G.spotlight_dimmer_enabled then
+    if spotlight_dim_win and vim.api.nvim_win_is_valid(spotlight_dim_win) then
+      pcall(vim.api.nvim_win_close, spotlight_dim_win, true)
+      spotlight_dim_win = nil
+    end
+    return
+  end
+  if spotlight_dim_win and vim.api.nvim_win_is_valid(spotlight_dim_win) then
+    pcall(vim.api.nvim_win_close, spotlight_dim_win, true)
+    spotlight_dim_win = nil
+  end
+  if not spotlight_dim_buf or not vim.api.nvim_buf_is_valid(spotlight_dim_buf) then
+    spotlight_dim_buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[spotlight_dim_buf].buftype = "nofile"
+    vim.bo[spotlight_dim_buf].bufhidden = "hide"
+  end
+
+  local ui = vim.api.nvim_list_uis()[1] or { width = vim.o.columns or 120, height = vim.o.lines or 40 }
+  local h = math.max(40, ui.height or 40)
+  local w = math.max(120, ui.width or 120)
+  local blank_lines = {}
+  local row_str = string.rep(" ", w)
+  for _ = 1, h do table.insert(blank_lines, row_str) end
+  vim.bo[spotlight_dim_buf].modifiable = true
+  vim.api.nvim_buf_set_lines(spotlight_dim_buf, 0, -1, false, blank_lines)
+  vim.bo[spotlight_dim_buf].modifiable = false
+
+  local ok_w, dwin = pcall(vim.api.nvim_open_win, spotlight_dim_buf, false, {
+    relative = "editor",
+    row = 0,
+    col = 0,
+    width = w,
+    height = h,
+    style = "minimal",
+    focusable = false,
+    zindex = 45,
+  })
+  if ok_w and dwin and vim.api.nvim_win_is_valid(dwin) then
+    spotlight_dim_win = dwin
+    vim.wo[dwin].winhighlight = "Normal:SpotlightBackdrop,EndOfBuffer:SpotlightBackdrop"
+    pcall(function() vim.wo[dwin].winblend = 40 end)
+  end
+end
+
+local function hide_spotlight_dimmer()
+  if spotlight_dim_win and vim.api.nvim_win_is_valid(spotlight_dim_win) then
+    pcall(vim.api.nvim_win_close, spotlight_dim_win, true)
+    spotlight_dim_win = nil
+  end
+end
 
 _G.set_picker_cursor = function(hl_group)
   pcall(function()
@@ -1401,7 +1544,7 @@ end
 
 _G.restore_picker_cursor = function()
   pcall(function()
-    vim.opt.guicursor = "n:block-blinkon500-blinkoff500,i-c-v-ve:ver25-blinkon500-blinkoff500"
+    vim.opt.guicursor = "n-v-c-sm:ver25-blinkon500-blinkoff500,i-ci-ve:ver25-blinkon500-blinkoff500,r-cr-o:hor20"
   end)
 end
 
@@ -1412,7 +1555,7 @@ _G.register_active_menu = function(close_fn, current_win)
     pcall(prev)
   end
   for _, w in ipairs(vim.api.nvim_list_wins()) do
-    if vim.api.nvim_win_is_valid(w) and w ~= current_win then
+    if vim.api.nvim_win_is_valid(w) and w ~= current_win and w ~= spotlight_dim_win then
       local cfg = vim.api.nvim_win_get_config(w)
       if cfg.relative ~= "" then
         local b = vim.api.nvim_win_get_buf(w)
@@ -1424,6 +1567,7 @@ _G.register_active_menu = function(close_fn, current_win)
   end
   _G.active_menu_close_fn = close_fn
   _G.set_picker_cursor()
+  show_spotlight_dimmer(current_win)
 end
 
 _G.clear_active_menu = function(caller_fn)
@@ -1432,6 +1576,7 @@ _G.clear_active_menu = function(caller_fn)
   end
   _G.active_menu_close_fn = nil
   _G.restore_picker_cursor()
+  hide_spotlight_dimmer()
 end
 
 -- 15. Code Editor Sidebar & Tabline (deferred 1ms after first frame so startup completes in ~27ms)
@@ -1602,14 +1747,13 @@ _G.sync_buffers_with_disk = function()
     end
   end
 
-  if package.loaded["nvim-tree"] then
-    local ok_t, t_api = pcall(require, "nvim-tree.api")
-    if ok_t and t_api.tree and pcall(t_api.tree.is_visible) and t_api.tree.is_visible() then
-      pcall(t_api.tree.reload)
-    end
-  end
-
   if any_wiped then
+    if package.loaded["nvim-tree"] then
+      local ok_t, t_api = pcall(require, "nvim-tree.api")
+      if ok_t and t_api.tree and pcall(t_api.tree.is_visible) and t_api.tree.is_visible() then
+        pcall(t_api.tree.reload)
+      end
+    end
     pcall(vim.cmd, "redrawtabline")
   end
 end
@@ -1627,6 +1771,25 @@ _G.ensure_ui_chrome = function()
   local ok_tree, tree = pcall(require, "nvim-tree")
   if ok_tree then
     local api = require("nvim-tree.api")
+    local ok_view, ntree_view = pcall(require, "nvim-tree.view")
+    if ok_view and ntree_view.open then
+      local orig_open = ntree_view.open
+      ntree_view.open = function(opts)
+        if ntree_view.is_buf_flat and ntree_view.is_buf_flat() then
+          return orig_open(opts)
+        end
+        local cur_win = ntree_view.winid()
+        if cur_win and vim.api.nvim_win_is_valid(cur_win) then
+          return orig_open(opts)
+        end
+        local w = _G.sidebar_width or 24
+        vim.cmd("silent! topleft " .. w .. "vnew")
+        local tw = vim.api.nvim_get_current_win()
+        vim.wo[tw].winfixwidth = true
+        vim.wo[tw].winbar = ""
+        return ntree_view.open_in_win({ winid = tw, hijack_current_buf = true, resize = false })
+      end
+    end
     local minimal_icon_decorator = ok_icons and minimal_icons.create_decorator(api) or nil
     _G.minimal_icon_decorator = minimal_icon_decorator
 
@@ -1673,6 +1836,15 @@ _G.ensure_ui_chrome = function()
       return
     end
     api.node.open.edit()
+    if node.type ~= "directory" then
+      vim.schedule(function()
+        local ed = find_editor_win()
+        if ed and vim.api.nvim_win_is_valid(ed) then
+          vim.api.nvim_set_current_win(ed)
+        end
+        pcall(vim.cmd, "startinsert")
+      end)
+    end
   end
 
   local function sidebar_single_click()
@@ -1687,6 +1859,10 @@ _G.ensure_ui_chrome = function()
   end
 
   local function sidebar_on_attach(bufnr)
+    local cur_win = vim.api.nvim_get_current_win()
+    if cur_win and vim.api.nvim_win_is_valid(cur_win) then
+      pcall(function() vim.wo[cur_win].winbar = "" end)
+    end
     -- Click & Enter to open files / toggle folders
     -- Enter (<CR>) and Double Click (<2-LeftMouse>) open the file in editor
     vim.keymap.set("n", "<CR>", sidebar_open_item, { desc = "Open File or Toggle Folder", buffer = bufnr, noremap = true, silent = true })
@@ -1727,13 +1903,13 @@ _G.ensure_ui_chrome = function()
   local initial_cfg = _G.FontEngine and _G.FontEngine.get_config() or {}
   local sb_cfg = initial_cfg.sidebar or { width = 24, icon_padding = " ", indent_width = 2, chevron_style = 1, git_badge = 1 }
   local chev = (_G.FontEngine and _G.FontEngine.chevron_styles and _G.FontEngine.chevron_styles[sb_cfg.chevron_style]) or { id = "sleek", closed = "›", open = "⌄" }
-  local git_opt = (_G.FontEngine and _G.FontEngine.git_badge_styles and _G.FontEngine.git_badge_styles[sb_cfg.git_badge]) or { placement = "after", show = true, style = "letters" }
+  local git_opt = (_G.FontEngine and _G.FontEngine.git_badge_styles and _G.FontEngine.git_badge_styles[sb_cfg.git_badge]) or { placement = "after", show = true, style = "dot" }
   local git_glyphs = {
-    unstaged = (git_opt.style == "dot") and "·" or "M",
-    staged = (git_opt.style == "dot") and "·" or "A",
+    unstaged = (git_opt.style == "dot") and "●" or "M",
+    staged = (git_opt.style == "dot") and "●" or "A",
     unmerged = "!",
     renamed = "R",
-    untracked = (git_opt.style == "dot") and "·" or "U",
+    untracked = (git_opt.style == "dot") and "●" or "U",
     deleted = "D",
     ignored = "·",
   }
@@ -1752,14 +1928,27 @@ _G.ensure_ui_chrome = function()
     },
     filesystem_watchers = {
       enable = true,
-      debounce_delay = 50,
+      debounce_delay = 250,
+      ignore_dirs = {
+        "node_modules",
+        "%.git$",
+        "%.venv$",
+        "venv",
+        "target",
+        "build",
+        "dist",
+        "%.cache",
+        "__pycache__",
+        "%.idea",
+        "%.vscode",
+      },
     },
     git = {
       enable = true,
-      ignore = false,
+      ignore = true,
       show_on_dirs = true,
-      show_on_open_dirs = true,
-      timeout = 400,
+      show_on_open_dirs = false,
+      timeout = 200,
     },
     diagnostics = {
       enable = true,
@@ -1778,7 +1967,7 @@ _G.ensure_ui_chrome = function()
       },
     },
     view = {
-      width = _G.sidebar_width,
+      width = function() return _G.sidebar_width or 24 end,
       side = "left",
       signcolumn = "no",
       cursorline = true,           -- Highlights row under block cursor
@@ -1856,7 +2045,7 @@ _G.ensure_ui_chrome = function()
     },
     filters = {
       dotfiles = false,
-      custom = { "^\\.git$" },
+      custom = { "^\\.git$", "^node_modules$", "^\\.venv$", "^__pycache__$", "^\\.cache$" },
     },
     actions = {
       change_dir = {
@@ -1885,16 +2074,10 @@ _G.ensure_ui_chrome = function()
     end
   end)
 
-  -- Mark newly created files from sidebar with unsaved dot icon immediately
+  -- Refresh sidebar tree when a new file is created
   api.events.subscribe(api.events.Event.FileCreated, function(data)
     if data and data.fname then
-      vim.schedule(function()
-        for _, b in ipairs(vim.api.nvim_list_bufs()) do
-          if vim.api.nvim_buf_is_valid(b) and vim.api.nvim_buf_get_name(b) == data.fname then
-            vim.bo[b].modified = true
-          end
-        end
-      end)
+      pcall(api.tree.reload)
     end
   end)
 
@@ -1987,12 +2170,6 @@ _G.ensure_ui_chrome = function()
   -- Enforce compact width & track sidebar visibility whenever opened/closed
   api.events.subscribe(api.events.Event.TreeOpen, function()
     vim.g.minimal_sidebar_open = true
-    vim.schedule(function()
-      local tw = api.tree.winid()
-      if tw and vim.api.nvim_win_is_valid(tw) then
-        pcall(vim.api.nvim_win_set_width, tw, _G.sidebar_width or 24)
-      end
-    end)
   end)
 
   api.events.subscribe(api.events.Event.TreeClose, function()
@@ -2058,19 +2235,19 @@ if ok_bufferline then
       end,
       middle_mouse_command = function(bufnr) _G.close_buffer(bufnr) end,
       indicator = {
-        style = "none",
+        style = "underline",
       },
       buffer_close_icon = "󰅖",
       modified_icon = "●",
       close_icon = "",
       left_trunc_marker = "",
       right_trunc_marker = "",
-      max_name_length = 25,
+      max_name_length = 26,
       max_prefix_length = 15,
-      tab_size = 20,
+      tab_size = 22,
       diagnostics = "nvim_lsp",
       diagnostics_indicator = function(count, level)
-        local icon = level:match("error") and "󰅚 " or "󰀪 "
+        local icon = level:match("error") and "● " or "● "
         return " " .. icon .. count
       end,
       offsets = {
@@ -2121,11 +2298,11 @@ if ok_bufferline then
     },
     highlights = {
       fill = {
-        bg = "#181a1f",
+        bg = "#14161b",
       },
       background = {
-        fg = "#abb2bf",
-        bg = "#21252b",
+        fg = "#6c7086",
+        bg = "#1c1f24",
       },
       buffer_selected = {
         fg = "#ffffff",
@@ -2134,12 +2311,12 @@ if ok_bufferline then
         italic = false,
       },
       close_button = {
-        fg = "#abb2bf",
-        bg = "#21252b",
+        fg = "#6c7086",
+        bg = "#1c1f24",
       },
       close_button_visible = {
-        fg = "#abb2bf",
-        bg = "#21252b",
+        fg = "#6c7086",
+        bg = "#1c1f24",
       },
       close_button_selected = {
         fg = "#abb2bf",
@@ -2147,11 +2324,11 @@ if ok_bufferline then
       },
       modified = {
         fg = "#fab387",
-        bg = "#21252b",
+        bg = "#1c1f24",
       },
       modified_visible = {
         fg = "#fab387",
-        bg = "#21252b",
+        bg = "#1c1f24",
       },
       modified_selected = {
         fg = "#fab387",
@@ -2163,11 +2340,11 @@ if ok_bufferline then
         bold = true,
       },
       separator = {
-        fg = "#181a1f",
-        bg = "#21252b",
+        fg = "#14161b",
+        bg = "#1c1f24",
       },
       separator_selected = {
-        fg = "#181a1f",
+        fg = "#14161b",
         bg = "#282c34",
       },
       indicator_selected = {
@@ -2205,7 +2382,7 @@ if ok_bufferline then
   end
 end -- end _G.ensure_ui_chrome
 
-vim.defer_fn(_G.ensure_ui_chrome, 1)
+_G.ensure_ui_chrome()
 
 -- Track file disk presence on read & write
 vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost" }, {
@@ -2228,18 +2405,57 @@ vim.api.nvim_create_autocmd({ "FocusGained", "TermLeave", "TermClose", "BufEnter
   end,
 })
 
--- Continuous background sync timer (1.5s interval)
+-- Continuous background sync timer (3s interval, non-blocking check of open buffers only)
 local disk_sync_timer = (vim.uv or vim.loop).new_timer()
 if disk_sync_timer then
-  disk_sync_timer:start(1000, 1500, vim.schedule_wrap(function()
+  disk_sync_timer:start(2000, 3000, vim.schedule_wrap(function()
     if not vim.g.minimal_is_quitting and _G.sync_buffers_with_disk then
       _G.sync_buffers_with_disk()
     end
   end))
 end
 
--- Toggle opened files inside editor like VS Code
+-- Tab Position Reordering (VS Code style) & User Commands
+_G.move_tab_left = function()
+  local ok, bl = pcall(require, "bufferline")
+  if ok and bl.move then
+    bl.move(-1)
+  end
+end
+
+_G.move_tab_right = function()
+  local ok, bl = pcall(require, "bufferline")
+  if ok and bl.move then
+    bl.move(1)
+  end
+end
+
+_G.move_tab_to = function(pos)
+  local num = tonumber(pos)
+  if not num then return end
+  local ok, bl = pcall(require, "bufferline")
+  if ok and bl.move_to then
+    bl.move_to(num)
+  end
+end
+
+vim.api.nvim_create_user_command("TabMoveLeft", function() _G.move_tab_left() end, { desc = "Move active tab left" })
+vim.api.nvim_create_user_command("TabMoveRight", function() _G.move_tab_right() end, { desc = "Move active tab right" })
+vim.api.nvim_create_user_command("TabMove", function(opts) _G.move_tab_to(opts.args) end, { nargs = 1, desc = "Move active tab to position n" })
+vim.api.nvim_create_user_command("BufferMove", function(opts) _G.move_tab_to(opts.args) end, { nargs = 1, desc = "Move active buffer to position n" })
+vim.api.nvim_create_user_command("BufferLineMovePrev", function() _G.move_tab_left() end, { desc = "Move active tab left" })
+vim.api.nvim_create_user_command("BufferLineMoveNext", function() _G.move_tab_right() end, { desc = "Move active tab right" })
+
+-- Toggle opened files inside editor like VS Code (follows visual bufferline order)
 _G.tab_next = function()
+  local ok, bl = pcall(require, "bufferline")
+  if ok and bl.cycle then
+    bl.cycle(1)
+    if vim.bo.buftype == "" and vim.bo.filetype ~= "NvimTree" then
+      pcall(vim.cmd, "startinsert")
+    end
+    return
+  end
   local bufs = get_listed_editor_bufs()
   if #bufs <= 1 then return end
   local cur = vim.api.nvim_get_current_buf()
@@ -2256,6 +2472,14 @@ _G.tab_next = function()
 end
 
 _G.tab_prev = function()
+  local ok, bl = pcall(require, "bufferline")
+  if ok and bl.cycle then
+    bl.cycle(-1)
+    if vim.bo.buftype == "" and vim.bo.filetype ~= "NvimTree" then
+      pcall(vim.cmd, "startinsert")
+    end
+    return
+  end
   local bufs = get_listed_editor_bufs()
   if #bufs <= 1 then return end
   local cur = vim.api.nvim_get_current_buf()
@@ -2558,14 +2782,16 @@ _G.close_terminal_by_index = function(idx)
   table.remove(_G.term_instances, idx)
 
   if #_G.term_instances == 0 then
-    if is_valid_win(term_win) then
-      vim.api.nvim_win_hide(term_win)
-      term_win = nil
-    end
-    _G.active_term_idx = 1
     local ed = find_editor_win()
     if ed and vim.api.nvim_win_is_valid(ed) then
       vim.api.nvim_set_current_win(ed)
+    end
+    if is_valid_win(term_win) then
+      pcall(vim.api.nvim_win_close, term_win, true)
+      term_win = nil
+    end
+    _G.active_term_idx = 1
+    if ed and vim.api.nvim_win_is_valid(ed) then
       vim.cmd("startinsert")
     end
   else
@@ -2591,9 +2817,16 @@ end
 _G.kill_active_terminal = function()
   clean_terminal_instances()
   if #_G.term_instances == 0 then
+    local ed = find_editor_win()
+    if ed and vim.api.nvim_win_is_valid(ed) then
+      vim.api.nvim_set_current_win(ed)
+    end
     if is_valid_win(term_win) then
-      vim.api.nvim_win_hide(term_win)
+      pcall(vim.api.nvim_win_close, term_win, true)
       term_win = nil
+    end
+    if ed and vim.api.nvim_win_is_valid(ed) then
+      vim.cmd("startinsert")
     end
     return
   end
@@ -2761,9 +2994,17 @@ _G.new_terminal = function()
         pcall(vim.cmd, "silent! bdelete! " .. new_buf)
         clean_terminal_instances()
         if #_G.term_instances == 0 then
+          local ed = find_editor_win()
+          if ed and vim.api.nvim_win_is_valid(ed) then
+            vim.api.nvim_set_current_win(ed)
+          end
           if is_valid_win(term_win) then
-            vim.api.nvim_win_hide(term_win)
+            pcall(vim.api.nvim_win_close, term_win, true)
             term_win = nil
+          end
+          _G.active_term_idx = 1
+          if ed and vim.api.nvim_win_is_valid(ed) then
+            vim.cmd("startinsert")
           end
         else
           if is_valid_win(term_win) then
@@ -2965,6 +3206,205 @@ _G.focus_editor_from_terminal = function()
 end
 
 -- =============================================================================
+-- INTERACTIVE SEARCHBAR ENGINE & CURSOR NAVIGATION
+-- =============================================================================
+local function make_searchbar(initial_text, on_change)
+  local sb = {
+    text = initial_text or "",
+    pos = #(initial_text or "") + 1,
+  }
+
+  function sb.get_text()
+    return sb.text
+  end
+
+  function sb.set_text(t)
+    sb.text = t or ""
+    sb.pos = #sb.text + 1
+    if on_change then on_change(sb.text) end
+  end
+
+  function sb.get_display_line(prompt, placeholder)
+    prompt = prompt or "  Search: "
+    placeholder = placeholder or "(type to filter...)"
+    if sb.text == "" then
+      return prompt .. "▏" .. (placeholder ~= "" and (" " .. placeholder) or "")
+    else
+      local before = sb.text:sub(1, sb.pos - 1)
+      local after = sb.text:sub(sb.pos)
+      return prompt .. before .. "▏" .. after
+    end
+  end
+
+  function sb.insert(ch)
+    sb.text = sb.text:sub(1, sb.pos - 1) .. ch .. sb.text:sub(sb.pos)
+    sb.pos = sb.pos + #ch
+    if on_change then on_change(sb.text) end
+  end
+
+  function sb.backspace()
+    if sb.pos > 1 then
+      sb.text = sb.text:sub(1, sb.pos - 2) .. sb.text:sub(sb.pos)
+      sb.pos = sb.pos - 1
+      if on_change then on_change(sb.text) end
+    end
+  end
+
+  function sb.delete_forward()
+    if sb.pos <= #sb.text then
+      sb.text = sb.text:sub(1, sb.pos - 1) .. sb.text:sub(sb.pos + 1)
+      if on_change then on_change(sb.text) end
+    end
+  end
+
+  function sb.move_left()
+    if sb.pos > 1 then
+      sb.pos = sb.pos - 1
+      if on_change then on_change(sb.text) end
+    end
+  end
+
+  function sb.move_right()
+    if sb.pos <= #sb.text then
+      sb.pos = sb.pos + 1
+      if on_change then on_change(sb.text) end
+    end
+  end
+
+  function sb.move_word_left()
+    if sb.pos <= 1 then return end
+    local p = sb.pos - 1
+    while p > 1 and sb.text:sub(p, p):match("%s") do p = p - 1 end
+    while p > 1 and not sb.text:sub(p - 1, p - 1):match("%s") do p = p - 1 end
+    sb.pos = p
+    if on_change then on_change(sb.text) end
+  end
+
+  function sb.move_word_right()
+    local len = #sb.text
+    if sb.pos > len then return end
+    local p = sb.pos
+    while p <= len and not sb.text:sub(p, p):match("%s") do p = p + 1 end
+    while p <= len and sb.text:sub(p, p):match("%s") do p = p + 1 end
+    sb.pos = p
+    if on_change then on_change(sb.text) end
+  end
+
+  function sb.delete_word_backward()
+    if sb.pos <= 1 then return end
+    local p = sb.pos - 1
+    while p > 1 and sb.text:sub(p, p):match("%s") do p = p - 1 end
+    while p > 1 and not sb.text:sub(p - 1, p - 1):match("%s") do p = p - 1 end
+    sb.text = sb.text:sub(1, p - 1) .. sb.text:sub(sb.pos)
+    sb.pos = p
+    if on_change then on_change(sb.text) end
+  end
+
+  function sb.delete_word_forward()
+    local len = #sb.text
+    if sb.pos > len then return end
+    local p = sb.pos
+    while p <= len and not sb.text:sub(p, p):match("%s") do p = p + 1 end
+    while p <= len and sb.text:sub(p, p):match("%s") do p = p + 1 end
+    sb.text = sb.text:sub(1, sb.pos - 1) .. sb.text:sub(p)
+    if on_change then on_change(sb.text) end
+  end
+
+  function sb.home()
+    if sb.pos ~= 1 then
+      sb.pos = 1
+      if on_change then on_change(sb.text) end
+    end
+  end
+
+  function sb.end_pos()
+    local target = #sb.text + 1
+    if sb.pos ~= target then
+      sb.pos = target
+      if on_change then on_change(sb.text) end
+    end
+  end
+
+  function sb.clear()
+    sb.text = ""
+    sb.pos = 1
+    if on_change then on_change(sb.text) end
+  end
+
+  return sb
+end
+
+local function bind_searchbar_keys(buf, sb, is_active_fn)
+  local function active()
+    if is_active_fn then return is_active_fn() end
+    return true
+  end
+
+  -- Printable characters (32 to 126)
+  for c = 32, 126 do
+    local ch = string.char(c)
+    vim.keymap.set({ "n", "i", "s", "v" }, ch, function()
+      if active() then
+        sb.insert(ch)
+      end
+    end, { buffer = buf, nowait = true })
+  end
+
+  -- Arrow cursor navigation inside search query
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Left>", function() if active() then sb.move_left() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Right>", function() if active() then sb.move_right() end end, { buffer = buf, nowait = true })
+
+  -- Word jumping (Ctrl+Left / Ctrl+Right and Alt+Left / Alt+Right)
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-Left>", function() if active() then sb.move_word_left() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-Right>", function() if active() then sb.move_word_right() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-Left>", function() if active() then sb.move_word_left() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-Right>", function() if active() then sb.move_word_right() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-b>", function() if active() then sb.move_word_left() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-f>", function() if active() then sb.move_word_right() end end, { buffer = buf, nowait = true })
+
+  -- Home / End
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Home>", function() if active() then sb.home() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<End>", function() if active() then sb.end_pos() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-a>", function() if active() then sb.home() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-e>", function() if active() then sb.end_pos() end end, { buffer = buf, nowait = true })
+
+  -- Backspace / Delete
+  vim.keymap.set({ "n", "i", "s", "v" }, "<BS>", function() if active() then sb.backspace() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-h>", function() if active() then sb.backspace() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Del>", function() if active() then sb.delete_forward() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Delete>", function() if active() then sb.delete_forward() end end, { buffer = buf, nowait = true })
+
+  -- Word deletions (Ctrl+Backspace / Alt+Backspace / Ctrl+W)
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-BS>", function() if active() then sb.delete_word_backward() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-BackSpace>", function() if active() then sb.delete_word_backward() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-BS>", function() if active() then sb.delete_word_backward() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-BackSpace>", function() if active() then sb.delete_word_backward() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-w>", function() if active() then sb.delete_word_backward() end end, { buffer = buf, nowait = true })
+
+  -- Word deletions forward (Ctrl+Delete / Alt+Delete)
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-Del>", function() if active() then sb.delete_word_forward() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-Delete>", function() if active() then sb.delete_word_forward() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-Del>", function() if active() then sb.delete_word_forward() end end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-Delete>", function() if active() then sb.delete_word_forward() end end, { buffer = buf, nowait = true })
+
+  -- Clear query
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-u>", function() if active() then sb.clear() end end, { buffer = buf, nowait = true })
+
+  -- Block editor mutations so undo / cut / duplicate / insert NEVER corrupt the menu
+  local block_keys = { "<C-z>", "<C-y>", "<C-r>", "<C-d>", "<C-x>", "<C-s>", "<S-Del>", "<S-Delete>", "<Insert>" }
+  for _, bk in ipairs(block_keys) do
+    vim.keymap.set({ "n", "i", "s", "v" }, bk, "<nop>", { buffer = buf, nowait = true })
+  end
+
+  for _, wk in ipairs({ "<C-w>w", "<C-w>h", "<C-w>j", "<C-w>k", "<C-w>l", "<C-w><Up>", "<C-w><Down>", "<C-w><Left>", "<C-w><Right>" }) do
+    vim.keymap.set({ "n", "i", "s", "v" }, wk, "<nop>", { buffer = buf, nowait = true })
+  end
+end
+
+_G.make_searchbar = make_searchbar
+_G.bind_searchbar_keys = bind_searchbar_keys
+
+-- =============================================================================
 -- VIM RELATIVE LINE JUMP & GO TO LINE (Alt+K / Alt+J / Ctrl+G)
 -- =============================================================================
 _G.relative_jump = function(direction)
@@ -3007,16 +3447,15 @@ _G.relative_jump = function(direction)
   vim.wo[win].cursorline = false
   vim.wo[win].winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder"
 
-  local input_str = ""
-
+  local sb
   local function render()
-    local display = "  Lines: " .. input_str .. (input_str == "" and " (enter count...)" or "▏")
+    local display = sb and sb.get_display_line("  Lines: ", "(enter count...)") or "  Lines: ▏ (enter count...)"
     vim.bo[buf].modifiable = true
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { display })
     vim.bo[buf].modifiable = false
   end
 
-  render()
+  sb = make_searchbar("", render)
 
   local function close_popup()
     pcall(vim.api.nvim_win_close, win, true)
@@ -3030,7 +3469,7 @@ _G.relative_jump = function(direction)
   _G.register_active_menu(close_popup, win)
 
   local function confirm_jump()
-    local count = tonumber(input_str) or 1
+    local count = tonumber(sb.get_text()) or 1
     close_popup()
     if count and count > 0 then
       local target_row
@@ -3045,51 +3484,17 @@ _G.relative_jump = function(direction)
     end
   end
 
-  for c = 48, 57 do -- digits 0-9
-    local ch = string.char(c)
-    vim.keymap.set({ "n", "i", "s", "v" }, ch, function()
-      input_str = input_str .. ch
-      render()
-    end, { buffer = buf, nowait = true })
-  end
+  bind_searchbar_keys(buf, sb)
 
-  vim.keymap.set({ "n", "i", "s", "v" }, "<BS>", function()
-    if #input_str > 0 then
-      input_str = input_str:sub(1, -2)
-      render()
-    end
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Up>", function()
+    local n = tonumber(sb.get_text()) or 0
+    sb.set_text(tostring(math.max(1, n + 1)))
   end, { buffer = buf, nowait = true })
 
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-h>", function()
-    if #input_str > 0 then
-      input_str = input_str:sub(1, -2)
-      render()
-    end
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Down>", function()
+    local n = tonumber(sb.get_text()) or 1
+    sb.set_text(tostring(math.max(1, n - 1)))
   end, { buffer = buf, nowait = true })
-
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-u>", function()
-    input_str = ""
-    render()
-  end, { buffer = buf, nowait = true })
-
-  local function clear_input()
-    input_str = ""
-    render()
-  end
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-BS>", clear_input, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-BackSpace>", clear_input, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-w>", clear_input, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-BS>", clear_input, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-BackSpace>", clear_input, { buffer = buf, nowait = true })
-
-  local block_keys = { "<C-z>", "<C-y>", "<C-r>", "<C-d>", "<C-x>", "<C-s>", "<S-Del>", "<S-Delete>", "<Insert>" }
-  for _, bk in ipairs(block_keys) do
-    vim.keymap.set({ "n", "i", "s", "v" }, bk, "<nop>", { buffer = buf, nowait = true })
-  end
-
-  for _, wk in ipairs({ "<C-w>w", "<C-w>h", "<C-w>j", "<C-w>k", "<C-w>l", "<C-w><Up>", "<C-w><Down>", "<C-w><Left>", "<C-w><Right>" }) do
-    vim.keymap.set({ "n", "i", "s", "v" }, wk, "<nop>", { buffer = buf, nowait = true })
-  end
 
   vim.api.nvim_create_autocmd("WinLeave", {
     buffer = buf,
@@ -3097,22 +3502,12 @@ _G.relative_jump = function(direction)
     callback = close_popup,
   })
 
-  vim.keymap.set({ "n", "i", "s", "v" }, "<Up>", function()
-    local n = tonumber(input_str) or 0
-    input_str = tostring(math.max(1, n + 1))
-    render()
-  end, { buffer = buf, nowait = true })
-
-  vim.keymap.set({ "n", "i", "s", "v" }, "<Down>", function()
-    local n = tonumber(input_str) or 1
-    input_str = tostring(math.max(1, n - 1))
-    render()
-  end, { buffer = buf, nowait = true })
-
   vim.keymap.set({ "n", "i", "s", "v" }, "<CR>", confirm_jump, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<Esc>", close_popup, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<C-c>", close_popup, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "q", close_popup, { buffer = buf, nowait = true })
+
+  render()
 end
 
 _G.goto_line = function()
@@ -3152,16 +3547,15 @@ _G.goto_line = function()
   vim.wo[win].cursorline = false
   vim.wo[win].winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder"
 
-  local input_str = ""
-
+  local sb
   local function render()
-    local display = "  Target: " .. input_str .. (input_str == "" and " (e.g. 50 or -5 or +10)" or "▏")
+    local display = sb and sb.get_display_line("  Target: ", "(e.g. 50 or -5 or +10)") or "  Target: ▏ (e.g. 50 or -5 or +10)"
     vim.bo[buf].modifiable = true
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { display })
     vim.bo[buf].modifiable = false
   end
 
-  render()
+  sb = make_searchbar("", render)
 
   local function close_popup()
     pcall(vim.api.nvim_win_close, win, true)
@@ -3175,7 +3569,7 @@ _G.goto_line = function()
   _G.register_active_menu(close_popup, win)
 
   local function confirm_jump()
-    local str = vim.trim(input_str)
+    local str = vim.trim(sb.get_text())
     close_popup()
     if str == "" then return end
 
@@ -3201,51 +3595,7 @@ _G.goto_line = function()
     end
   end
 
-  local allowed_chars = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "+", "-", ":" }
-  for _, ch in ipairs(allowed_chars) do
-    vim.keymap.set({ "n", "i", "s", "v" }, ch, function()
-      input_str = input_str .. ch
-      render()
-    end, { buffer = buf, nowait = true })
-  end
-
-  vim.keymap.set({ "n", "i", "s", "v" }, "<BS>", function()
-    if #input_str > 0 then
-      input_str = input_str:sub(1, -2)
-      render()
-    end
-  end, { buffer = buf, nowait = true })
-
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-h>", function()
-    if #input_str > 0 then
-      input_str = input_str:sub(1, -2)
-      render()
-    end
-  end, { buffer = buf, nowait = true })
-
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-u>", function()
-    input_str = ""
-    render()
-  end, { buffer = buf, nowait = true })
-
-  local function clear_input()
-    input_str = ""
-    render()
-  end
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-BS>", clear_input, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-BackSpace>", clear_input, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-w>", clear_input, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-BS>", clear_input, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-BackSpace>", clear_input, { buffer = buf, nowait = true })
-
-  local block_keys = { "<C-z>", "<C-y>", "<C-r>", "<C-d>", "<C-x>", "<C-s>", "<S-Del>", "<S-Delete>", "<Insert>" }
-  for _, bk in ipairs(block_keys) do
-    vim.keymap.set({ "n", "i", "s", "v" }, bk, "<nop>", { buffer = buf, nowait = true })
-  end
-
-  for _, wk in ipairs({ "<C-w>w", "<C-w>h", "<C-w>j", "<C-w>k", "<C-w>l", "<C-w><Up>", "<C-w><Down>", "<C-w><Left>", "<C-w><Right>" }) do
-    vim.keymap.set({ "n", "i", "s", "v" }, wk, "<nop>", { buffer = buf, nowait = true })
-  end
+  bind_searchbar_keys(buf, sb)
 
   vim.api.nvim_create_autocmd("WinLeave", {
     buffer = buf,
@@ -3257,6 +3607,8 @@ _G.goto_line = function()
   vim.keymap.set({ "n", "i", "s", "v" }, "<Esc>", close_popup, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<C-c>", close_popup, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "q", close_popup, { buffer = buf, nowait = true })
+
+  render()
 end
 
 -- =============================================================================
@@ -3811,213 +4163,20 @@ vim.api.nvim_create_autocmd("VimEnter", {
   end,
 })
 
--- =============================================================================
--- INTERACTIVE MODAL SEARCHBAR ENGINE (Smooth typing, cursor navigation & word ops)
--- =============================================================================
-local function make_searchbar(initial_text, on_change)
-  local sb = {
-    text = initial_text or "",
-    pos = #(initial_text or "") + 1,
-  }
-
-  function sb.get_text()
-    return sb.text
-  end
-
-  function sb.set_text(t)
-    sb.text = t or ""
-    sb.pos = #sb.text + 1
-    if on_change then on_change(sb.text) end
-  end
-
-  function sb.get_display_line(prompt, placeholder)
-    prompt = prompt or "  Search: "
-    placeholder = placeholder or "(type to filter...)"
-    if sb.text == "" then
-      return prompt .. "▏" .. (placeholder ~= "" and (" " .. placeholder) or "")
-    else
-      local before = sb.text:sub(1, sb.pos - 1)
-      local after = sb.text:sub(sb.pos)
-      return prompt .. before .. "▏" .. after
-    end
-  end
-
-  function sb.insert(ch)
-    sb.text = sb.text:sub(1, sb.pos - 1) .. ch .. sb.text:sub(sb.pos)
-    sb.pos = sb.pos + #ch
-    if on_change then on_change(sb.text) end
-  end
-
-  function sb.backspace()
-    if sb.pos > 1 then
-      sb.text = sb.text:sub(1, sb.pos - 2) .. sb.text:sub(sb.pos)
-      sb.pos = sb.pos - 1
-      if on_change then on_change(sb.text) end
-    end
-  end
-
-  function sb.delete_forward()
-    if sb.pos <= #sb.text then
-      sb.text = sb.text:sub(1, sb.pos - 1) .. sb.text:sub(sb.pos + 1)
-      if on_change then on_change(sb.text) end
-    end
-  end
-
-  function sb.move_left()
-    if sb.pos > 1 then
-      sb.pos = sb.pos - 1
-      if on_change then on_change(sb.text) end
-    end
-  end
-
-  function sb.move_right()
-    if sb.pos <= #sb.text then
-      sb.pos = sb.pos + 1
-      if on_change then on_change(sb.text) end
-    end
-  end
-
-  function sb.move_word_left()
-    if sb.pos <= 1 then return end
-    local p = sb.pos - 1
-    while p > 1 and sb.text:sub(p, p):match("%s") do p = p - 1 end
-    while p > 1 and not sb.text:sub(p - 1, p - 1):match("%s") do p = p - 1 end
-    sb.pos = p
-    if on_change then on_change(sb.text) end
-  end
-
-  function sb.move_word_right()
-    local len = #sb.text
-    if sb.pos > len then return end
-    local p = sb.pos
-    while p <= len and not sb.text:sub(p, p):match("%s") do p = p + 1 end
-    while p <= len and sb.text:sub(p, p):match("%s") do p = p + 1 end
-    sb.pos = p
-    if on_change then on_change(sb.text) end
-  end
-
-  function sb.delete_word_backward()
-    if sb.pos <= 1 then return end
-    local p = sb.pos - 1
-    while p > 1 and sb.text:sub(p, p):match("%s") do p = p - 1 end
-    while p > 1 and not sb.text:sub(p - 1, p - 1):match("%s") do p = p - 1 end
-    sb.text = sb.text:sub(1, p - 1) .. sb.text:sub(sb.pos)
-    sb.pos = p
-    if on_change then on_change(sb.text) end
-  end
-
-  function sb.delete_word_forward()
-    local len = #sb.text
-    if sb.pos > len then return end
-    local p = sb.pos
-    while p <= len and not sb.text:sub(p, p):match("%s") do p = p + 1 end
-    while p <= len and sb.text:sub(p, p):match("%s") do p = p + 1 end
-    sb.text = sb.text:sub(1, sb.pos - 1) .. sb.text:sub(p)
-    if on_change then on_change(sb.text) end
-  end
-
-  function sb.home()
-    if sb.pos ~= 1 then
-      sb.pos = 1
-      if on_change then on_change(sb.text) end
-    end
-  end
-
-  function sb.end_pos()
-    local target = #sb.text + 1
-    if sb.pos ~= target then
-      sb.pos = target
-      if on_change then on_change(sb.text) end
-    end
-  end
-
-  function sb.clear()
-    sb.text = ""
-    sb.pos = 1
-    if on_change then on_change(sb.text) end
-  end
-
-  return sb
-end
-
-local function bind_searchbar_keys(buf, sb, is_active_fn)
-  local function active()
-    if is_active_fn then return is_active_fn() end
-    return true
-  end
-
-  -- Printable characters (32 to 126)
-  for c = 32, 126 do
-    local ch = string.char(c)
-    vim.keymap.set({ "n", "i", "s", "v" }, ch, function()
-      if active() then
-        sb.insert(ch)
-      end
-    end, { buffer = buf, nowait = true })
-  end
-
-  -- Arrow cursor navigation inside search query
-  vim.keymap.set({ "n", "i", "s", "v" }, "<Left>", function() if active() then sb.move_left() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<Right>", function() if active() then sb.move_right() end end, { buffer = buf, nowait = true })
-
-  -- Word jumping (Ctrl+Left / Ctrl+Right and Alt+Left / Alt+Right)
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-Left>", function() if active() then sb.move_word_left() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-Right>", function() if active() then sb.move_word_right() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-Left>", function() if active() then sb.move_word_left() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-Right>", function() if active() then sb.move_word_right() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-b>", function() if active() then sb.move_word_left() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-f>", function() if active() then sb.move_word_right() end end, { buffer = buf, nowait = true })
-
-  -- Home / End
-  vim.keymap.set({ "n", "i", "s", "v" }, "<Home>", function() if active() then sb.home() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<End>", function() if active() then sb.end_pos() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-a>", function() if active() then sb.home() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-e>", function() if active() then sb.end_pos() end end, { buffer = buf, nowait = true })
-
-  -- Backspace / Delete
-  vim.keymap.set({ "n", "i", "s", "v" }, "<BS>", function() if active() then sb.backspace() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-h>", function() if active() then sb.backspace() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<Del>", function() if active() then sb.delete_forward() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<Delete>", function() if active() then sb.delete_forward() end end, { buffer = buf, nowait = true })
-
-  -- Word deletions (Ctrl+Backspace / Alt+Backspace / Ctrl+W)
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-BS>", function() if active() then sb.delete_word_backward() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-BackSpace>", function() if active() then sb.delete_word_backward() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-BS>", function() if active() then sb.delete_word_backward() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-BackSpace>", function() if active() then sb.delete_word_backward() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-w>", function() if active() then sb.delete_word_backward() end end, { buffer = buf, nowait = true })
-
-  -- Word deletions forward (Ctrl+Delete / Alt+Delete)
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-Del>", function() if active() then sb.delete_word_forward() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-Delete>", function() if active() then sb.delete_word_forward() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-Del>", function() if active() then sb.delete_word_forward() end end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-Delete>", function() if active() then sb.delete_word_forward() end end, { buffer = buf, nowait = true })
-
-  -- Clear query
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-u>", function() if active() then sb.clear() end end, { buffer = buf, nowait = true })
-
-  -- Block editor mutations so undo / cut / duplicate / insert NEVER corrupt the menu
-  local block_keys = { "<C-z>", "<C-y>", "<C-r>", "<C-d>", "<C-x>", "<C-s>", "<S-Del>", "<S-Delete>", "<Insert>" }
-  for _, bk in ipairs(block_keys) do
-    vim.keymap.set({ "n", "i", "s", "v" }, bk, "<nop>", { buffer = buf, nowait = true })
-  end
-
-  for _, wk in ipairs({ "<C-w>w", "<C-w>h", "<C-w>j", "<C-w>k", "<C-w>l", "<C-w><Up>", "<C-w><Down>", "<C-w><Left>", "<C-w><Right>" }) do
-    vim.keymap.set({ "n", "i", "s", "v" }, wk, "<nop>", { buffer = buf, nowait = true })
-  end
-end
-
-_G.make_searchbar = make_searchbar
-_G.bind_searchbar_keys = bind_searchbar_keys
+local make_searchbar = _G.make_searchbar
+local bind_searchbar_keys = _G.bind_searchbar_keys
 
 -- 18. MINIMAL CODE EDITOR THEMES ENGINE & LIVE PREVIEW SELECTOR (Ctrl+K Ctrl+T)
 _G.ThemeEngine = {}
 local ThemeEngine = _G.ThemeEngine
 ThemeEngine.themes = {
-  { id = "darkmagic", name = "Dark Magic", desc = "Neon Synthwave & Cyberpunk (#07070f)" },
   { id = "cyberaurora", name = "Cyber Aurora", desc = "High-contrast Electric Aurora on Deep Midnight" },
   { id = "medieval", name = "Medieval Scriptorium", desc = "Illuminated Manuscript, Dragon Gold & Castle Stone (#0e0d0b)" },
   { id = "nocturne", name = "Crimson Nocturne", desc = "Gothic Black Velvet, Mahogany & Dragon Ruby (#0b0709)" },
+  { id = "alien", name = "Alien Xenomorph", desc = "Bioluminescent Xenomorph, Acid Neon & Deep Hive Void (#060d09)" },
+  { id = "solaris", name = "Solaris Amber CRT", desc = "Retro-futuristic Apollo Amber Phosphor & Basalt (#080604)" },
+  { id = "sakura", name = "Cyber Sakura Noir", desc = "Velvet Nocturnal Plum & Blooming Cherry Neon (#0c0712)" },
+  { id = "synthwave", name = "Outrun Neon Sunset", desc = "1984 Arcade Neon Fuchsia, Cyan & Sun Orange (#0d091a)" },
 }
 
 local theme_state_file = vim.fn.stdpath("state") .. "/active_theme.txt"
@@ -4032,7 +4191,7 @@ function ThemeEngine.get_active_theme()
       end
     end
   end
-  return "darkmagic"
+  return "cyberaurora"
 end
 
 function ThemeEngine.save_active_theme(theme_id)
@@ -4042,37 +4201,35 @@ end
 
 function ThemeEngine.apply_theme(theme_id)
   pcall(vim.cmd, "colorscheme " .. theme_id)
-  -- Maintain sidebar and float highlights across theme changes
-  vim.api.nvim_set_hl(0, "FloatBorder", { fg = "#61afef", bg = "#1e222a" })
-  vim.api.nvim_set_hl(0, "NormalFloat", { fg = "#abb2bf", bg = "#1e222a" })
-  vim.api.nvim_set_hl(0, "NvimTreeDiagnosticErrorFileHLGroup", { fg = "#f38ba8", bold = true })
-  vim.api.nvim_set_hl(0, "NvimTreeDiagnosticWarnFileHLGroup", { fg = "#fab387", bold = true })
-  vim.api.nvim_set_hl(0, "NvimTreeGitDirty", { fg = "#fab387", bold = true })
-  vim.api.nvim_set_hl(0, "NvimTreeGitStaged", { fg = "#a6e3a1", bold = true })
-  vim.api.nvim_set_hl(0, "NvimTreeGitNew", { fg = "#a6e3a1", bold = true })
-  vim.api.nvim_set_hl(0, "NvimTreeGitDeleted", { fg = "#f38ba8" })
-  vim.api.nvim_set_hl(0, "NvimTreeGitRenamed", { fg = "#cba6f7" })
 
-  -- Subtle, ultra-faint greyish separation border line (barely noticeable distinction)
-  local subtle_grey = "#1c1f26"
+  -- Subtle, ultra-faint separation border line matching theme
+  local border_hl = vim.api.nvim_get_hl(0, { name = "FloatBorder" })
+  local subtle_grey = (border_hl and border_hl.fg) and string.format("#%06x", border_hl.fg) or "#1c1f26"
   vim.api.nvim_set_hl(0, "WinSeparator", { fg = subtle_grey, bg = "NONE", bold = false })
   vim.api.nvim_set_hl(0, "VertSplit", { fg = subtle_grey, bg = "NONE", bold = false })
   vim.api.nvim_set_hl(0, "NvimTreeWinSeparator", { fg = subtle_grey, bg = "NONE", bold = false })
 
-  -- Minimal Homescreen Highlights
-  vim.api.nvim_set_hl(0, "MinimalHomeBanner", { fg = "#61afef", bold = true })
+  -- Minimal Homescreen Highlights matching theme accents
+  local fn_hl = vim.api.nvim_get_hl(0, { name = "Function" })
+  local fn_fg = (fn_hl and fn_hl.fg) and string.format("#%06x", fn_hl.fg) or "#61afef"
+  local kw_hl = vim.api.nvim_get_hl(0, { name = "Keyword" })
+  local kw_fg = (kw_hl and kw_hl.fg) and string.format("#%06x", kw_hl.fg) or "#e5c07b"
+  local norm_hl = vim.api.nvim_get_hl(0, { name = "Normal" })
+  local norm_fg = (norm_hl and norm_hl.fg) and string.format("#%06x", norm_hl.fg) or "#abb2bf"
+
+  vim.api.nvim_set_hl(0, "MinimalHomeBanner", { fg = fn_fg, bold = true })
   vim.api.nvim_set_hl(0, "MinimalHomeTagline", { fg = "#7f848e", italic = true })
   vim.api.nvim_set_hl(0, "MinimalHomeSubtitle", { fg = "#7f848e", italic = true })
-  vim.api.nvim_set_hl(0, "MinimalHomeKey", { fg = "#e5c07b", bold = true })
-  vim.api.nvim_set_hl(0, "MinimalHomeDesc", { fg = "#abb2bf" })
+  vim.api.nvim_set_hl(0, "MinimalHomeKey", { fg = kw_fg, bold = true })
+  vim.api.nvim_set_hl(0, "MinimalHomeDesc", { fg = norm_fg })
   vim.api.nvim_set_hl(0, "MinimalHomeHint", { fg = "#5c6370" })
-  vim.api.nvim_set_hl(0, "MinimalHomeHeader", { fg = "#98c379", bold = true })
-  vim.api.nvim_set_hl(0, "MinimalHomeRecent", { fg = "#61afef" })
-  vim.api.nvim_set_hl(0, "MinimalHomeArrow", { fg = "#61afef", bold = true })
+  vim.api.nvim_set_hl(0, "MinimalHomeHeader", { fg = fn_fg, bold = true })
+  vim.api.nvim_set_hl(0, "MinimalHomeRecent", { fg = fn_fg })
+  vim.api.nvim_set_hl(0, "MinimalHomeArrow", { fg = fn_fg, bold = true })
 
   -- Multi-Cursor & Menu Picker Highlights
-  vim.api.nvim_set_hl(0, "MultipleCursorsCursor", { bg = "#61afef", fg = "#1e222a", bold = true })
-  vim.api.nvim_set_hl(0, "MultipleCursorsLockedCursor", { bg = "#98c379", fg = "#1e222a", bold = true })
+  vim.api.nvim_set_hl(0, "MultipleCursorsCursor", { bg = fn_fg, fg = "#1e222a", bold = true })
+  vim.api.nvim_set_hl(0, "MultipleCursorsLockedCursor", { bg = kw_fg, fg = "#1e222a", bold = true })
   vim.api.nvim_set_hl(0, "MultipleCursorsVisual", { bg = "#3e4451" })
   vim.api.nvim_set_hl(0, "MenuCursorHidden", { blend = 100, fg = "#1e222a", bg = "#1e222a" })
   vim.api.nvim_set_hl(0, "FolderCursorHidden", { blend = 100, fg = "#2d3545", bg = "#2d3545" })
@@ -4083,6 +4240,23 @@ function ThemeEngine.apply_theme(theme_id)
   end
   if _G.apply_markdown_highlights then
     _G.apply_markdown_highlights()
+  end
+  if _G.apply_rainbow_hls then
+    _G.apply_rainbow_hls()
+  end
+  if _G.apply_breadcrumb_highlights then
+    _G.apply_breadcrumb_highlights()
+  end
+  if _G.apply_statusline_capsule_highlights then
+    _G.apply_statusline_capsule_highlights()
+  end
+
+  -- Clean, distraction-free cursor for Neovide GUI (no bubble trails, particle FX or stretched lines)
+  if vim.g.neovide then
+    vim.g.neovide_cursor_vfx_mode = ""
+    vim.g.neovide_cursor_trail_size = 0
+    vim.g.neovide_cursor_animation_length = 0
+    vim.g.neovide_scroll_animation_length = 0
   end
 end
 
@@ -4106,8 +4280,8 @@ _G.open_theme_picker = function()
   end
 
   local ui = vim.api.nvim_list_uis()[1] or { width = 120, height = 40 }
-  local width = 48
-  local height = math.min(16, #ThemeEngine.themes + 4)
+  local width = math.min(78, ui.width - 4)
+  local height = math.min(ui.height - 4, #ThemeEngine.themes + 3)
   local row = math.max(1, math.floor((ui.height - height) / 3))
   local col = math.max(1, math.floor((ui.width - width) / 2))
 
@@ -4146,6 +4320,9 @@ _G.open_theme_picker = function()
   _G.register_active_menu(cancel_selection, win)
 
   vim.api.nvim_set_hl(0, "ThemeItemArrow", { fg = "#61afef", bold = true })
+  vim.api.nvim_set_hl(0, "ThemeItemActive", { fg = "#ffffff", bold = true })
+  vim.api.nvim_set_hl(0, "ThemeItemName", { fg = "#abb2bf" })
+  vim.api.nvim_set_hl(0, "ThemeItemDesc", { fg = "#5c6370", italic = true })
 
   local sb = nil
 
@@ -4154,25 +4331,38 @@ _G.open_theme_picker = function()
     local query = sb and sb.get_text() or ""
     filtered = {}
     for _, t in ipairs(ThemeEngine.themes) do
-      if query == "" or t.name:lower():find(query:lower(), 1, true) or t.id:lower():find(query:lower(), 1, true) then
+      if query == "" or t.name:lower():find(query:lower(), 1, true) or t.id:lower():find(query:lower(), 1, true) or (t.desc and t.desc:lower():find(query:lower(), 1, true)) then
         table.insert(filtered, t)
       end
     end
 
     local search_line = sb and sb.get_display_line("  Search: ", "(type to filter...)") or "  Search: ▏ (type to filter...)"
+    local div_line = "  " .. string.rep("─", width - 4)
     local lines = {
       search_line,
-      "  ────────────────────────────────────────────",
+      div_line,
     }
 
+    local hl_ops = {}
     if #filtered == 0 then
       table.insert(lines, "   No matching themes found")
     else
       if active_sel > #filtered then active_sel = #filtered end
       if active_sel < 1 then active_sel = 1 end
       for i, t in ipairs(filtered) do
-        local prefix = (i == active_sel) and " > " or "   "
-        table.insert(lines, prefix .. t.name)
+        local prefix = (i == active_sel) and "  ❯ " or "    "
+        local max_name_w = 24
+        local name_pad = string.rep(" ", math.max(1, max_name_w - #t.name))
+        local row_str = prefix .. t.name .. name_pad .. (t.desc or "")
+        table.insert(lines, row_str)
+        local l_idx = #lines - 1
+        if i == active_sel then
+          table.insert(hl_ops, { group = "ThemeItemArrow", line = l_idx, s = 2, e = 5 })
+          table.insert(hl_ops, { group = "ThemeItemActive", line = l_idx, s = 4, e = 4 + #t.name })
+        else
+          table.insert(hl_ops, { group = "ThemeItemName", line = l_idx, s = 4, e = 4 + #t.name })
+        end
+        table.insert(hl_ops, { group = "ThemeItemDesc", line = l_idx, s = 4 + #t.name + #name_pad, e = #row_str })
       end
     end
 
@@ -4182,10 +4372,12 @@ _G.open_theme_picker = function()
 
     local ns_id = vim.api.nvim_create_namespace("theme_picker_hl")
     vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
+    for _, op in ipairs(hl_ops) do
+      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, op.group, op.line, op.s, op.e)
+    end
 
     if #filtered > 0 and vim.api.nvim_win_is_valid(win) then
       pcall(vim.api.nvim_win_set_cursor, win, { 2 + active_sel, 1 })
-      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "ThemeItemArrow", 2 + active_sel - 1, 0, 4)
       if update_preview ~= false then
         local sel = filtered[active_sel]
         if sel then
@@ -4210,7 +4402,6 @@ _G.open_theme_picker = function()
       local sel = filtered[active_sel] or filtered[1]
       ThemeEngine.apply_theme(sel.id)
       ThemeEngine.save_active_theme(sel.id)
-      vim.notify("Active theme: " .. sel.name, vim.log.levels.INFO)
     else
       ThemeEngine.apply_theme(prev_theme)
     end
@@ -4322,8 +4513,8 @@ FontEngine.chevron_styles = {
 }
 
 FontEngine.git_badge_styles = {
+  { id = "dot", name = "Subtle Badge Dot (●)", placement = "after", show = true, style = "dot" },
   { id = "after", name = "After Filename (Clean ASCII: M, A, U, !)", placement = "after", show = true, style = "letters" },
-  { id = "dot", name = "Subtle Middle Dot (·)", placement = "after", show = true, style = "dot" },
   { id = "hidden", name = "Hidden (Distraction-Free, no git clutter)", placement = "after", show = false, style = "none" },
 }
 
@@ -4519,11 +4710,11 @@ function FontEngine.apply_config(cfg)
       local chev = FontEngine.chevron_styles[sb.chevron_style] or FontEngine.chevron_styles[1]
       local git_opt = FontEngine.git_badge_styles[sb.git_badge] or FontEngine.git_badge_styles[1]
       local git_glyphs = {
-        unstaged = (git_opt.style == "dot") and "·" or "M",
-        staged = (git_opt.style == "dot") and "·" or "A",
+        unstaged = (git_opt.style == "dot") and "●" or "M",
+        staged = (git_opt.style == "dot") and "●" or "A",
         unmerged = "!",
         renamed = "R",
-        untracked = (git_opt.style == "dot") and "·" or "U",
+        untracked = (git_opt.style == "dot") and "●" or "U",
         deleted = "D",
         ignored = "·",
       }
@@ -4533,6 +4724,13 @@ function FontEngine.apply_config(cfg)
 
       pcall(function()
         tree_loaded.setup({
+          git = {
+            enable = true,
+            ignore = false,
+            show_on_dirs = true,
+            show_on_open_dirs = false,
+            timeout = 400,
+          },
           view = {
             width = _G.sidebar_width,
             side = "left",
@@ -4541,6 +4739,7 @@ function FontEngine.apply_config(cfg)
             preserve_window_proportions = true,
           },
           renderer = {
+            root_folder_label = false,     -- Completely hides root folder / path from sidebar
             indent_width = tonumber(sb.indent_width) or 2,
             decorators = decorators,
             icons = {
@@ -4600,6 +4799,55 @@ function FontEngine.save_active_font(font_name)
   cfg.family = font_name
   FontEngine.save_config(cfg)
 end
+
+function FontEngine.adjust_size(delta)
+  local cfg = FontEngine.get_config()
+  if delta == 0 then
+    cfg.editor.size = "11.5"
+  else
+    local cur = tonumber(cfg.editor.size) or 11.5
+    local new_sz = math.max(8.0, math.min(30.0, cur + delta))
+    cfg.editor.size = string.format(new_sz % 1 == 0 and "%.0f" or "%.1f", new_sz)
+  end
+  cfg.size = cfg.editor.size
+  FontEngine.save_config(cfg)
+  FontEngine.apply_config(cfg)
+  vim.notify("⚡ Font size: " .. cfg.editor.size .. "pt", vim.log.levels.INFO)
+end
+
+function FontEngine.apply_preset(font_name)
+  local cfg = FontEngine.get_config()
+  cfg.editor.family = font_name
+  cfg.family = font_name
+  FontEngine.save_config(cfg)
+  FontEngine.apply_config(cfg)
+  vim.notify("⚡ Active Font: " .. font_name, vim.log.levels.INFO)
+end
+
+-- Live Font Size Scaler Keymaps: Ctrl+= (Zoom In), Ctrl+- (Zoom Out), Ctrl+0 (Reset)
+vim.keymap.set({ "n", "i", "v", "s" }, "<C-=>", function() FontEngine.adjust_size(1) end, { desc = "Zoom In Font Size" })
+vim.keymap.set({ "n", "i", "v", "s" }, "<C-+>", function() FontEngine.adjust_size(1) end, { desc = "Zoom In Font Size" })
+vim.keymap.set({ "n", "i", "v", "s" }, "<C-->", function() FontEngine.adjust_size(-1) end, { desc = "Zoom Out Font Size" })
+vim.keymap.set({ "n", "i", "v", "s" }, "<C-_>", function() FontEngine.adjust_size(-1) end, { desc = "Zoom Out Font Size" })
+vim.keymap.set({ "n", "i", "v", "s" }, "<C-0>", function() FontEngine.adjust_size(0) end, { desc = "Reset Font Size" })
+
+vim.api.nvim_create_user_command("FontSize", function(opts)
+  local arg = tonumber(opts.args)
+  if arg then
+    local cfg = FontEngine.get_config()
+    cfg.editor.size = tostring(arg)
+    cfg.size = tostring(arg)
+    FontEngine.save_config(cfg)
+    FontEngine.apply_config(cfg)
+    vim.notify("⚡ Font size: " .. cfg.editor.size .. "pt", vim.log.levels.INFO)
+  end
+end, { nargs = 1 })
+
+vim.api.nvim_create_user_command("FontPreset", function(opts)
+  if opts.args and opts.args ~= "" then
+    FontEngine.apply_preset(opts.args)
+  end
+end, { nargs = 1 })
 
 _G.open_font_picker = function()
   local all_fonts = FontEngine.get_installed_fonts()
@@ -4722,7 +4970,7 @@ _G.open_font_picker = function()
 
   local ui = vim.api.nvim_list_uis()[1] or { width = vim.o.columns or 120, height = vim.o.lines or 40 }
   local width = math.min(84, math.max(68, ui.width - 4))
-  local height = math.min(22, math.max(14, ui.height - 4))
+  local height = math.min(ui.height - 2, 34)
   local row = math.max(1, math.floor((ui.height - height) / 3))
   local col = math.max(1, math.floor((ui.width - width) / 2))
 
@@ -4736,8 +4984,6 @@ _G.open_font_picker = function()
     border = "rounded",
     title = string.format(" Appearance & Font Settings (%d Fonts) ", #all_fonts),
     title_pos = "center",
-    footer = " Tab: Target │ ←/→: Sub-tab │ ↑/↓: Select │ Enter: Save │ Esc: Close ",
-    footer_pos = "center",
   })
 
   vim.cmd("stopinsert")
@@ -5033,7 +5279,6 @@ _G.open_font_picker = function()
     end
     vim.cmd("startinsert")
     _G.clear_active_menu(cancel_selection)
-    vim.notify(string.format("Appearance saved: %s, %s pt, Sidebar: %s cols", working_cfg.editor.family, working_cfg.editor.size, working_cfg.sidebar.width), vim.log.levels.INFO)
   end
 
   local function next_target()
@@ -5384,72 +5629,88 @@ end
 -- KEYBOARD SHORTCUTS PALETTE (Ctrl+Shift+P) WITH REAL-TIME SEARCHBAR
 -- =============================================================================
 _G.open_keybindings_panel = function()
-  local all_shortcuts = {
+  local col1_data = {
+    { type = "head", text = "EDITING" },
     { cat = "EDITING", key = "Ctrl + Z", desc = "Undo last action" },
     { cat = "EDITING", key = "Ctrl + Y", desc = "Redo last action" },
-    { cat = "EDITING", key = "Ctrl + C", desc = "Copy line or selected text" },
-    { cat = "EDITING", key = "Ctrl + X", desc = "Cut line or selected text" },
+    { cat = "EDITING", key = "Ctrl + C", desc = "Copy line or selection" },
+    { cat = "EDITING", key = "Ctrl + X", desc = "Cut line or selection" },
     { cat = "EDITING", key = "Ctrl + V", desc = "Paste from clipboard" },
-    { cat = "EDITING", key = "Ctrl + A", desc = "Select all text in document" },
-    { cat = "EDITING", key = "Ctrl + /", desc = "Toggle single line comment" },
-    { cat = "EDITING", key = "Shift + Alt + A", desc = "Toggle multiline block comment" },
-    { cat = "EDITING", key = "Shift + Alt + F / Ctrl+Shift+I", desc = "Format Document (Prettier / LSP / Indent)" },
-    { cat = "EDITING", key = "Tab / Ctrl + ]", desc = "Indent line or selection (add tab space)" },
-    { cat = "EDITING", key = "Shift + Tab / Ctrl + [", desc = "Unindent line or selection (remove tab space)" },
-    { cat = "EDITING", key = "Ctrl + Enter", desc = "Insert line below and type" },
-    { cat = "EDITING", key = "Ctrl + Shift + Enter", desc = "Insert line above and type" },
-    { cat = "EDITING", key = "Alt + C / Ctrl+Shift+C", desc = "Open Color Picker (RGB/HEX/HSL sliders)" },
-    { cat = "EDITING", key = "Ctrl + .", desc = "Code Spell Check & Quick Fix (Word suggestions / Dictionary)" },
-    { cat = "EDITING", key = "Shift + Delete", desc = "Delete entire line (or selection)" },
+    { cat = "EDITING", key = "Ctrl + A", desc = "Select all text" },
+    { cat = "EDITING", key = "Ctrl + /", desc = "Toggle line comment" },
+    { cat = "EDITING", key = "Shift + Alt + A", desc = "Toggle block comment" },
+    { cat = "EDITING", key = "Shift+Alt+F / C-S-I", desc = "Format Document (Prettier/LSP)" },
+    { cat = "EDITING", key = "Tab / Ctrl + ]", desc = "Indent line or selection" },
+    { cat = "EDITING", key = "Shift+Tab / C-[", desc = "Unindent line or selection" },
+    { cat = "EDITING", key = "Ctrl + Enter", desc = "Insert line below" },
+    { cat = "EDITING", key = "Ctrl + Shift + Enter", desc = "Insert line above" },
+    { cat = "EDITING", key = "Alt+C / Ctrl+Shift+C", desc = "Open Color Picker" },
+    { cat = "EDITING", key = "Ctrl + .", desc = "Spell Check & Quick Fix" },
+    { cat = "EDITING", key = "Shift + Delete", desc = "Delete entire line" },
     { cat = "EDITING", key = "Ctrl + Backspace", desc = "Delete word backward" },
     { cat = "EDITING", key = "Ctrl + Delete", desc = "Delete word forward" },
-    { cat = "MULTI-CURSOR & LINES", key = "Alt + Down", desc = "Move line down" },
-    { cat = "MULTI-CURSOR & LINES", key = "Alt + Up", desc = "Move line up" },
-    { cat = "MULTI-CURSOR & LINES", key = "Shift + Alt + Down", desc = "Copy line below (Duplicate down)" },
-    { cat = "MULTI-CURSOR & LINES", key = "Shift + Alt + Up", desc = "Copy line above (Duplicate up)" },
-    { cat = "MULTI-CURSOR & LINES", key = "Ctrl + D", desc = "Select next occurrence (Multi-Select)" },
-    { cat = "MULTI-CURSOR & LINES", key = "Ctrl + Shift + L", desc = "Select all occurrences (Multi-Edit all)" },
-    { cat = "MULTI-CURSOR & LINES", key = "Ctrl + Alt + Down / Up", desc = "Add cursor below / above" },
-    { cat = "MULTI-CURSOR & LINES", key = "Ctrl + Click / Alt + Click", desc = "Add or remove cursor at click" },
-    { cat = "MULTI-CURSOR & LINES", key = "Shift + Alt + I", desc = "Insert cursor at end of each selected line" },
-    { cat = "MULTI-CURSOR & LINES", key = "Ctrl + K Ctrl + D", desc = "Skip match and jump to next" },
-    { cat = "MULTI-CURSOR & LINES", key = "Esc", desc = "Exit multi-cursor mode and keep typing" },
-    { cat = "NAVIGATION & TABS", key = "Ctrl + F", desc = "Find / Search in file" },
-    { cat = "NAVIGATION & TABS", key = "PgUp / PgDn", desc = "Page scroll (VS Code cursor placement)" },
-    { cat = "NAVIGATION & TABS", key = "Home / End", desc = "Move to line start / end" },
-    { cat = "NAVIGATION & TABS", key = "Shift + Home / End", desc = "Select to line start / end" },
-    { cat = "NAVIGATION & TABS", key = "Ctrl + Home / End", desc = "Move to document start / end" },
-    { cat = "NAVIGATION & TABS", key = "Alt + 1 .. 9", desc = "Jump to file tab 1 through 9" },
-    { cat = "NAVIGATION & TABS", key = "Ctrl + W", desc = "Close active file tab" },
-    { cat = "NAVIGATION & TABS", key = "Ctrl + Alt + H / :Home", desc = "Open Minimal Homescreen dashboard" },
-    { cat = "NAVIGATION & TABS", key = "Alt + K / Alt + J", desc = "Jump relative lines up / down (Vim-style)" },
-    { cat = "NAVIGATION & TABS", key = "Ctrl + G / Alt + G", desc = "Go to line / relative jump (+10 down, -5 up)" },
-    { cat = "SIDEBAR & WORKSPACE", key = "Alt + Left / Right", desc = "Resize sidebar width" },
-    { cat = "INTEGRATED TERMINAL", key = "Alt + Left / Right / Up / Down", desc = "Resize terminal drawer height" },
-    { cat = "SIDEBAR & WORKSPACE", key = "Ctrl + B", desc = "Toggle sidebar file explorer" },
-    { cat = "SIDEBAR & WORKSPACE", key = "Ctrl + Shift + E", desc = "Toggle focus: Editor <-> Sidebar" },
-    { cat = "SIDEBAR & WORKSPACE", key = "Ctrl + K Ctrl + O", desc = "Open workspace folder picker" },
-    { cat = "SIDEBAR & WORKSPACE", key = "/ or f", desc = "(Sidebar) Filter / Search files live" },
-    { cat = "SIDEBAR & WORKSPACE", key = "d / Del", desc = "(Sidebar) Delete file/folder with confirmation" },
-    { cat = "SIDEBAR & WORKSPACE", key = "r", desc = "(Sidebar) Inline rename file/folder" },
-    { cat = "SIDEBAR & WORKSPACE", key = "Enter / Double Click", desc = "(Sidebar) Open file / toggle folder" },
-    { cat = "THEMES, FONTS & PALETTE", key = "Ctrl + K Ctrl + T", desc = "Color Themes picker (live search & preview)" },
-    { cat = "THEMES, FONTS & PALETTE", key = "Ctrl + Shift + K + T", desc = "Desktop Fonts & Options (Size, Bold, Spacing)" },
-    { cat = "THEMES, FONTS & PALETTE", key = "Ctrl + Shift + P", desc = "Show this Keybindings search panel" },
-    { cat = "INTEGRATED TERMINAL", key = "Ctrl + ` / Ctrl + J", desc = "Toggle bottom terminal drawer" },
-    { cat = "INTEGRATED TERMINAL", key = "Alt + N + T", desc = "New terminal tab instance" },
-    { cat = "INTEGRATED TERMINAL", key = "Shift + Alt + K", desc = "Kill active terminal tab" },
-    { cat = "INTEGRATED TERMINAL", key = "Ctrl + PgUp / PgDn", desc = "Switch active terminal tab" },
-    { cat = "MARKDOWN (.MD)", key = "Alt + M", desc = "Open Markdown heading outline & section jumper" },
-    { cat = "MARKDOWN (.MD)", key = "Alt + P", desc = "Open styled Markdown preview in browser" },
-    { cat = "MARKDOWN (.MD)", key = "Alt + X", desc = "Toggle checkbox [ ] <-> [x] on current line" },
-    { cat = "MARKDOWN (.MD)", key = "Alt + B / Alt + I", desc = "Toggle **Bold** / *Italic* on selection or word" },
-    { cat = "MARKDOWN (.MD)", key = "Alt + E / Alt + L", desc = "Wrap as `Inline Code` or [Link](url)" },
-    { cat = "MARKDOWN (.MD)", key = "Alt + O / gx", desc = "Open Markdown link under cursor (file or URL)" },
-    { cat = "MARKDOWN (.MD)", key = ":MdTableAlign", desc = "Align Markdown table columns" },
+    { type = "head", text = "THEMES & PALETTE" },
+    { cat = "THEMES & PALETTE", key = "Ctrl + K Ctrl + T", desc = "Color Themes picker" },
+    { cat = "THEMES & PALETTE", key = "Ctrl + Shift + K + T", desc = "Fonts & Display settings" },
+    { cat = "THEMES & PALETTE", key = "Ctrl + Shift + P", desc = "Show Keyboard Shortcuts" },
   }
 
-  local filtered = {}
+  local col2_data = {
+    { type = "head", text = "MULTI-CURSOR & LINES" },
+    { cat = "MULTI-CURSOR & LINES", key = "Alt + Down", desc = "Move line down" },
+    { cat = "MULTI-CURSOR & LINES", key = "Alt + Up", desc = "Move line up" },
+    { cat = "MULTI-CURSOR & LINES", key = "Shift + Alt + Down", desc = "Duplicate line down" },
+    { cat = "MULTI-CURSOR & LINES", key = "Shift + Alt + Up", desc = "Duplicate line up" },
+    { cat = "MULTI-CURSOR & LINES", key = "Ctrl + D", desc = "Select next occurrence" },
+    { cat = "MULTI-CURSOR & LINES", key = "Ctrl + Shift + L", desc = "Select all occurrences" },
+    { cat = "MULTI-CURSOR & LINES", key = "Ctrl + Alt + Down/Up", desc = "Add cursor below / above" },
+    { cat = "MULTI-CURSOR & LINES", key = "Ctrl / Alt + Click", desc = "Add or remove cursor" },
+    { cat = "MULTI-CURSOR & LINES", key = "Shift + Alt + I", desc = "Insert cursor at line ends" },
+    { cat = "MULTI-CURSOR & LINES", key = "Ctrl + K Ctrl + D", desc = "Skip match & jump next" },
+    { cat = "MULTI-CURSOR & LINES", key = "Esc", desc = "Exit multi-cursor mode" },
+    { type = "head", text = "NAVIGATION & TABS" },
+    { cat = "NAVIGATION & TABS", key = "Ctrl + F", desc = "Find / Search in file" },
+    { cat = "NAVIGATION & TABS", key = "PgUp / PgDn", desc = "Page scroll (VS Code cursor)" },
+    { cat = "NAVIGATION & TABS", key = "Home / End", desc = "Move to line start / end" },
+    { cat = "NAVIGATION & TABS", key = "Shift + Home / End", desc = "Select to line start / end" },
+    { cat = "NAVIGATION & TABS", key = "Ctrl + Home / End", desc = "Doc start / end" },
+    { cat = "NAVIGATION & TABS", key = "Alt + 1 .. 9", desc = "Jump to file tab 1 .. 9" },
+    { cat = "NAVIGATION & TABS", key = "Ctrl + W", desc = "Close active file tab" },
+    { cat = "NAVIGATION & TABS", key = "Ctrl + Alt + H / :Home", desc = "Open Minimal Homescreen" },
+    { cat = "NAVIGATION & TABS", key = "Alt + K / Alt + J", desc = "Jump relative lines" },
+    { cat = "NAVIGATION & TABS", key = "Ctrl + G / Alt + G", desc = "Go to line / relative jump" },
+  }
+
+  local col3_data = {
+    { type = "head", text = "SIDEBAR & WORKSPACE" },
+    { cat = "SIDEBAR & WORKSPACE", key = "Alt + Left / Right", desc = "Resize sidebar width" },
+    { cat = "SIDEBAR & WORKSPACE", key = "Ctrl + B", desc = "Toggle sidebar explorer" },
+    { cat = "SIDEBAR & WORKSPACE", key = "Ctrl + Shift + E", desc = "Toggle focus: Editor/Side" },
+    { cat = "SIDEBAR & WORKSPACE", key = "Ctrl + K Ctrl + O", desc = "Open workspace folder" },
+    { cat = "SIDEBAR & WORKSPACE", key = "/ or f", desc = "(Sidebar) Filter files live" },
+    { cat = "SIDEBAR & WORKSPACE", key = "d / Del", desc = "(Sidebar) Delete file/dir" },
+    { cat = "SIDEBAR & WORKSPACE", key = "r", desc = "(Sidebar) Inline rename" },
+    { cat = "SIDEBAR & WORKSPACE", key = "Enter / Double Click", desc = "(Sidebar) Open file/folder" },
+    { type = "head", text = "INTEGRATED TERMINAL" },
+    { cat = "INTEGRATED TERMINAL", key = "Ctrl + ` / Ctrl + J", desc = "Toggle terminal drawer" },
+    { cat = "INTEGRATED TERMINAL", key = "Alt + N + T", desc = "New terminal tab" },
+    { cat = "INTEGRATED TERMINAL", key = "Shift + Alt + K", desc = "Kill active terminal tab" },
+    { cat = "INTEGRATED TERMINAL", key = "Ctrl + PgUp / PgDn", desc = "Switch terminal tab" },
+    { cat = "INTEGRATED TERMINAL", key = "Alt + Arrows", desc = "Resize drawer height" },
+    { type = "head", text = "MARKDOWN (.MD)" },
+    { cat = "MARKDOWN (.MD)", key = "Alt + M", desc = "Heading outline jumper" },
+    { cat = "MARKDOWN (.MD)", key = "Alt + P", desc = "Browser preview" },
+    { cat = "MARKDOWN (.MD)", key = "Alt + X", desc = "Toggle checkbox [ ] <-> [x]" },
+    { cat = "MARKDOWN (.MD)", key = "Alt + B / Alt + I", desc = "Toggle Bold / Italic" },
+    { cat = "MARKDOWN (.MD)", key = "Alt + E / Alt + L", desc = "Wrap as Code or Link" },
+    { cat = "MARKDOWN (.MD)", key = "Alt + O / gx", desc = "Open link under cursor" },
+    { cat = "MARKDOWN (.MD)", key = ":MdTableAlign", desc = "Align Markdown table" },
+  }
+
+  local all_items = {}
+  for _, it in ipairs(col1_data) do if it.key then table.insert(all_items, it) end end
+  for _, it in ipairs(col2_data) do if it.key then table.insert(all_items, it) end end
+  for _, it in ipairs(col3_data) do if it.key then table.insert(all_items, it) end end
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.b[buf].is_picker = true
@@ -5457,11 +5718,14 @@ _G.open_keybindings_panel = function()
   vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].undolevels = -1
 
-  local ui = vim.api.nvim_list_uis()[1] or { width = 120, height = 40 }
-  local width = math.min(76, ui.width - 6)
-  local height = math.min(24, ui.height - 4)
-  local row = math.max(1, math.floor((ui.height - height) / 3))
-  local col = math.max(1, math.floor((ui.width - width) / 2))
+  local ui = vim.api.nvim_list_uis()[1] or { width = vim.o.columns or 120, height = vim.o.lines or 40 }
+  local use_3col = ui.width >= 118
+  local content_rows = use_3col and 23 or 35
+  local target_h = content_rows + 2
+  local height = math.min(target_h, ui.height - 2)
+  local width = use_3col and math.min(136, ui.width - 2) or math.min(94, ui.width - 2)
+  local row = math.max(0, math.floor((ui.height - height) / 2))
+  local col = math.max(0, math.floor((ui.width - width) / 2))
 
   local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
@@ -5471,7 +5735,7 @@ _G.open_keybindings_panel = function()
     height = height,
     style = "minimal",
     border = "rounded",
-    title = " Keyboard Shortcuts ",
+    title = string.format(" Keyboard Shortcuts (%d Mapped) ", #all_items),
     title_pos = "center",
   })
 
@@ -5495,45 +5759,167 @@ _G.open_keybindings_panel = function()
   vim.api.nvim_set_hl(0, "KeybindCatHeader", { fg = "#61afef", bold = true })
   vim.api.nvim_set_hl(0, "KeybindKey", { fg = "#e5c07b", bold = true })
   vim.api.nvim_set_hl(0, "KeybindDesc", { fg = "#abb2bf" })
+  vim.api.nvim_set_hl(0, "KeybindSep", { fg = "#4b5263" })
+
+  local function format_col_cells(col_data, col_w)
+    local cells = {}
+    for _, it in ipairs(col_data) do
+      if it.type == "head" then
+        local h = "── " .. it.text .. " "
+        local w_h = vim.fn.strdisplaywidth(h)
+        local dashes = string.rep("─", math.max(2, col_w - w_h))
+        table.insert(cells, { text = h .. dashes, is_head = true })
+      else
+        local key_w = 20
+        local k = it.key
+        if #k > key_w then k = k:sub(1, key_w) end
+        local pad_k = string.rep(" ", math.max(1, key_w - #k))
+        local desc_w = col_w - key_w - 2
+        local d = it.desc
+        if #d > desc_w then d = d:sub(1, desc_w) end
+        local cell_text = "  " .. k .. pad_k .. d
+        local pad_end = string.rep(" ", math.max(0, col_w - #cell_text))
+        table.insert(cells, { text = cell_text .. pad_end, is_head = false, k_len = #k })
+      end
+    end
+    return cells
+  end
 
   local sb
   local function render()
     if not vim.api.nvim_buf_is_valid(buf) then return end
     local query = sb and sb.get_text() or ""
-    filtered = {}
-    for _, item in ipairs(all_shortcuts) do
-      if query == "" or item.key:lower():find(query:lower(), 1, true) or item.desc:lower():find(query:lower(), 1, true) or item.cat:lower():find(query:lower(), 1, true) then
-        table.insert(filtered, item)
-      end
-    end
+    local lines = {}
+    local hl_ops = {}
 
     local search_line = sb and sb.get_display_line("  Search: ", "(type to filter shortcuts...)") or "  Search: ▏ (type to filter shortcuts...)"
-    local lines = {
-      search_line,
-      "  ─────────────────────────────────────────────────────────────",
-    }
+    table.insert(lines, search_line)
+    local div_line = "  " .. string.rep("─", width - 4)
+    table.insert(lines, div_line)
 
-    local cat_lines = {}
-    local item_key_spans = {}
-
-    if #filtered == 0 then
-      table.insert(lines, "   No shortcuts found matching '" .. query .. "'")
-    else
-      local last_cat = nil
-      for _, item in ipairs(filtered) do
-        if item.cat ~= last_cat then
-          if last_cat ~= nil then
-            table.insert(lines, "") -- breathing room above new heading
-          end
-          local head_text = "  ── " .. item.cat .. " " .. string.rep("─", math.max(4, 52 - #item.cat))
-          table.insert(lines, head_text)
-          table.insert(cat_lines, #lines)
-          last_cat = item.cat
+    if query ~= "" then
+      local matches = {}
+      for _, it in ipairs(all_items) do
+        if it.key:lower():find(query:lower(), 1, true) or it.desc:lower():find(query:lower(), 1, true) or (it.cat and it.cat:lower():find(query:lower(), 1, true)) then
+          table.insert(matches, it)
         end
-        local pad = string.rep(" ", math.max(2, 28 - #item.key))
-        local row_text = "    " .. item.key .. pad .. item.desc
-        table.insert(lines, row_text)
-        table.insert(item_key_spans, { line = #lines, s = 4, e = 4 + #item.key })
+      end
+      if #matches == 0 then
+        table.insert(lines, "    No shortcuts found matching '" .. query .. "'")
+      else
+        for _, it in ipairs(matches) do
+          local row_line = string.format("    %-24s  %-36s  (%s)", it.key, it.desc, it.cat or "")
+          table.insert(lines, row_line)
+          local line_idx = #lines - 1
+          table.insert(hl_ops, { group = "KeybindKey", line = line_idx, s = 4, e = 4 + #it.key })
+          table.insert(hl_ops, { group = "KeybindDesc", line = line_idx, s = 28, e = 28 + #it.desc })
+          table.insert(hl_ops, { group = "KeybindCatHeader", line = line_idx, s = 66, e = #row_line })
+        end
+      end
+    else
+      if use_3col then
+        local col_w = math.max(34, math.floor((width - 8) / 3))
+        local cells1 = format_col_cells(col1_data, col_w)
+        local cells2 = format_col_cells(col2_data, col_w)
+        local cells3 = format_col_cells(col3_data, col_w)
+
+        for r_i = 1, 23 do
+          local c1 = cells1[r_i] or { text = string.rep(" ", col_w), is_head = false, k_len = 0 }
+          local c2 = cells2[r_i] or { text = string.rep(" ", col_w), is_head = false, k_len = 0 }
+          local c3 = cells3[r_i] or { text = string.rep(" ", col_w), is_head = false, k_len = 0 }
+
+          local row_str = " " .. c1.text .. " │ " .. c2.text .. " │ " .. c3.text
+          table.insert(lines, row_str)
+          local line_idx = #lines - 1
+
+          local s1 = 1
+          local e1 = s1 + #c1.text
+          local sep1_s = e1
+          local sep1_e = sep1_s + #" │ "
+          local s2 = sep1_e
+          local e2 = s2 + #c2.text
+          local sep2_s = e2
+          local sep2_e = sep2_s + #" │ "
+          local s3 = sep2_e
+          local e3 = s3 + #c3.text
+
+          table.insert(hl_ops, { group = "KeybindSep", line = line_idx, s = sep1_s, e = sep1_e })
+          table.insert(hl_ops, { group = "KeybindSep", line = line_idx, s = sep2_s, e = sep2_e })
+
+          if c1.is_head then
+            table.insert(hl_ops, { group = "KeybindCatHeader", line = line_idx, s = s1, e = e1 })
+          elseif c1.k_len and c1.k_len > 0 then
+            table.insert(hl_ops, { group = "KeybindKey", line = line_idx, s = s1 + 2, e = s1 + 2 + c1.k_len })
+            table.insert(hl_ops, { group = "KeybindDesc", line = line_idx, s = s1 + 2 + c1.k_len, e = e1 })
+          end
+
+          if c2.is_head then
+            table.insert(hl_ops, { group = "KeybindCatHeader", line = line_idx, s = s2, e = e2 })
+          elseif c2.k_len and c2.k_len > 0 then
+            table.insert(hl_ops, { group = "KeybindKey", line = line_idx, s = s2 + 2, e = s2 + 2 + c2.k_len })
+            table.insert(hl_ops, { group = "KeybindDesc", line = line_idx, s = s2 + 2 + c2.k_len, e = e2 })
+          end
+
+          if c3.is_head then
+            table.insert(hl_ops, { group = "KeybindCatHeader", line = line_idx, s = s3, e = e3 })
+          elseif c3.k_len and c3.k_len > 0 then
+            table.insert(hl_ops, { group = "KeybindKey", line = line_idx, s = s3 + 2, e = s3 + 2 + c3.k_len })
+            table.insert(hl_ops, { group = "KeybindDesc", line = line_idx, s = s3 + 2 + c3.k_len, e = e3 })
+          end
+        end
+      else
+        local col_w = math.max(38, math.floor((width - 6) / 2))
+        local col1_2c = {}
+        for _, it in ipairs(col1_data) do
+          if it.cat == "EDITING" or it.text == "EDITING" then table.insert(col1_2c, it) end
+        end
+        for _, it in ipairs(col3_data) do
+          if it.cat == "SIDEBAR & WORKSPACE" or it.text == "SIDEBAR & WORKSPACE" then table.insert(col1_2c, it) end
+          if it.cat == "INTEGRATED TERMINAL" or it.text == "INTEGRATED TERMINAL" then table.insert(col1_2c, it) end
+        end
+
+        local col2_2c = vim.deepcopy(col2_data)
+        for _, it in ipairs(col3_data) do
+          if it.cat == "MARKDOWN (.MD)" or it.text == "MARKDOWN (.MD)" then table.insert(col2_2c, it) end
+        end
+        for _, it in ipairs(col1_data) do
+          if it.cat == "THEMES & PALETTE" or it.text == "THEMES & PALETTE" then table.insert(col2_2c, it) end
+        end
+
+        local cells1 = format_col_cells(col1_2c, col_w)
+        local cells2 = format_col_cells(col2_2c, col_w)
+        local max_r = math.max(#cells1, #cells2)
+
+        for r_i = 1, max_r do
+          local c1 = cells1[r_i] or { text = string.rep(" ", col_w), is_head = false, k_len = 0 }
+          local c2 = cells2[r_i] or { text = string.rep(" ", col_w), is_head = false, k_len = 0 }
+
+          local row_str = " " .. c1.text .. " │ " .. c2.text
+          table.insert(lines, row_str)
+          local line_idx = #lines - 1
+
+          local s1 = 1
+          local e1 = s1 + #c1.text
+          local sep1_s = e1
+          local sep1_e = sep1_s + #" │ "
+          local s2 = sep1_e
+          local e2 = s2 + #c2.text
+
+          table.insert(hl_ops, { group = "KeybindSep", line = line_idx, s = sep1_s, e = sep1_e })
+          if c1.is_head then
+            table.insert(hl_ops, { group = "KeybindCatHeader", line = line_idx, s = s1, e = e1 })
+          elseif c1.k_len and c1.k_len > 0 then
+            table.insert(hl_ops, { group = "KeybindKey", line = line_idx, s = s1 + 2, e = s1 + 2 + c1.k_len })
+            table.insert(hl_ops, { group = "KeybindDesc", line = line_idx, s = s1 + 2 + c1.k_len, e = e1 })
+          end
+
+          if c2.is_head then
+            table.insert(hl_ops, { group = "KeybindCatHeader", line = line_idx, s = s2, e = e2 })
+          elseif c2.k_len and c2.k_len > 0 then
+            table.insert(hl_ops, { group = "KeybindKey", line = line_idx, s = s2 + 2, e = s2 + 2 + c2.k_len })
+            table.insert(hl_ops, { group = "KeybindDesc", line = line_idx, s = s2 + 2 + c2.k_len, e = e2 })
+          end
+        end
       end
     end
 
@@ -5543,11 +5929,8 @@ _G.open_keybindings_panel = function()
 
     local ns_id = vim.api.nvim_create_namespace("keybinds_panel_hl")
     vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
-    for _, l_idx in ipairs(cat_lines) do
-      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "KeybindCatHeader", l_idx - 1, 0, -1)
-    end
-    for _, sp in ipairs(item_key_spans) do
-      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, "KeybindKey", sp.line - 1, sp.s, sp.e)
+    for _, op in ipairs(hl_ops) do
+      pcall(vim.api.nvim_buf_add_highlight, buf, ns_id, op.group, op.line, op.s, op.e)
     end
   end
 
@@ -5574,21 +5957,6 @@ _G.open_keybindings_panel = function()
     vim.api.nvim_win_set_cursor(win, { target, 1 })
   end
 
-  local function page_up()
-    if not vim.api.nvim_win_is_valid(win) then return end
-    local cur = vim.api.nvim_win_get_cursor(win)
-    local target = math.max(1, cur[1] - 8)
-    vim.api.nvim_win_set_cursor(win, { target, 1 })
-  end
-
-  local function page_down()
-    if not vim.api.nvim_win_is_valid(win) then return end
-    local cur = vim.api.nvim_win_get_cursor(win)
-    local total = vim.api.nvim_buf_line_count(buf)
-    local target = math.min(total, cur[1] + 8)
-    vim.api.nvim_win_set_cursor(win, { target, 1 })
-  end
-
   vim.api.nvim_create_autocmd("WinLeave", {
     buffer = buf,
     once = true,
@@ -5603,9 +5971,6 @@ _G.open_keybindings_panel = function()
   vim.keymap.set({ "n", "i", "s", "v" }, "<C-p>", move_up, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<Down>", move_down, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<C-n>", move_down, { buffer = buf, nowait = true })
-
-  vim.keymap.set({ "n", "i", "s", "v" }, "<PageUp>", page_up, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<PageDown>", page_down, { buffer = buf, nowait = true })
 end
 
 -- =============================================================================
@@ -5719,7 +6084,6 @@ _G.open_workspace_folder = function(target_dir)
 
   -- Persist session immediately
   pcall(save_session)
-  vim.notify("Workspace folder: " .. vim.fn.fnamemodify(target_dir, ":~"), vim.log.levels.INFO)
 end
 
 _G.open_folder_picker = function()
@@ -5728,7 +6092,7 @@ _G.open_folder_picker = function()
     current_dir = vim.fn.expand("~")
   end
   local show_hidden = false
-  local search_active = false
+  local search_active = true
   local selected_idx = 1
 
   local buf = vim.api.nvim_create_buf(false, true)
@@ -5739,7 +6103,7 @@ _G.open_folder_picker = function()
 
   local ui = vim.api.nvim_list_uis()[1] or { width = 120, height = 40 }
   local width = math.min(76, math.max(52, ui.width - 6))
-  local height = math.min(20, math.max(10, ui.height - 8))
+  local height = math.min(ui.height - 4, math.max(16, ui.height - 6))
   local row = math.max(1, math.floor((ui.height - height) / 3))
   local col = math.max(1, math.floor((ui.width - width) / 2))
 
@@ -5753,8 +6117,6 @@ _G.open_folder_picker = function()
     border = "rounded",
     title = " Open Folder ",
     title_pos = "center",
-    footer = " o: Open │ .: Hidden ",
-    footer_pos = "center",
   })
 
   vim.cmd("stopinsert")
@@ -6012,55 +6374,24 @@ _G.open_folder_picker = function()
     pcall(vim.api.nvim_win_set_config, win, {
       title = title_str,
       title_pos = "center",
-      footer = " o: Open │ .: Hidden ",
-      footer_pos = "center",
     })
 
     selected_idx = target_idx or 1
     update_selection()
   end
 
-  local function enter_search()
-    search_active = true
-    if sb then
-      sb.text = ""
-      sb.pos = 1
-    end
-    render(1)
-  end
-
-  local function exit_search()
-    search_active = false
-    if sb then
-      sb.text = ""
-      sb.pos = 1
-    end
-    render(1)
-  end
-
   local function on_confirm()
     local item = items[selected_idx]
     if not item then return end
 
-    if item.type == "open_current" then
+    if item.type == "open_current" or item.type == "dir" then
       local target = item.path
       close_picker()
       _G.open_workspace_folder(target)
     elseif item.type == "parent" then
       current_dir = item.path
-      search_active = false
-      if sb then sb.text = ""; sb.pos = 1 end
+      if sb then sb.clear() end
       render(1)
-    elseif item.type == "dir" then
-      if search_active then
-        -- When searching folders, Enter opens directly inside the matched folder
-        local target = item.path
-        close_picker()
-        _G.open_workspace_folder(target)
-      else
-        current_dir = item.path
-        render(1)
-      end
     end
   end
 
@@ -6079,8 +6410,7 @@ _G.open_folder_picker = function()
     if not item then return end
     if item.type == "dir" or item.type == "parent" then
       current_dir = item.path
-      search_active = false
-      if sb then sb.text = ""; sb.pos = 1 end
+      if sb then sb.clear() end
       render(1)
     elseif item.type == "open_current" then
       local target = item.path
@@ -6092,8 +6422,7 @@ _G.open_folder_picker = function()
   local function on_go_parent()
     if current_dir ~= "/" then
       current_dir = vim.fn.fnamemodify(current_dir, ":h")
-      search_active = false
-      if sb then sb.text = ""; sb.pos = 1 end
+      if sb then sb.clear() end
       render(1)
     end
   end
@@ -6120,10 +6449,6 @@ _G.open_folder_picker = function()
   local function on_mouse_click()
     local pos = vim.fn.getmousepos()
     if pos and pos.winid == win and pos.line then
-      if pos.line == 1 then
-        if not search_active then enter_search() end
-        return
-      end
       for i, item in ipairs(items) do
         if item.line == pos.line then
           selected_idx = i
@@ -6135,71 +6460,52 @@ _G.open_folder_picker = function()
   end
 
   sb = make_searchbar("", function()
-    if search_active then
-      render(1)
-    end
-  end)
-
-  bind_searchbar_keys(buf, sb, function() return search_active end)
-
-  -- Browse-mode single-key shortcuts (active when search_active == false)
-  local function browse_or_type(key, action)
-    vim.keymap.set({ "n", "i", "s", "v" }, key, function()
-      if search_active then
-        sb.insert(key)
-      else
-        action()
-      end
-    end, { buffer = buf, nowait = true })
-  end
-
-  browse_or_type("o", on_open_immediate)
-  browse_or_type("O", on_open_immediate)
-  browse_or_type(".", on_toggle_hidden)
-  browse_or_type("k", move_up)
-  browse_or_type("j", move_down)
-  browse_or_type("h", on_go_parent)
-  browse_or_type("l", on_browse_inside)
-  browse_or_type("q", close_picker)
-  browse_or_type("~", function()
-    current_dir = vim.fn.expand("~")
     render(1)
   end)
-  browse_or_type("/", enter_search)
 
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-f>", enter_search, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<M-.>", on_toggle_hidden, { buffer = buf, nowait = true })
+  bind_searchbar_keys(buf, sb)
+
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Up>", move_up, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-p>", move_up, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Down>", move_down, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-n>", move_down, { buffer = buf, nowait = true })
 
   vim.keymap.set({ "n", "i", "s", "v" }, "<Left>", function()
-    if search_active then sb.move_left() else on_go_parent() end
+    if sb.pos > 1 then
+      sb.move_left()
+    else
+      on_go_parent()
+    end
   end, { buffer = buf, nowait = true })
 
   vim.keymap.set({ "n", "i", "s", "v" }, "<Right>", function()
-    if search_active then sb.move_right() else on_browse_inside() end
+    if sb.pos <= #sb.text then
+      sb.move_right()
+    else
+      on_browse_inside()
+    end
   end, { buffer = buf, nowait = true })
 
   vim.keymap.set({ "n", "i", "s", "v" }, "<BS>", function()
-    if search_active then sb.backspace() else on_go_parent() end
+    if #sb.text > 0 then
+      sb.backspace()
+    else
+      on_go_parent()
+    end
   end, { buffer = buf, nowait = true })
 
   vim.keymap.set({ "n", "i", "s", "v" }, "<Tab>", on_browse_inside, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<S-Tab>", on_go_parent, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<M-.>", on_toggle_hidden, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<CR>", on_confirm, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<C-CR>", on_open_immediate, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Esc>", close_picker, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-c>", close_picker, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<LeftMouse>", on_mouse_click, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "<2-LeftMouse>", function()
     on_mouse_click()
     on_confirm()
   end, { buffer = buf, nowait = true })
-
-  vim.keymap.set({ "n", "i", "s", "v" }, "<Esc>", function()
-    if search_active then
-      exit_search()
-    else
-      close_picker()
-    end
-  end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-c>", close_picker, { buffer = buf, nowait = true })
 
   vim.api.nvim_create_autocmd("WinLeave", {
     buffer = buf,
@@ -6207,34 +6513,29 @@ _G.open_folder_picker = function()
     callback = close_picker,
   })
 
-  vim.keymap.set({ "n", "i", "s", "v" }, "<Up>", move_up, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-p>", move_up, { buffer = buf, nowait = true })
-
-  vim.keymap.set({ "n", "i", "s", "v" }, "<Down>", move_down, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "<C-n>", move_down, { buffer = buf, nowait = true })
-
   render(1)
 end
 
 -- Apply instant base dark backdrop to prevent first-frame flicker, then full theme after paint
 local active_theme_id = ThemeEngine.get_active_theme()
 local theme_backdrops = {
-  darkmagic = "#07070f",
   cyberaurora = "#080b14",
   medieval = "#0e0d0b",
   nocturne = "#0b0709",
+  alien = "#060d09",
+  solaris = "#080604",
+  sakura = "#0c0712",
+  synthwave = "#0d091a",
 }
-local init_bg = theme_backdrops[active_theme_id] or "#07070f"
+local init_bg = theme_backdrops[active_theme_id] or "#080b14"
 vim.api.nvim_set_hl(0, "Normal", { fg = "#abb2bf", bg = init_bg })
 vim.api.nvim_set_hl(0, "NormalFloat", { fg = "#abb2bf", bg = "#1e222a" })
 vim.api.nvim_set_hl(0, "EndOfBuffer", { fg = init_bg, bg = init_bg })
 vim.api.nvim_set_hl(0, "WinSeparator", { fg = "#1c1f26", bg = "NONE" })
-vim.defer_fn(function()
-  ThemeEngine.apply_theme(active_theme_id)
-  if _G.reapply_all_icon_colors then
-    _G.reapply_all_icon_colors()
-  end
-end, 1)
+ThemeEngine.apply_theme(active_theme_id)
+if _G.reapply_all_icon_colors then
+  _G.reapply_all_icon_colors()
+end
 
 -- =============================================================================
 -- MINIMAL HOMESCREEN & WELCOME DASHBOARD (named "minimal")
@@ -6283,10 +6584,11 @@ local banner_lines = {
 local home_actions = {
   { key = "n", label = "New File", hint = "Ctrl+N", action = function() _G.homescreen_new_file() end },
   { key = "o", label = "Open Folder", hint = "Ctrl+K Ctrl+O", action = function() _G.open_folder_picker() end },
-  { key = "f", label = "New Folder", hint = "", action = function() _G.create_new_folder() end },
+  { key = "p", label = "Search Files", hint = "Ctrl+P", action = function() _G.open_file_finder() end },
+  { key = "s", label = "Search Project", hint = "Ctrl+Shift+F", action = function() _G.open_project_search() end },
   { key = "b", label = "File Explorer", hint = "Ctrl+B", action = function() _G.toggle_tree() end },
   { key = "t", label = "Color Themes", hint = "Ctrl+K Ctrl+T", action = function() _G.open_theme_picker() end },
-  { key = "p", label = "Font & Settings", hint = "Ctrl+Shift+K+T", action = function() _G.open_font_picker() end },
+  { key = "f", label = "Font & Display", hint = "Ctrl+Shift+K+T", action = function() _G.open_font_picker() end },
   { key = "k", label = "Keyboard Shortcuts", hint = "Ctrl+Shift+P", action = function() _G.open_keybindings_panel() end },
   { key = "j", label = "Terminal Drawer", hint = "Ctrl+`", action = function() _G.toggle_terminal() end },
   { key = "q", label = "Quit Editor", hint = "Ctrl+Q", action = function() vim.cmd("qa") end },
@@ -6392,7 +6694,7 @@ function Homescreen.render()
     table.insert(hl_spans, { #content_lines, banner_pad, -1, "MinimalHomeBanner" })
   end
 
-  -- Tagline at the right bottom of the app name
+  -- Tagline at the right bottom of the app logo
   local tagline = "crafted by indiedev"
   local tagline_pad = math.max(1, banner_pad + banner_width - #tagline)
   local tagline_str = string.rep(" ", tagline_pad) .. tagline
@@ -6401,18 +6703,17 @@ function Homescreen.render()
   table.insert(content_lines, "")
 
   -- Actions block
-  local box_width = 48
+  local box_width = 50
   local box_pad = math.max(2, math.floor((win_w - box_width) / 2))
   local box_pad_str = string.rep(" ", box_pad)
 
   for i, a in ipairs(home_actions) do
     local is_sel = (Homescreen.active_idx == i)
-    local pointer = is_sel and " > " or "   "
+    local pointer = is_sel and " ❯ " or "   "
     local key_part = "[" .. a.key .. "] "
     local label_part = a.label
-    local hint_part = a.hint ~= "" and a.hint or ""
-    local pad_spaces = math.max(2, box_width - #pointer - #key_part - #label_part - #hint_part)
-    local row_str = box_pad_str .. pointer .. key_part .. label_part .. string.rep(" ", pad_spaces) .. hint_part
+    local hint_part = a.hint ~= "" and (" (" .. a.hint .. ")") or ""
+    local row_str = box_pad_str .. pointer .. key_part .. label_part .. hint_part
 
     table.insert(content_lines, row_str)
     local l_idx = #content_lines
@@ -6427,8 +6728,7 @@ function Homescreen.render()
     cur_col = cur_col + #key_part
     table.insert(hl_spans, { l_idx, cur_col, cur_col + #label_part, "MinimalHomeDesc" })
     if hint_part ~= "" then
-      local hint_start = #row_str - #hint_part
-      table.insert(hl_spans, { l_idx, hint_start, #row_str, "MinimalHomeHint" })
+      table.insert(hl_spans, { l_idx, cur_col + #label_part, #row_str, "MinimalHomeHint" })
     end
   end
 
@@ -6439,17 +6739,20 @@ function Homescreen.render()
     table.insert(content_lines, header_text)
     table.insert(hl_spans, { #content_lines, box_pad + 2, #header_text, "MinimalHomeHeader" })
 
+    local dev_ok, dev = pcall(require, "nvim-web-devicons")
     for idx, fpath in ipairs(recent) do
       local item_idx = #home_actions + idx
       local is_sel = (Homescreen.active_idx == item_idx)
-      local pointer = is_sel and " > " or "   "
+      local pointer = is_sel and " ❯ " or "   "
       local num_str = "[" .. idx .. "] "
       local fname = vim.fn.fnamemodify(fpath, ":t")
       local fdir = vim.fn.fnamemodify(fpath, ":~:.:h")
       if fdir == "." then fdir = "" else fdir = " (" .. fdir .. ")" end
-      local display_name = fname .. fdir
-      if #display_name > 36 then
-        display_name = display_name:sub(1, 33) .. "..."
+      local ext = vim.fn.fnamemodify(fname, ":e")
+      local icon = (dev_ok and dev.get_icon(fname, ext, { default = true })) or ""
+      local display_name = icon .. "  " .. fname .. fdir
+      if #display_name > 42 then
+        display_name = display_name:sub(1, 39) .. "..."
       end
       local row_str = box_pad_str .. pointer .. num_str .. display_name
 
@@ -6537,10 +6840,11 @@ function Homescreen.setup_keymaps(buf)
   -- Action hotkeys
   vim.keymap.set({ "n", "i", "s", "v" }, "n", function() _G.homescreen_new_file() end, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "o", function() _G.open_folder_picker() end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "f", function() _G.create_new_folder() end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "p", function() _G.open_file_finder() end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "s", function() _G.open_project_search() end, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "b", function() _G.toggle_tree() end, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "t", function() _G.open_theme_picker() end, { buffer = buf, nowait = true })
-  vim.keymap.set({ "n", "i", "s", "v" }, "p", function() _G.open_font_picker() end, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "f", function() _G.open_font_picker() end, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "k", function() _G.open_keybindings_panel() end, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "j", function() _G.toggle_terminal() end, { buffer = buf, nowait = true })
   vim.keymap.set({ "n", "i", "s", "v" }, "q", function() vim.cmd("qa") end, { buffer = buf, nowait = true })
@@ -6563,7 +6867,7 @@ function Homescreen.setup_keymaps(buf)
   -- Fallback: any other printable key starts editing in a new file
   for c = 32, 126 do
     local ch = string.char(c)
-    if not ch:match("[nobtfpkjq12345]") then
+    if not ch:match("[nopstfkjq12345]") then
       vim.keymap.set({ "n", "i", "s", "v" }, ch, function()
         _G.homescreen_new_file(ch)
       end, { buffer = buf, nowait = true })
@@ -6829,27 +7133,97 @@ map({ "i", "n", "v", "s" }, "<C-z>", "<cmd>undo<cr><cmd>startinsert<cr>", { desc
 map({ "i", "n", "v", "s" }, "<C-y>", "<cmd>redo<cr><cmd>startinsert<cr>", { desc = "Redo" })
 map({ "i", "n", "v", "s" }, "<C-S-z>", "<cmd>redo<cr><cmd>startinsert<cr>", { desc = "Redo" })
 
+-- Robust Save File Handler: Supports named, unnamed (prompts Save As), directory auto-creation, and non-blocking format
+_G.save_file = function(opts)
+  opts = opts or {}
+  local bufnr = opts.bufnr or vim.api.nvim_get_current_buf()
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return end
+
+  local bt = vim.bo[bufnr].buftype
+  local ft = vim.bo[bufnr].filetype
+  if bt ~= "" or ft == "NvimTree" or ft == "minimal_home" or vim.b[bufnr].is_homescreen then
+    return
+  end
+
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  if name == "" then
+    -- Prompt user for filename if untitled
+    vim.ui.input({ prompt = "Save As: ", default = vim.fn.getcwd() .. "/" }, function(input)
+      if input and input ~= "" then
+        local dir = vim.fn.fnamemodify(input, ":p:h")
+        if dir and dir ~= "" and vim.fn.isdirectory(dir) == 0 then
+          pcall(vim.fn.mkdir, dir, "p")
+        end
+        pcall(vim.api.nvim_buf_set_name, bufnr, input)
+        vim.bo[bufnr].buflisted = true
+        _G.save_file({ bufnr = bufnr })
+      end
+    end)
+    return
+  end
+
+  -- Ensure parent directory exists
+  local dir = vim.fn.fnamemodify(name, ":p:h")
+  if dir and dir ~= "" and vim.fn.isdirectory(dir) == 0 then
+    pcall(vim.fn.mkdir, dir, "p")
+  end
+
+  -- Auto-format before saving if formatters are available (with non-blocking 1500ms safety timeout)
+  vim.b[bufnr].just_formatted = true
+  pcall(_G.format_buffer, { bufnr = bufnr, silent = true, timeout_ms = 1500 })
+
+  local ok, err = pcall(function()
+    vim.api.nvim_buf_call(bufnr, function()
+      vim.cmd("write!")
+    end)
+  end)
+
+  if ok then
+    pcall(function()
+      vim.bo[bufnr].modified = false
+    end)
+    local fname = vim.fn.fnamemodify(name, ":t")
+    vim.notify("Saved " .. fname, vim.log.levels.INFO)
+    -- Notify nvim-tree of file write
+    if package.loaded["nvim-tree"] then
+      local ok_t, t_api = pcall(require, "nvim-tree.api")
+      if ok_t and t_api.tree and pcall(t_api.tree.is_visible) and t_api.tree.is_visible() then
+        pcall(t_api.tree.reload)
+      end
+    end
+  else
+    vim.notify("Save failed: " .. tostring(err), vim.log.levels.ERROR)
+  end
+
+  pcall(vim.cmd, "startinsert")
+end
+
 -- Automatically create parent directories on save if they don't exist, and auto-format
 vim.api.nvim_create_autocmd("BufWritePre", {
   callback = function(args)
     if args.file and args.file ~= "" and not args.file:match("^%a+://") then
       local dir = vim.fn.fnamemodify(args.file, ":p:h")
-      if vim.fn.isdirectory(dir) == 0 then
+      if dir and dir ~= "" and vim.fn.isdirectory(dir) == 0 then
         pcall(vim.fn.mkdir, dir, "p")
       end
     end
     if args.buf and vim.api.nvim_buf_is_valid(args.buf) and vim.bo[args.buf].buftype == "" and vim.bo[args.buf].modifiable then
-      pcall(_G.format_buffer, { bufnr = args.buf, silent = true })
+      if not vim.b[args.buf].just_formatted then
+        pcall(_G.format_buffer, { bufnr = args.buf, silent = true, timeout_ms = 1500 })
+      else
+        vim.b[args.buf].just_formatted = nil
+      end
     end
   end,
 })
 
--- Save (Ctrl+S) with auto-imports and formatting
+-- Save (Ctrl+S) with auto-imports, formatting, and reliable disk sync
 map({ "i", "n", "v", "s" }, "<C-s>", function()
-  _G.format_buffer({ silent = true })
-  vim.cmd("silent! write")
-  vim.cmd("startinsert")
+  _G.save_file()
 end, { desc = "Auto-Import, Format & Save File" })
+
+vim.api.nvim_create_user_command("Save", function() _G.save_file() end, { desc = "Save File" })
+vim.api.nvim_create_user_command("SaveFile", function() _G.save_file() end, { desc = "Save File" })
 
 -- Format Code (Alt+Shift+F & Ctrl+Shift+I)
 map({ "i", "n", "v", "s" }, "<M-F>", _G.format_buffer, { desc = "Format Document" })
@@ -7381,6 +7755,49 @@ map("i", "<C-S-CR>", "<C-o>O", { desc = "Insert Line Above" })
 -- Find (Ctrl+F)
 map({ "i", "n" }, "<C-f>", "<Esc>/", { desc = "Find" })
 
+-- Project Search & Replace (Ctrl+Shift+F)
+map({ "i", "n", "v", "s", "t" }, "<C-S-f>", function() _G.open_project_search() end, { desc = "Project Search & Replace" })
+map({ "i", "n", "v", "s", "t" }, "<C-S-F>", function() _G.open_project_search() end, { desc = "Project Search & Replace" })
+map({ "i", "n", "v", "s", "t" }, "<M-S-f>", function() _G.open_project_search() end, { desc = "Project Search & Replace" })
+map({ "i", "n", "v", "s", "t" }, "<A-S-f>", function() _G.open_project_search() end, { desc = "Project Search & Replace" })
+
+-- Recent Files Switcher (Ctrl+E / Alt+E)
+map({ "i", "n", "v", "s", "t" }, "<C-e>", function() _G.open_recent_files_picker() end, { desc = "Recent Files Switcher" })
+map({ "i", "n", "v", "s", "t" }, "<M-e>", function() _G.open_recent_files_picker() end, { desc = "Recent Files Switcher" })
+map({ "i", "n", "v", "s", "t" }, "<A-e>", function() _G.open_recent_files_picker() end, { desc = "Recent Files Switcher" })
+
+-- Hover Documentation Card (Alt+H / Ctrl+K Ctrl+I)
+map({ "i", "n", "v", "s" }, "<M-h>", function() _G.show_hover_doc() end, { desc = "Hover Documentation Card" })
+map({ "i", "n", "v", "s" }, "<A-h>", function() _G.show_hover_doc() end, { desc = "Hover Documentation Card" })
+map({ "i", "n", "v", "s", "t" }, "<C-k><C-i>", function() _G.show_hover_doc() end, { desc = "Hover Documentation Card" })
+map({ "i", "n", "v", "s", "t" }, "<C-k>i", function() _G.show_hover_doc() end, { desc = "Hover Documentation Card" })
+map({ "i", "n", "v", "s", "t" }, "<C-k><C-I>", function() _G.show_hover_doc() end, { desc = "Hover Documentation Card" })
+map({ "i", "n", "v", "s", "t" }, "<C-k>I", function() _G.show_hover_doc() end, { desc = "Hover Documentation Card" })
+
+-- Quick-Fix & Code Actions (Alt+Enter)
+map({ "i", "n", "v", "s" }, "<M-CR>", function() _G.show_code_actions() end, { desc = "Quick-Fix & Code Actions" })
+map({ "i", "n", "v", "s" }, "<A-CR>", function() _G.show_code_actions() end, { desc = "Quick-Fix & Code Actions" })
+map({ "i", "n", "v", "s" }, "<M-Enter>", function() _G.show_code_actions() end, { desc = "Quick-Fix & Code Actions" })
+map({ "i", "n", "v", "s" }, "<A-Enter>", function() _G.show_code_actions() end, { desc = "Quick-Fix & Code Actions" })
+
+-- Instant Symbol Rename (F2 / Ctrl+Shift+R)
+map({ "i", "n", "v", "s" }, "<F2>", function() _G.rename_symbol() end, { desc = "Rename Symbol" })
+map({ "i", "n", "v", "s" }, "<C-S-r>", function() _G.rename_symbol() end, { desc = "Rename Symbol" })
+map({ "i", "n", "v", "s" }, "<C-S-R>", function() _G.rename_symbol() end, { desc = "Rename Symbol" })
+
+-- Zen / Focus Mode (F11 / Ctrl+K Z)
+map({ "i", "n", "v", "s", "t" }, "<F11>", function() _G.toggle_zen_mode() end, { desc = "Toggle Zen Mode" })
+map({ "i", "n", "v", "s", "t" }, "<C-k><C-z>", function() _G.toggle_zen_mode() end, { desc = "Toggle Zen Mode" })
+map({ "i", "n", "v", "s", "t" }, "<C-k>z", function() _G.toggle_zen_mode() end, { desc = "Toggle Zen Mode" })
+map({ "i", "n", "v", "s", "t" }, "<C-k><C-Z>", function() _G.toggle_zen_mode() end, { desc = "Toggle Zen Mode" })
+map({ "i", "n", "v", "s", "t" }, "<C-k>Z", function() _G.toggle_zen_mode() end, { desc = "Toggle Zen Mode" })
+
+-- In-Editor Markdown Live Preview (Ctrl+K Ctrl+V / Alt+P)
+map({ "i", "n", "v", "s", "t" }, "<C-k><C-v>", function() _G.toggle_markdown_preview() end, { desc = "Markdown Live Preview" })
+map({ "i", "n", "v", "s", "t" }, "<C-k>v", function() _G.toggle_markdown_preview() end, { desc = "Markdown Live Preview" })
+map({ "i", "n", "v", "s", "t" }, "<C-k><C-V>", function() _G.toggle_markdown_preview() end, { desc = "Markdown Live Preview" })
+map({ "i", "n", "v", "s", "t" }, "<C-k>V", function() _G.toggle_markdown_preview() end, { desc = "Markdown Live Preview" })
+
 -- Theme Picker (Ctrl+K Ctrl+T / Ctrl+K t) Like VS Code
 map({ "i", "n", "v", "s", "t" }, "<C-k><C-t>", _G.open_theme_picker, { desc = "Color Theme Picker" })
 map({ "i", "n", "v", "s", "t" }, "<C-k>t", _G.open_theme_picker, { desc = "Color Theme Picker" })
@@ -7442,19 +7859,22 @@ _G.toggle_tree = function()
   if not ok then return end
   local was_in_tree = vim.bo.filetype == "NvimTree"
   vim.g.minimal_ignore_tree_stopinsert = true
-  pcall(t.tree.toggle, { focus = false })
-  vim.g.minimal_ignore_tree_stopinsert = false
-  if was_in_tree then
-    local ed = find_editor_win()
-    if ed and vim.api.nvim_win_is_valid(ed) then
-      vim.api.nvim_set_current_win(ed)
+  if t.tree.is_visible() then
+    t.tree.close()
+    if was_in_tree then
+      local ed = find_editor_win()
+      if ed and vim.api.nvim_win_is_valid(ed) then
+        vim.api.nvim_set_current_win(ed)
+      end
     end
+  else
+    t.tree.open({ focus = false })
   end
+  vim.g.minimal_ignore_tree_stopinsert = false
   if vim.bo.buftype == "" and vim.bo.filetype ~= "NvimTree" then
     vim.cmd("startinsert")
   end
   enforce_buffer_mode()
-  vim.schedule(enforce_buffer_mode)
 end
 
 map({ "i", "n", "v", "s", "t" }, "<C-b>", _G.toggle_tree, { desc = "Toggle Sidebar" })
@@ -7574,12 +7994,31 @@ end, { desc = "Previous Tab (Editor or Terminal)" })
 map({ "i", "n", "v", "s", "t" }, "<C-Tab>", function() _G.tab_next() end, { desc = "Next Tab" })
 map({ "i", "n", "v", "s", "t" }, "<C-S-Tab>", function() _G.tab_prev() end, { desc = "Previous Tab" })
 
+-- Tab Position Reordering (VS Code style: Ctrl+Shift+PageUp/Down, Alt+Shift+Left/Right)
+map({ "i", "n", "v", "s", "t" }, "<C-S-PageUp>", function() _G.move_tab_left() end, { desc = "Move Tab Left" })
+map({ "i", "n", "v", "s", "t" }, "<C-S-PgUp>", function() _G.move_tab_left() end, { desc = "Move Tab Left" })
+map({ "i", "n", "v", "s", "t" }, "<M-S-Left>", function() _G.move_tab_left() end, { desc = "Move Tab Left" })
+map({ "i", "n", "v", "s", "t" }, "<A-S-Left>", function() _G.move_tab_left() end, { desc = "Move Tab Left" })
+
+map({ "i", "n", "v", "s", "t" }, "<C-S-PageDown>", function() _G.move_tab_right() end, { desc = "Move Tab Right" })
+map({ "i", "n", "v", "s", "t" }, "<C-S-PgDn>", function() _G.move_tab_right() end, { desc = "Move Tab Right" })
+map({ "i", "n", "v", "s", "t" }, "<M-S-Right>", function() _G.move_tab_right() end, { desc = "Move Tab Right" })
+map({ "i", "n", "v", "s", "t" }, "<A-S-Right>", function() _G.move_tab_right() end, { desc = "Move Tab Right" })
+
 -- Terminal paste in terminal mode
 map("t", "<C-v>", '<C-\\><C-n>"+pi', { desc = "Paste into Terminal" })
 
--- Jump to Tab 1-9 (Alt+1 through Alt+9)
+-- Jump to Visual Tab 1-9 (Alt+1 through Alt+9)
 for i = 1, 9 do
-  map({ "i", "n", "v", "s", "t" }, "<M-" .. i .. ">", function()
+  local function go_tab_i()
+    local ok, bl = pcall(require, "bufferline")
+    if ok and bl.go_to then
+      bl.go_to(i)
+      if vim.bo.buftype == "" and vim.bo.filetype ~= "NvimTree" then
+        pcall(vim.cmd, "startinsert")
+      end
+      return
+    end
     local bufs = get_listed_editor_bufs()
     if bufs[i] and vim.api.nvim_buf_is_valid(bufs[i]) then
       local ed = find_editor_win()
@@ -7587,7 +8026,9 @@ for i = 1, 9 do
       pcall(vim.api.nvim_set_current_buf, bufs[i])
       pcall(vim.cmd, "startinsert")
     end
-  end, { desc = "Go to Tab " .. i })
+  end
+  map({ "i", "n", "v", "s", "t" }, "<M-" .. i .. ">", go_tab_i, { desc = "Go to Tab " .. i })
+  map({ "i", "n", "v", "s", "t" }, "<A-" .. i .. ">", go_tab_i, { desc = "Go to Tab " .. i })
 end
 
 -- Close File (Ctrl+W) & Quit (Ctrl+Q)
@@ -7623,6 +8064,9 @@ end
 
 -- Escape: Deselects / Clears multi-cursors and search, stays in Insert Mode
 map({ "i", "s", "x", "n" }, "<Esc>", _G.handle_escape, { desc = "Clear Selection / Multi-Cursors / Keep Typing" })
+
+-- Single LeftMouse click in Normal mode enters Insert mode immediately
+map("n", "<LeftMouse>", "<LeftMouse><cmd>startinsert<cr>", { desc = "Click and Start Typing" })
 
 -- Disable colon command line access
 map("n", ":", "<cmd>startinsert<cr>")
@@ -7716,7 +8160,7 @@ map({ "i", "n", "v", "s" }, "<C-Down>", "<C-o><C-e>", { desc = "Scroll Viewport 
 
 -- 20. Sleek Modern Layout, Statusline & Window Highlights
 vim.api.nvim_set_hl(0, "NormalFloat", { bg = "#1e222a", fg = "#abb2bf" })
-vim.api.nvim_set_hl(0, "FloatBorder", { bg = "#1e222a", fg = "#61afef" })
+vim.api.nvim_set_hl(0, "FloatBorder", { bg = "#1e222a", fg = "#3e4452" })
 vim.api.nvim_set_hl(0, "Pmenu", { bg = "#21252b", fg = "#abb2bf" })
 vim.api.nvim_set_hl(0, "PmenuSel", { bg = "#3e4451", fg = "#ffffff", bold = true })
 vim.api.nvim_set_hl(0, "PmenuBorder", { bg = "#21252b", fg = "#4b5263" })
@@ -7725,8 +8169,145 @@ vim.api.nvim_set_hl(0, "StatusLineNC", { bg = "#181a1f", fg = "#5c6370" })
 vim.api.nvim_set_hl(0, "SignColumn", { bg = "NONE" })
 vim.api.nvim_set_hl(0, "LineNr", { fg = "#4b5263" })
 vim.api.nvim_set_hl(0, "CursorLineNr", { fg = "#61afef", bold = true })
+vim.api.nvim_set_hl(0, "WinSeparator", { fg = "#21252b", bg = "NONE" })
+vim.api.nvim_set_hl(0, "VertSplit", { fg = "#21252b", bg = "NONE" })
+vim.api.nvim_set_hl(0, "Visual", { bg = "#2d3545", fg = "NONE" })
+vim.api.nvim_set_hl(0, "Search", { bg = "#473b22", fg = "NONE" })
+vim.api.nvim_set_hl(0, "IncSearch", { bg = "#61afef", fg = "#181a1f", bold = true })
 
--- Modern VS Code-style Status Line (cached cwd + O(1) diagnostic counts)
+-- =============================================================================
+-- CODE BREADCRUMBS BAR (VS Code-style Path & Scope Hierarchy)
+-- =============================================================================
+local function apply_breadcrumb_highlights()
+  vim.api.nvim_set_hl(0, "BreadcrumbDir", { fg = "#5c6370" })
+  vim.api.nvim_set_hl(0, "BreadcrumbSep", { fg = "#3e4451" })
+  vim.api.nvim_set_hl(0, "BreadcrumbFile", { fg = "#abb2bf", bold = true })
+  vim.api.nvim_set_hl(0, "BreadcrumbSymbol", { fg = "#61afef", bold = true })
+  vim.api.nvim_set_hl(0, "WinBar", { fg = "#abb2bf", bg = "NONE" })
+  vim.api.nvim_set_hl(0, "WinBarNC", { fg = "#5c6370", bg = "NONE" })
+end
+_G.apply_breadcrumb_highlights = apply_breadcrumb_highlights
+apply_breadcrumb_highlights()
+
+local function get_treesitter_enclosing_symbol(buf, row, col)
+  local ok, parser = pcall(vim.treesitter.get_parser, buf)
+  if not ok or not parser then return nil end
+  local tree = parser:parse()[1]
+  if not tree then return nil end
+  local root = tree:root()
+  local node = root:named_descendant_for_range(row, col, row, col)
+  while node do
+    local t = node:type()
+    if t:find("function") or t:find("method") or t:find("class") or t == "arrow_function" then
+      local name_node = node:field("name")[1]
+      if not name_node then
+        for child in node:iter_children() do
+          local ct = child:type()
+          if ct == "identifier" or ct == "name" or ct == "property_identifier" or ct == "field_identifier" then
+            name_node = child
+            break
+          end
+        end
+      end
+      if name_node then
+        local text = vim.treesitter.get_node_text(name_node, buf)
+        if text and text ~= "" then
+          local icon = (t:find("class") and "󰌗 " or "󰊕 ")
+          local suffix = (t:find("class") and "" or "()")
+          return icon .. text .. suffix
+        end
+      end
+    end
+    node = node:parent()
+  end
+  return nil
+end
+
+_G.get_minimal_breadcrumbs = function()
+  local win = (vim.g.statusline_winid and vim.g.statusline_winid ~= 0) and vim.g.statusline_winid or vim.api.nvim_get_current_win()
+  if not win or not vim.api.nvim_win_is_valid(win) then return "" end
+  local buf = vim.api.nvim_win_get_buf(win)
+  if not buf or not vim.api.nvim_buf_is_valid(buf) then return "" end
+  local bt = vim.bo[buf].buftype
+  local ft = vim.bo[buf].filetype
+  local name = vim.api.nvim_buf_get_name(buf)
+  if bt ~= "" or ft == "NvimTree" or name:match("NvimTree") or ft == "minimal_home" or vim.b[buf].is_homescreen or vim.b[buf].is_picker then
+    return ""
+  end
+
+  local full_path = vim.api.nvim_buf_get_name(buf)
+  if full_path == "" then return "" end
+
+  local rel = vim.fn.fnamemodify(full_path, ":.")
+  local parts = {}
+  for p in string.gmatch(rel, "[^/]+") do
+    table.insert(parts, p)
+  end
+  if #parts == 0 then return "" end
+
+  local filename = parts[#parts]
+  table.remove(parts)
+
+  local dev_ok, dev = pcall(require, "nvim-web-devicons")
+  local icon = ""
+  local ext = vim.fn.fnamemodify(filename, ":e")
+  if dev_ok then
+    local ic = dev.get_icon(filename, ext, { default = true })
+    if ic then icon = ic end
+  end
+
+  local parts_str = ""
+  for _, part in ipairs(parts) do
+    parts_str = parts_str .. "%#BreadcrumbDir#" .. part .. " %#BreadcrumbSep#❯ "
+  end
+
+  local mod_str = vim.bo[buf].modified and " %#BreadcrumbModified#●" or ""
+  local res = " %#BreadcrumbSep# " .. parts_str .. "%#BreadcrumbFile#" .. icon .. " " .. filename .. mod_str
+
+  local cur_pos = vim.api.nvim_win_get_cursor(win)
+  local sym = get_treesitter_enclosing_symbol(buf, cur_pos[1] - 1, cur_pos[2])
+  if sym then
+    res = res .. " %#BreadcrumbSep#❯ %#BreadcrumbSymbol#" .. sym
+  end
+
+  return res
+end
+
+vim.o.winbar = ""
+
+local function update_window_winbar(win)
+  if not win or not vim.api.nvim_win_is_valid(win) then return end
+  local buf = vim.api.nvim_win_get_buf(win)
+  if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
+  local bt = vim.bo[buf].buftype
+  local ft = vim.bo[buf].filetype
+  local name = vim.api.nvim_buf_get_name(buf)
+
+  if ft == "NvimTree" or name:match("NvimTree") then
+    -- Clean spacer at the bottom of the EXPLORER tabline header so files have breathing room
+    pcall(function() vim.wo[win].winbar = "%#Normal# " end)
+  elseif bt == "" and ft ~= "minimal_home" and not vim.b[buf].is_homescreen and not vim.b[buf].is_picker then
+    if not _G.is_zen_active then
+      pcall(function() vim.wo[win].winbar = "%!v:lua._G.get_minimal_breadcrumbs()" end)
+    end
+  else
+    pcall(function() vim.wo[win].winbar = nil end)
+  end
+end
+
+_G.update_window_winbar = update_window_winbar
+
+-- Ensure sidebar (NvimTree) and homescreen windows never have a winbar header
+vim.api.nvim_create_autocmd({ "BufWinEnter", "BufEnter", "FileType" }, {
+  callback = function(args)
+    local win = vim.fn.bufwinid(args.buf)
+    if win and win ~= -1 and vim.api.nvim_win_is_valid(win) then
+      update_window_winbar(win)
+    end
+  end,
+})
+
+-- Modern VS Code-style Statusline Capsules (cached cwd + dynamic selection/search)
 local cached_cwd_raw = ""
 local cached_cwd_display = ""
 local function get_display_cwd()
@@ -7738,32 +8319,117 @@ local function get_display_cwd()
   return cached_cwd_display
 end
 
+local function apply_statusline_capsule_highlights()
+  local sl_hl = vim.api.nvim_get_hl(0, { name = "StatusLine" })
+  local bg_bar = (sl_hl and sl_hl.bg) and string.format("#%06x", sl_hl.bg) or "#181a1f"
+  local fg_bar = (sl_hl and sl_hl.fg) and string.format("#%06x", sl_hl.fg) or "#abb2bf"
+
+  vim.api.nvim_set_hl(0, "StatusLine", { bg = bg_bar, fg = fg_bar })
+  vim.api.nvim_set_hl(0, "StatusLineNC", { bg = bg_bar, fg = "#5c6370" })
+
+  -- Flat, unified statusline elements (no distracting capsule curves or block backgrounds)
+  local fn_hl = vim.api.nvim_get_hl(0, { name = "Function" })
+  local title_fg = (fn_hl and fn_hl.fg) and string.format("#%06x", fn_hl.fg) or fg_bar
+  local git_hl = vim.api.nvim_get_hl(0, { name = "GitSignsAdd" })
+  local branch_fg = (git_hl and git_hl.fg) and string.format("#%06x", git_hl.fg) or "#98c379"
+
+  vim.api.nvim_set_hl(0, "StatusLineTitle", { fg = title_fg, bold = true, bg = "NONE" })
+  vim.api.nvim_set_hl(0, "StatusLineBranch", { fg = branch_fg, bg = "NONE" })
+  vim.api.nvim_set_hl(0, "StatusLineLang", { fg = fg_bar, bg = "NONE" })
+  vim.api.nvim_set_hl(0, "StatusLineSep", { fg = "#4b5263", bg = "NONE" })
+  vim.api.nvim_set_hl(0, "StatusLinePos", { fg = fg_bar, bg = "NONE" })
+
+  -- Backward-compatibility fallback highlights
+  vim.api.nvim_set_hl(0, "StatusCapLogo", { fg = "#abb2bf", bold = true, bg = "NONE" })
+  vim.api.nvim_set_hl(0, "StatusCapGit", { fg = "#98c379", bg = "NONE" })
+  vim.api.nvim_set_hl(0, "StatusCapInfo", { fg = "#abb2bf", bg = "NONE" })
+  vim.api.nvim_set_hl(0, "StatusCapPos", { fg = "#abb2bf", bg = "NONE" })
+  vim.api.nvim_set_hl(0, "StatusCapLogoL", { fg = bg_bar, bg = bg_bar })
+  vim.api.nvim_set_hl(0, "StatusCapLogoR", { fg = bg_bar, bg = bg_bar })
+  vim.api.nvim_set_hl(0, "StatusCapGitL", { fg = bg_bar, bg = bg_bar })
+  vim.api.nvim_set_hl(0, "StatusCapGitR", { fg = bg_bar, bg = bg_bar })
+  vim.api.nvim_set_hl(0, "StatusCapInfoL", { fg = bg_bar, bg = bg_bar })
+  vim.api.nvim_set_hl(0, "StatusCapInfoR", { fg = bg_bar, bg = bg_bar })
+  vim.api.nvim_set_hl(0, "StatusCapPosL", { fg = bg_bar, bg = bg_bar })
+  vim.api.nvim_set_hl(0, "StatusCapPosR", { fg = bg_bar, bg = bg_bar })
+
+  -- Breadcrumbs
+  vim.api.nvim_set_hl(0, "BreadcrumbDir", { fg = "#5c6370" })
+  vim.api.nvim_set_hl(0, "BreadcrumbSep", { fg = "#4b5263" })
+  vim.api.nvim_set_hl(0, "BreadcrumbFile", { fg = "#abb2bf", bold = true })
+  vim.api.nvim_set_hl(0, "BreadcrumbModified", { fg = "#fab387", bold = true })
+  vim.api.nvim_set_hl(0, "BreadcrumbSymbol", { fg = "#61afef", bold = true })
+  vim.api.nvim_set_hl(0, "WinBar", { fg = "#abb2bf", bg = "NONE" })
+  vim.api.nvim_set_hl(0, "WinBarNC", { fg = "#5c6370", bg = "NONE" })
+end
+
+_G.apply_statusline_capsule_highlights = apply_statusline_capsule_highlights
+apply_statusline_capsule_highlights()
+
+local statusline_lang_names = {
+  go = "Go", lua = "Lua", python = "Python", rust = "Rust", c = "C", cpp = "C++",
+  cs = "C#", java = "Java", javascript = "JavaScript", typescript = "TypeScript",
+  javascriptreact = "JavaScript React", typescriptreact = "TypeScript React",
+  html = "HTML", css = "CSS", scss = "SCSS", json = "JSON", jsonc = "JSONC",
+  toml = "TOML", yaml = "YAML", xml = "XML", markdown = "Markdown", sh = "Shell",
+  bash = "Bash", zsh = "Zsh", vim = "Vim", dockerfile = "Dockerfile", sql = "SQL",
+}
+
+local function detect_statusline_language(buf)
+  local ft = vim.bo[buf].filetype or ""
+  if ft == "" then
+    local name = vim.api.nvim_buf_get_name(buf)
+    local ext = vim.fn.fnamemodify(name, ":e")
+    if ext ~= "" then ft = ext end
+  end
+  if ft == "" then return "Plain Text" end
+  return statusline_lang_names[ft:lower()] or (ft:sub(1, 1):upper() .. ft:sub(2))
+end
+
 function _G.editor_statusline()
   local buf = vim.api.nvim_get_current_buf()
   local ft = vim.bo[buf].filetype
-  if ft == "NvimTree" then return "  EXPLORER" end
+  if ft == "NvimTree" then
+    return "%#StatusLineTitle#  EXPLORER%#StatusLine#%=" .. get_display_cwd() .. "  "
+  end
   if ft == "minimal_home" then
-    return "  Minimal %=" .. get_display_cwd() .. " "
+    return "%#StatusLineTitle#  Minimal%#StatusLine#%=" .. get_display_cwd() .. "  "
   end
   if vim.bo[buf].buftype == "terminal" then
-    return "  bash │ " .. get_display_cwd() .. " "
+    return "%#StatusLineTitle#  TERMINAL%#StatusLine#%=" .. get_display_cwd() .. "  "
   end
 
+  -- Left side: Minimal + Current git branch if any (flat, clean, no curve or pill bg)
+  local left_str = "%#StatusLineTitle#  Minimal%#StatusLine#"
   local branch = vim.b[buf].gitsigns_head or ""
-  local branch_str = branch ~= "" and ("  " .. branch .. " │") or ""
+  if branch == "" then
+    -- Fast cached filesystem check for .git/HEAD
+    local bname = vim.api.nvim_buf_get_name(buf)
+    if bname ~= "" then
+      local dir = vim.fs.dirname(bname)
+      local git_dir = vim.fs.find(".git", { path = dir, upward = true })[1]
+      if git_dir then
+        local head_file = git_dir .. "/HEAD"
+        local f = io.open(head_file, "r")
+        if f then
+          local content = f:read("*l") or ""
+          f:close()
+          branch = content:match("ref: refs/heads/(.+)") or content:sub(1, 7)
+          vim.b[buf].gitsigns_head = branch
+        end
+      end
+    end
+  end
 
-  local counts = vim.diagnostic.count(buf)
-  local diag_e = counts[vim.diagnostic.severity.ERROR] or 0
-  local diag_w = counts[vim.diagnostic.severity.WARN] or 0
-  local diag_str = ""
-  if diag_e > 0 then diag_str = diag_str .. " 󰅚 " .. diag_e end
-  if diag_w > 0 then diag_str = diag_str .. " 󰀪 " .. diag_w end
-  if diag_str ~= "" then diag_str = diag_str .. " │" end
+  if branch ~= "" then
+    left_str = left_str .. "%#StatusLineBranch#    " .. branch .. "%#StatusLine#"
+  end
 
-  local enc = (vim.bo[buf].fileencoding ~= "" and vim.bo[buf].fileencoding or "utf-8"):upper()
+  -- Right side: Detected language + Ln & Col (flat, minimal)
+  local lang = detect_statusline_language(buf)
+  local right_str = "%=" .. "%#StatusLineLang#" .. lang .. "%#StatusLineSep#  │  %#StatusLinePos#Ln %l, Col %c  "
 
-  return string.format("%s%s  %%f %%m %%=%s │ Spaces: %d │ Ln %%l, Col %%c ",
-    branch_str, diag_str, enc, vim.bo[buf].shiftwidth)
+  return left_str .. right_str
 end
 
 vim.opt.statusline = "%!v:lua._G.editor_statusline()"
@@ -8438,7 +9104,7 @@ _G.open_markdown_outline = function()
 
   local ui = vim.api.nvim_list_uis()[1] or { width = 120, height = 40 }
   local width = math.min(68, math.max(46, ui.width - 6))
-  local height = math.min(20, math.max(8, #headings + 4))
+  local height = math.min(ui.height - 4, math.max(8, #headings + 4))
   local row = math.max(1, math.floor((ui.height - height) / 3))
   local col = math.max(1, math.floor((ui.width - width) / 2))
 
@@ -8809,18 +9475,937 @@ vim.api.nvim_create_autocmd("ColorScheme", {
   end,
 })
 
--- 21. Neovide-Specific Visuals (Only applies inside Neovide window)
-if vim.g.neovide then
-  -- Apply persisted font, size, boldness and line-spacing on startup
-  FontEngine.apply_config(FontEngine.get_config())
+-- =============================================================================
+-- 22. PILLAR 2: EVERYDAY SUPERPOWERS (Smart Indent, Transparent Auto-Save, MRU, Project Search)
+-- =============================================================================
 
-  -- Smooth cursor flow
-  vim.g.neovide_cursor_animation_length = 0.08
-  vim.g.neovide_cursor_trail_size = 0.7
+-- A. Smart Indentation Auto-Detection (VS Code guess-indent style)
+_G.detect_and_apply_indent = function(bufnr)
+  bufnr = (bufnr and bufnr ~= 0) and bufnr or vim.api.nvim_get_current_buf()
+  if not vim.api.nvim_buf_is_valid(bufnr) then return end
+  local bt = vim.bo[bufnr].buftype
+  local ft = vim.bo[bufnr].filetype
+  if bt ~= "" or ft == "NvimTree" or ft == "minimal_home" or vim.b[bufnr].is_picker then return end
+
+  local max_lines = math.min(150, vim.api.nvim_buf_line_count(bufnr))
+  if max_lines < 3 then return end
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, max_lines, false)
+
+  local tab_lines = 0
+  local space_lines = 0
+  local delta_counts = { [2] = 0, [4] = 0, [8] = 0 }
+  local last_indent = 0
+
+  for _, line in ipairs(lines) do
+    if not line:match("^%s*$") and not line:match("^%s*[%-%*#/%*%[%]{}]") then
+      local tabs = line:match("^\t+")
+      if tabs then
+        tab_lines = tab_lines + 1
+      else
+        local spaces = line:match("^ +")
+        if spaces then
+          space_lines = space_lines + 1
+          local n = #spaces
+          local delta = math.abs(n - last_indent)
+          if delta == 2 or delta == 4 or delta == 8 then
+            delta_counts[delta] = delta_counts[delta] + 1
+          end
+          if n % 2 == 0 and (n == 2 or n == 4 or n == 8) then
+            delta_counts[n] = delta_counts[n] + 1
+          end
+          last_indent = n
+        else
+          last_indent = 0
+        end
+      end
+    end
+  end
+
+  if tab_lines > space_lines and tab_lines >= 2 then
+    vim.bo[bufnr].expandtab = false
+  elseif space_lines > 0 then
+    local best_w = 2
+    if delta_counts[4] > delta_counts[2] and delta_counts[4] >= delta_counts[8] then
+      best_w = 4
+    elseif delta_counts[8] > delta_counts[2] and delta_counts[8] > delta_counts[4] then
+      best_w = 8
+    end
+    vim.bo[bufnr].expandtab = true
+    vim.bo[bufnr].shiftwidth = best_w
+    vim.bo[bufnr].tabstop = best_w
+    vim.bo[bufnr].softtabstop = best_w
+  end
+end
+
+vim.api.nvim_create_autocmd("BufReadPost", {
+  pattern = "*",
+  callback = function(args)
+    pcall(_G.detect_and_apply_indent, args.buf)
+  end,
+})
+vim.api.nvim_create_user_command("DetectIndent", function()
+  _G.detect_and_apply_indent(0)
+  local mode = vim.bo.expandtab and (vim.bo.shiftwidth .. " spaces") or "tabs"
+  vim.notify("Indentation: " .. mode, vim.log.levels.INFO)
+end, {})
+
+-- B. Transparent Auto-Save with Undo Preservation
+_G.minimal_autosave_enabled = true
+_G.transparent_auto_save = function()
+  if not _G.minimal_autosave_enabled then return end
+  local bufnr = vim.api.nvim_get_current_buf()
+  if not vim.api.nvim_buf_is_valid(bufnr) then return end
+  local bt = vim.bo[bufnr].buftype
+  local ft = vim.bo[bufnr].filetype
+  if bt ~= "" or ft == "NvimTree" or ft == "minimal_home" or ft == "prompt" then return end
+  if not vim.bo[bufnr].modifiable or vim.bo[bufnr].readonly or not vim.bo[bufnr].modified then return end
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  if name == "" or vim.b[bufnr].is_picker then return end
+
+  pcall(vim.cmd, "silent! noautocmd update")
+end
+
+local as_augroup = vim.api.nvim_create_augroup("MinimalTransparentAutoSave", { clear = true })
+vim.api.nvim_create_autocmd({ "FocusLost", "BufLeave" }, {
+  group = as_augroup,
+  callback = function()
+    _G.transparent_auto_save()
+  end,
+})
+local autosave_timer = nil
+vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+  group = as_augroup,
+  callback = function()
+    if not _G.minimal_autosave_enabled then return end
+    if autosave_timer then
+      autosave_timer:stop()
+      if not autosave_timer:is_closing() then autosave_timer:close() end
+      autosave_timer = nil
+    end
+    autosave_timer = vim.uv.new_timer()
+    autosave_timer:start(1800, 0, vim.schedule_wrap(function()
+      if autosave_timer then
+        autosave_timer:stop()
+        if not autosave_timer:is_closing() then autosave_timer:close() end
+        autosave_timer = nil
+      end
+      _G.transparent_auto_save()
+    end))
+  end,
+})
+vim.api.nvim_create_user_command("AutoSaveToggle", function()
+  _G.minimal_autosave_enabled = not _G.minimal_autosave_enabled
+  local state = _G.minimal_autosave_enabled and "enabled" or "disabled"
+  vim.notify("Transparent Auto-Save " .. state, vim.log.levels.INFO)
+end, {})
+
+-- C. Recent Files Quick Switcher (MRU tracking)
+_G.recent_files_mru = _G.recent_files_mru or {}
+local function record_recent_file(bufnr)
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return end
+  local bt = vim.bo[bufnr].buftype
+  local ft = vim.bo[bufnr].filetype
+  if bt ~= "" or ft == "NvimTree" or ft == "minimal_home" or vim.b[bufnr].is_picker then return end
+  local path = vim.api.nvim_buf_get_name(bufnr)
+  if path == "" or vim.fn.filereadable(path) ~= 1 then return end
+
+  for i = #_G.recent_files_mru, 1, -1 do
+    if _G.recent_files_mru[i] == path then
+      table.remove(_G.recent_files_mru, i)
+    end
+  end
+  table.insert(_G.recent_files_mru, 1, path)
+  if #_G.recent_files_mru > 30 then
+    table.remove(_G.recent_files_mru)
+  end
+end
+
+vim.api.nvim_create_autocmd({ "BufEnter" }, {
+  callback = function(args)
+    record_recent_file(args.buf)
+  end,
+})
+
+_G.open_recent_files_picker = function()
+  local cwd = vim.fn.getcwd()
+  local items = {}
+  local seen = {}
+
+  for _, b in ipairs(get_listed_editor_bufs()) do
+    local p = vim.api.nvim_buf_get_name(b)
+    if p ~= "" and not seen[p] and vim.fn.filereadable(p) == 1 then
+      seen[p] = true
+      table.insert(items, p)
+    end
+  end
+
+  for _, p in ipairs(_G.recent_files_mru) do
+    if not seen[p] and vim.fn.filereadable(p) == 1 then
+      seen[p] = true
+      table.insert(items, p)
+    end
+  end
+
+  if #items == 0 then
+    local scan = vim.fn.globpath(cwd, "*", false, true)
+    for _, p in ipairs(scan) do
+      if vim.fn.filereadable(p) == 1 then
+        table.insert(items, p)
+      end
+    end
+  end
+
+  local ok_icons, devicons = pcall(require, "nvim-web-devicons")
+  local function format_item(path)
+    local rel = path
+    if path:sub(1, #cwd) == cwd then
+      rel = path:sub(#cwd + 2)
+    end
+    local fname = vim.fn.fnamemodify(path, ":t")
+    local dir = vim.fn.fnamemodify(rel, ":h")
+    if dir == "." then dir = "" else dir = "  (" .. dir .. ")" end
+    local ext = vim.fn.fnamemodify(path, ":e")
+    local icon = ""
+    if ok_icons then
+      local ic = devicons.get_icon(fname, ext, { default = true })
+      if ic then icon = ic end
+    end
+    return {
+      path = path,
+      display = " " .. icon .. "  " .. fname .. dir,
+      fname = fname:lower(),
+      rel = rel:lower(),
+    }
+  end
+
+  local all_entries = {}
+  for _, p in ipairs(items) do
+    table.insert(all_entries, format_item(p))
+  end
+
+  local filtered = vim.deepcopy(all_entries)
+  local selected_idx = 1
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.b[buf].is_picker = true
+  vim.bo[buf].buftype = "nofile"
+  vim.bo[buf].bufhidden = "wipe"
+
+  local ui = vim.api.nvim_list_uis()[1] or { width = 120, height = 40 }
+  local width = math.min(74, math.max(48, ui.width - 6))
+  local height = math.min(ui.height - 4, math.max(6, #all_entries + 3))
+  local row = math.max(1, math.floor((ui.height - height) / 3))
+  local col = math.max(1, math.floor((ui.width - width) / 2))
+
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    row = row,
+    col = col,
+    width = width,
+    height = height,
+    style = "minimal",
+    border = "rounded",
+    title = " 󰈞 Recent Files ",
+    title_pos = "center",
+    zindex = 50,
+  })
+
+  local function close_picker()
+    _G.clear_active_menu(close_picker)
+    if win and vim.api.nvim_win_is_valid(win) then
+      pcall(vim.api.nvim_win_close, win, true)
+    end
+  end
+  _G.register_active_menu(close_picker, win)
+
+  local search_text = ""
+  local function render()
+    if not vim.api.nvim_buf_is_valid(buf) then return end
+    local lines = {}
+    table.insert(lines, "  󰍉 " .. (search_text == "" and "Type to filter recent files..." or search_text))
+    table.insert(lines, "  " .. string.rep("─", width - 4))
+
+    if #filtered == 0 then
+      table.insert(lines, "   No recent files found")
+    else
+      local start_idx = 1
+      if selected_idx > max_list_h then
+        start_idx = selected_idx - max_list_h + 1
+      end
+      local end_idx = math.min(#filtered, start_idx + max_list_h - 1)
+      for i = start_idx, end_idx do
+        local prefix = (i == selected_idx) and " ❯ " or "   "
+        table.insert(lines, prefix .. filtered[i].display)
+      end
+    end
+
+    vim.bo[buf].modifiable = true
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    vim.bo[buf].modifiable = false
+
+    local ns = vim.api.nvim_create_namespace("RecentFilesPicker")
+    vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+    if search_text == "" then
+      vim.api.nvim_buf_add_highlight(buf, ns, "Comment", 0, 5, -1)
+    else
+      vim.api.nvim_buf_add_highlight(buf, ns, "Directory", 0, 5, -1)
+    end
+    vim.api.nvim_buf_add_highlight(buf, ns, "Comment", 1, 0, -1)
+
+    if #filtered > 0 then
+      local start_idx = 1
+      if selected_idx > max_list_h then
+        start_idx = selected_idx - max_list_h + 1
+      end
+      local active_line = selected_idx - start_idx + 2
+      if active_line < #lines then
+        vim.api.nvim_buf_add_highlight(buf, ns, "FolderPickerSelected", active_line, 0, -1)
+      end
+    end
+  end
+
+  local function apply_filter()
+    if search_text == "" then
+      filtered = vim.deepcopy(all_entries)
+    else
+      local q = search_text:lower()
+      filtered = {}
+      for _, item in ipairs(all_entries) do
+        if item.fname:find(q, 1, true) or item.rel:find(q, 1, true) then
+          table.insert(filtered, item)
+        end
+      end
+    end
+    selected_idx = 1
+    render()
+  end
+
+  local function open_selected()
+    if #filtered == 0 then return end
+    local target = filtered[selected_idx]
+    close_picker()
+    if target and target.path then
+      local ed = find_editor_win()
+      if ed and vim.api.nvim_win_is_valid(ed) then
+        vim.api.nvim_set_current_win(ed)
+      end
+      vim.cmd("edit " .. vim.fn.fnameescape(target.path))
+      vim.cmd("startinsert")
+    end
+  end
+
+  render()
+
+  local function move_down()
+    if #filtered == 0 then return end
+    selected_idx = (selected_idx % #filtered) + 1
+    render()
+  end
+  local function move_up()
+    if #filtered == 0 then return end
+    selected_idx = selected_idx - 1
+    if selected_idx < 1 then selected_idx = #filtered end
+    render()
+  end
+
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Down>", move_down, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-n>", move_down, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Tab>", move_down, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Up>", move_up, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-p>", move_up, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<S-Tab>", move_up, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<CR>", open_selected, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Esc>", close_picker, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<BS>", function()
+    if #search_text > 0 then
+      search_text = search_text:sub(1, -2)
+      apply_filter()
+    end
+  end, { buffer = buf, nowait = true })
+
+  for char_code = 32, 126 do
+    local c = string.char(char_code)
+    vim.keymap.set({ "n", "i", "s", "v" }, c, function()
+      search_text = search_text .. c
+      apply_filter()
+    end, { buffer = buf, nowait = true })
+  end
+end
+vim.api.nvim_create_user_command("RecentFiles", function() _G.open_recent_files_picker() end, {})
+
+-- D. Project-Wide Multi-File Search & Replace (Ctrl+Shift+F)
+_G.open_project_search = function()
+  local cwd = vim.fn.getcwd()
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.b[buf].is_picker = true
+  vim.bo[buf].buftype = "nofile"
+  vim.bo[buf].bufhidden = "wipe"
+
+  local ui = vim.api.nvim_list_uis()[1] or { width = 120, height = 40 }
+  local width = math.min(96, math.max(54, ui.width - 4))
+  local height = math.min(ui.height - 4, math.max(14, ui.height - 6))
+  local row = math.max(1, math.floor((ui.height - height) / 3))
+  local col = math.max(1, math.floor((ui.width - width) / 2))
+
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    row = row,
+    col = col,
+    width = width,
+    height = height,
+    style = "minimal",
+    border = "rounded",
+    title = " 󰍉 Search in Project (Ctrl+Shift+F) ",
+    title_pos = "center",
+    zindex = 50,
+  })
+
+  local function close_search()
+    _G.clear_active_menu(close_search)
+    if win and vim.api.nvim_win_is_valid(win) then
+      pcall(vim.api.nvim_win_close, win, true)
+    end
+  end
+  _G.register_active_menu(close_search, win)
+
+  local search_query = ""
+  local results = {}
+  local selected_idx = 1
+  local max_list_h = height - 4
+  local ok_icons, devicons = pcall(require, "nvim-web-devicons")
+
+  local function run_query()
+    results = {}
+    selected_idx = 1
+    if #search_query < 2 then return end
+
+    local has_rg = (vim.fn.executable("rg") == 1)
+    local cmd
+    if has_rg then
+      cmd = string.format("rg --vimgrep --smart-case --max-columns 140 -m 120 %s %s 2>/dev/null",
+        vim.fn.shellescape(search_query), vim.fn.shellescape(cwd))
+    else
+      cmd = string.format("grep -rnI --exclude-dir='.git' --max-count=120 %s %s 2>/dev/null",
+        vim.fn.shellescape(search_query), vim.fn.shellescape(cwd))
+    end
+
+    local handle = io.popen(cmd)
+    if handle then
+      for line in handle:lines() do
+        local file, lnum, colnum, text = line:match("^(.-):(%d+):(%d+):(.*)$")
+        if not file then
+          file, lnum, text = line:match("^(.-):(%d+):(.*)$")
+          colnum = "1"
+        end
+        if file and lnum and text then
+          local rel = file
+          if file:sub(1, #cwd) == cwd then
+            rel = file:sub(#cwd + 2)
+          end
+          local fname = vim.fn.fnamemodify(file, ":t")
+          local ext = vim.fn.fnamemodify(file, ":e")
+          local icon = ""
+          if ok_icons then
+            local ic = devicons.get_icon(fname, ext, { default = true })
+            if ic then icon = ic end
+          end
+          table.insert(results, {
+            path = file,
+            rel = rel,
+            lnum = tonumber(lnum) or 1,
+            colnum = tonumber(colnum) or 1,
+            text = vim.trim(text),
+            icon = icon,
+          })
+          if #results >= 120 then break end
+        end
+      end
+      handle:close()
+    end
+  end
+
+  local function render()
+    if not vim.api.nvim_buf_is_valid(buf) then return end
+    local lines = {}
+    local status_hint = (#search_query < 2) and "(type at least 2 chars)" or (string.format("(%d matches, <C-r> to replace)", #results))
+    table.insert(lines, "  󰍉 " .. (search_query == "" and "Search files in workspace..." or search_query) .. "  " .. status_hint)
+    table.insert(lines, "  " .. string.rep("─", width - 4))
+
+    if #results == 0 then
+      if #search_query < 2 then
+        table.insert(lines, "   Enter characters to begin instant workspace search...")
+      else
+        table.insert(lines, "   No matches found for '" .. search_query .. "'")
+      end
+    else
+      local start_idx = 1
+      if selected_idx > max_list_h then
+        start_idx = selected_idx - max_list_h + 1
+      end
+      local end_idx = math.min(#results, start_idx + max_list_h - 1)
+      for i = start_idx, end_idx do
+        local r = results[i]
+        local prefix = (i == selected_idx) and " ❯ " or "   "
+        local header = r.icon .. " " .. r.rel .. ":" .. r.lnum
+        local snippet = " │ " .. r.text
+        local full_line = prefix .. header .. snippet
+        if #full_line > width - 2 then
+          full_line = full_line:sub(1, width - 5) .. "..."
+        end
+        table.insert(lines, full_line)
+      end
+    end
+
+    vim.bo[buf].modifiable = true
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    vim.bo[buf].modifiable = false
+
+    local ns = vim.api.nvim_create_namespace("ProjectSearchPicker")
+    vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+    vim.api.nvim_buf_add_highlight(buf, ns, "Comment", 1, 0, -1)
+
+    if #results > 0 then
+      local start_idx = 1
+      if selected_idx > max_list_h then
+        start_idx = selected_idx - max_list_h + 1
+      end
+      local active_line = selected_idx - start_idx + 2
+      if active_line < #lines then
+        vim.api.nvim_buf_add_highlight(buf, ns, "FolderPickerSelected", active_line, 0, -1)
+      end
+    end
+  end
+
+  local function open_selected()
+    if #results == 0 then return end
+    local r = results[selected_idx]
+    close_search()
+    if r and r.path then
+      local ed = find_editor_win()
+      if ed and vim.api.nvim_win_is_valid(ed) then
+        vim.api.nvim_set_current_win(ed)
+      end
+      vim.cmd("edit " .. vim.fn.fnameescape(r.path))
+      pcall(vim.api.nvim_win_set_cursor, 0, { r.lnum, math.max(0, r.colnum - 1) })
+      vim.cmd("startinsert")
+    end
+  end
+
+  local function do_batch_replace()
+    if #results == 0 or search_query == "" then return end
+    vim.ui.input({ prompt = "Replace '" .. search_query .. "' with: " }, function(repl)
+      if not repl then return end
+      local count = 0
+      local file_map = {}
+      for _, r in ipairs(results) do
+        file_map[r.path] = file_map[r.path] or {}
+        table.insert(file_map[r.path], r)
+      end
+      for fpath, _ in pairs(file_map) do
+        local f = io.open(fpath, "r")
+        if f then
+          local content = f:read("*a")
+          f:close()
+          local new_content, subs = content:gsub(vim.pesc(search_query), repl)
+          if subs > 0 then
+            local wf = io.open(fpath, "w")
+            if wf then
+              wf:write(new_content)
+              wf:close()
+              count = count + subs
+            end
+          end
+        end
+      end
+      close_search()
+      vim.cmd("checktime")
+      vim.notify(string.format("Replaced %d occurrences across %d files", count, vim.tbl_count(file_map)), vim.log.levels.INFO)
+    end)
+  end
+
+  render()
+
+  local function move_down()
+    if #results == 0 then return end
+    selected_idx = (selected_idx % #results) + 1
+    render()
+  end
+  local function move_up()
+    if #results == 0 then return end
+    selected_idx = selected_idx - 1
+    if selected_idx < 1 then selected_idx = #results end
+    render()
+  end
+
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Down>", move_down, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-n>", move_down, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Up>", move_up, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-p>", move_up, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<CR>", open_selected, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Esc>", close_search, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<C-r>", do_batch_replace, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<BS>", function()
+    if #search_query > 0 then
+      search_query = search_query:sub(1, -2)
+      run_query()
+      render()
+    end
+  end, { buffer = buf, nowait = true })
+
+  for char_code = 32, 126 do
+    local c = string.char(char_code)
+    vim.keymap.set({ "n", "i", "s", "v" }, c, function()
+      search_query = search_query .. c
+      run_query()
+      render()
+    end, { buffer = buf, nowait = true })
+  end
+end
+vim.api.nvim_create_user_command("FindInFiles", function() _G.open_project_search() end, {})
+vim.api.nvim_create_user_command("ProjectSearch", function() _G.open_project_search() end, {})
+
+-- =============================================================================
+-- 23. PILLAR 3: CODE INTELLIGENCE & PRECISION (Hover Doc, Code Actions, Rename)
+-- =============================================================================
+
+-- A. Hover Documentation Card (Alt+H / Ctrl+K Ctrl+I)
+_G.show_hover_doc = function()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local cur_win = vim.api.nvim_get_current_win()
+  if vim.bo[bufnr].buftype ~= "" or vim.bo[bufnr].filetype == "NvimTree" then return end
+
+  local clients = vim.lsp.get_clients({ bufnr = bufnr })
+  local has_hover = false
+  for _, client in ipairs(clients) do
+    if client.server_capabilities and client.server_capabilities.hoverProvider then
+      has_hover = true
+      break
+    end
+  end
+
+  if has_hover then
+    vim.lsp.buf.hover({
+      border = "rounded",
+      focusable = true,
+      max_width = 80,
+    })
+    return
+  end
+
+  local cword = vim.fn.expand("<cword>")
+  if not cword or cword == "" then return end
+
+  local pos = vim.api.nvim_win_get_cursor(cur_win)
+  local syn_name = vim.fn.synIDattr(vim.fn.synID(pos[1], pos[2] + 1, 1), "name")
+  if syn_name == "" then syn_name = vim.bo[bufnr].filetype or "text" end
+
+  local lines = {
+    " 󰋽 Symbol: " .. cword,
+    " " .. string.rep("─", math.max(24, #cword + 14)),
+    " • Type: " .. syn_name,
+    " • File: " .. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bufnr), ":t"),
+    " • Line: " .. pos[1] .. ", Col: " .. (pos[2] + 1),
+  }
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.bo[buf].buftype = "nofile"
+  vim.bo[buf].bufhidden = "wipe"
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.bo[buf].modifiable = false
+
+  local w = math.max(30, #lines[1] + 4)
+  local h = #lines
+  local win = vim.api.nvim_open_win(buf, false, {
+    relative = "cursor",
+    row = 1,
+    col = 0,
+    width = w,
+    height = h,
+    style = "minimal",
+    border = "rounded",
+    title = " Info ",
+    title_pos = "center",
+  })
+
+  local aug = vim.api.nvim_create_augroup("HoverDocClose_" .. win, { clear = true })
+  vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI", "BufLeave", "InsertEnter" }, {
+    group = aug,
+    once = true,
+    callback = function()
+      if win and vim.api.nvim_win_is_valid(win) then
+        pcall(vim.api.nvim_win_close, win, true)
+      end
+    end,
+  })
+end
+vim.api.nvim_create_user_command("HoverDoc", function() _G.show_hover_doc() end, {})
+
+-- B. Quick-Fix & Code Actions Lightbulb (Alt+Enter / Ctrl+.)
+_G.show_code_actions = function()
+  local bufnr = vim.api.nvim_get_current_buf()
+  if vim.bo[bufnr].buftype ~= "" or vim.bo[bufnr].filetype == "NvimTree" then return end
+
+  local clients = vim.lsp.get_clients({ bufnr = bufnr })
+  local has_ca = false
+  for _, c in ipairs(clients) do
+    if c.server_capabilities and c.server_capabilities.codeActionProvider then
+      has_ca = true
+      break
+    end
+  end
+
+  if has_ca then
+    vim.lsp.buf.code_action({
+      context = { diagnostics = vim.diagnostic.get(bufnr, { lnum = vim.api.nvim_win_get_cursor(0)[1] - 1 }) },
+      apply = true,
+    })
+    return
+  end
+
+  local lnum = vim.api.nvim_win_get_cursor(0)[1] - 1
+  local diags = vim.diagnostic.get(bufnr, { lnum = lnum })
+  if #diags > 0 then
+    local d = diags[1]
+    vim.notify("󰀪 " .. (d.message or "Diagnostic item"), vim.log.levels.INFO)
+  else
+    vim.notify("No code actions available at cursor", vim.log.levels.INFO)
+  end
+end
+vim.api.nvim_create_user_command("CodeAction", function() _G.show_code_actions() end, {})
+
+-- C. Instant Symbol Rename (F2 / Ctrl+Shift+R)
+_G.rename_symbol = function()
+  local bufnr = vim.api.nvim_get_current_buf()
+  if vim.bo[bufnr].buftype ~= "" or vim.bo[bufnr].filetype == "NvimTree" then return end
+  local cword = vim.fn.expand("<cword>")
+  if not cword or cword == "" then return end
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.bo[buf].buftype = "nofile"
+  vim.bo[buf].bufhidden = "wipe"
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { cword })
+
+  local ui = vim.api.nvim_list_uis()[1] or { width = 120, height = 40 }
+  local width = math.max(34, #cword + 18)
+  local row = math.floor(ui.height / 3)
+  local col = math.floor((ui.width - width) / 2)
+
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    row = row,
+    col = col,
+    width = width,
+    height = 1,
+    style = "minimal",
+    border = "rounded",
+    title = " 󰑕 Rename Symbol ",
+    title_pos = "center",
+    zindex = 50,
+  })
+
+  vim.cmd("startinsert!")
+
+  local function close_rename()
+    if win and vim.api.nvim_win_is_valid(win) then
+      pcall(vim.api.nvim_win_close, win, true)
+    end
+  end
+
+  local function apply_rename()
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    local new_name = vim.trim(lines[1] or "")
+    close_rename()
+
+    if new_name == "" or new_name == cword then return end
+
+    local clients = vim.lsp.get_clients({ bufnr = bufnr })
+    local has_rename = false
+    for _, c in ipairs(clients) do
+      if c.server_capabilities and c.server_capabilities.renameProvider then
+        has_rename = true
+        break
+      end
+    end
+
+    if has_rename then
+      vim.lsp.buf.rename(new_name)
+    else
+      vim.cmd(string.format("silent! %%s/\\<%s\\>/%s/g", cword, new_name))
+      vim.notify(string.format("Renamed '%s' -> '%s' in file", cword, new_name), vim.log.levels.INFO)
+    end
+  end
+
+  vim.keymap.set({ "n", "i", "s", "v" }, "<CR>", apply_rename, { buffer = buf, nowait = true })
+  vim.keymap.set({ "n", "i", "s", "v" }, "<Esc>", close_rename, { buffer = buf, nowait = true })
+end
+vim.api.nvim_create_user_command("Rename", function() _G.rename_symbol() end, {})
+
+-- =============================================================================
+-- 24. PILLAR 4: WORKFLOW FLUIDITY (Zen Mode & In-Editor Markdown Live Preview)
+-- =============================================================================
+
+-- A. Zen / Focus Mode (F11 / Ctrl+K Z)
+_G.is_zen_active = false
+_G.zen_saved_state = {}
+
+_G.toggle_zen_mode = function()
+  local ok_t, api = pcall(require, "nvim-tree.api")
+  if _G.is_zen_active then
+    _G.is_zen_active = false
+    local s = _G.zen_saved_state or {}
+    vim.opt.showtabline = s.showtabline or 2
+    vim.opt.laststatus = s.laststatus or 2
+    if _G.update_window_winbar and vim.api.nvim_win_is_valid(s.win) then
+      _G.update_window_winbar(s.win)
+    elseif s.winbar and vim.api.nvim_win_is_valid(s.win) then
+      pcall(function() vim.wo[s.win].winbar = s.winbar end)
+    end
+    if s.was_tree_open and ok_t then
+      pcall(api.tree.open, { focus = false })
+    end
+    vim.notify("Zen Mode disabled", vim.log.levels.INFO)
+  else
+    local cur_win = vim.api.nvim_get_current_win()
+    local was_tree = (ok_t and api.tree.is_visible()) or false
+    _G.zen_saved_state = {
+      showtabline = vim.o.showtabline,
+      laststatus = vim.o.laststatus,
+      winbar = vim.wo[cur_win].winbar,
+      win = cur_win,
+      was_tree_open = was_tree,
+    }
+    _G.is_zen_active = true
+    if was_tree and ok_t then
+      pcall(api.tree.close)
+    end
+    vim.opt.showtabline = 0
+    vim.opt.laststatus = 0
+    pcall(function() vim.wo[cur_win].winbar = nil end)
+    vim.notify("Zen Mode enabled (Press F11 to exit)", vim.log.levels.INFO)
+  end
+end
+vim.api.nvim_create_user_command("ZenMode", function() _G.toggle_zen_mode() end, {})
+
+-- B. In-Editor Live Markdown Preview (Ctrl+K Ctrl+V / Alt+P)
+_G.markdown_preview_win = nil
+_G.markdown_preview_buf = nil
+_G.markdown_preview_src_buf = nil
+
+local function render_preview_content(src_buf, target_buf)
+  if not vim.api.nvim_buf_is_valid(src_buf) or not vim.api.nvim_buf_is_valid(target_buf) then return end
+  local src_lines = vim.api.nvim_buf_get_lines(src_buf, 0, -1, false)
+  local rendered = {}
+  local h_icons = { "󰉫 ", "󰉬 ", "󰉭 ", "󰉮 ", "󰉯 ", "󰉰 " }
+
+  for _, l in ipairs(src_lines) do
+    local hashes, htext = l:match("^(#+)%s+(.*)$")
+    if hashes and #hashes <= 6 then
+      local idx = #hashes
+      table.insert(rendered, h_icons[idx] .. htext)
+    elseif l:match("^%s*[%-%*%+]%s+%[[xX]%]") then
+      local content = l:gsub("^%s*[%-%*%+]%s+%[[xX]%]", "  ✔")
+      table.insert(rendered, content)
+    elseif l:match("^%s*[%-%*%+]%s+%[%s%]") then
+      local content = l:gsub("^%s*[%-%*%+]%s+%[%s%]", "  󰄱")
+      table.insert(rendered, content)
+    elseif l:match("^%s*[%-%*%+]%s+") then
+      local content = l:gsub("^%s*[%-%*%+]%s+", "  • ")
+      table.insert(rendered, content)
+    elseif l:match("^%s*>%s?(.*)$") then
+      local qtxt = l:match("^%s*>%s?(.*)$")
+      table.insert(rendered, "▎ " .. qtxt)
+    elseif l:match("^%s*%-%-%-%s*$") or l:match("^%s*%*%*%*%s*$") then
+      table.insert(rendered, string.rep("─", 40))
+    else
+      table.insert(rendered, l)
+    end
+  end
+
+  vim.bo[target_buf].modifiable = true
+  vim.api.nvim_buf_set_lines(target_buf, 0, -1, false, rendered)
+  vim.bo[target_buf].modifiable = false
+end
+
+_G.toggle_markdown_preview = function()
+  if _G.markdown_preview_win and vim.api.nvim_win_is_valid(_G.markdown_preview_win) then
+    pcall(vim.api.nvim_win_close, _G.markdown_preview_win, true)
+    _G.markdown_preview_win = nil
+    _G.markdown_preview_buf = nil
+    _G.markdown_preview_src_buf = nil
+    return
+  end
+
+  local cur_buf = vim.api.nvim_get_current_buf()
+  if vim.bo[cur_buf].filetype ~= "markdown" then
+    vim.notify("Markdown Preview is available for Markdown (.md) files", vim.log.levels.INFO)
+    return
+  end
+
+  local pbuf = vim.api.nvim_create_buf(false, true)
+  vim.bo[pbuf].buftype = "nofile"
+  vim.bo[pbuf].bufhidden = "wipe"
+  vim.bo[pbuf].filetype = "markdown"
+
+  vim.cmd("silent! rightbelow vsplit")
+  local pwin = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(pwin, pbuf)
+  vim.wo[pwin].wrap = true
+  vim.wo[pwin].linebreak = true
+  vim.wo[pwin].number = false
+  vim.wo[pwin].relativenumber = false
+  vim.wo[pwin].signcolumn = "no"
+  vim.wo[pwin].winfixwidth = true
+
+  _G.markdown_preview_win = pwin
+  _G.markdown_preview_buf = pbuf
+  _G.markdown_preview_src_buf = cur_buf
+
+  render_preview_content(cur_buf, pbuf)
+
+  local group = vim.api.nvim_create_augroup("MdLivePreview_" .. cur_buf, { clear = true })
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "BufWritePost" }, {
+    group = group,
+    buffer = cur_buf,
+    callback = function()
+      if _G.markdown_preview_buf and vim.api.nvim_buf_is_valid(_G.markdown_preview_buf) then
+        render_preview_content(cur_buf, _G.markdown_preview_buf)
+      end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd({ "BufWipeout", "BufDelete" }, {
+    group = group,
+    buffer = cur_buf,
+    callback = function()
+      if _G.markdown_preview_win and vim.api.nvim_win_is_valid(_G.markdown_preview_win) then
+        pcall(vim.api.nvim_win_close, _G.markdown_preview_win, true)
+        _G.markdown_preview_win = nil
+      end
+    end,
+  })
+
+  local ed = find_editor_win()
+  if ed and vim.api.nvim_win_is_valid(ed) then
+    vim.api.nvim_set_current_win(ed)
+  end
+  vim.cmd("startinsert")
+end
+vim.api.nvim_create_user_command("MarkdownLivePreview", function() _G.toggle_markdown_preview() end, {})
+vim.api.nvim_create_user_command("MdLivePreview", function() _G.toggle_markdown_preview() end, {})
+
+-- 21. Apply persisted font, sidebar width, terminal height, chevron and git badge settings on startup
+FontEngine.apply_config(FontEngine.get_config())
+
+-- Neovide-Specific Visuals (Only applies inside Neovide window)
+if vim.g.neovide then
+
+  -- Clean, distraction-free cursor flow (no bubble trails, particle FX or stretched lines)
+  vim.g.neovide_cursor_animation_length = 0
+  vim.g.neovide_cursor_trail_size = 0
   vim.g.neovide_cursor_vfx_mode = ""
 
-  -- Smooth scrolling
-  vim.g.neovide_scroll_animation_length = 0.12
+  -- Disable window resize and scroll animations to eliminate stretching lines when closing/opening splits (sidebar/terminal)
+  vim.g.neovide_scroll_animation_length = 0
 
   -- Window padding & Frosted glass opacity (frosted transparency showing blurred wallpaper)
   vim.g.neovide_opacity = 0.78
