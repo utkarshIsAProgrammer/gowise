@@ -107,3 +107,15 @@ code() {
 neovide() {
   _minimal_forward_open "$@"
 }
+
+edit() {
+  _minimal_forward_open "$@"
+}
+
+nvim() {
+  if [ "$#" -gt 0 ] && [ -n "$NVIM" ]; then
+    _minimal_forward_open "$@"
+  else
+    command nvim "$@"
+  fi
+}

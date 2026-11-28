@@ -2613,6 +2613,7 @@ end
 _G.term_instances = {}
 _G.active_term_idx = 1
 local term_win = nil
+_G.get_term_win = function() return term_win end
 local term_height = 18
 _G.sidebar_width = 24
 
@@ -3244,16 +3245,13 @@ _G.open_file_from_terminal = function(file_path)
     local ed = find_editor_win()
     if not ed or not is_valid_win(ed) then
       if is_valid_win(term_win) then
-        vim.api.nvim_win_hide(term_win)
-        term_win = nil
+        vim.api.nvim_set_current_win(term_win)
+        vim.cmd("aboveleft split")
+      else
+        vim.cmd("enew")
       end
-      vim.cmd("enew")
       ed = vim.api.nvim_get_current_win()
     else
-      if is_valid_win(term_win) then
-        vim.api.nvim_win_hide(term_win)
-        term_win = nil
-      end
       vim.api.nvim_set_current_win(ed)
     end
 
