@@ -2941,8 +2941,8 @@ _G.terminal_winbar = function()
     local close_hl = is_active and "%#BufferLineCloseButtonSelected#" or "%#BufferLineCloseButton#"
 
     local tab_str = string.format(
-      "%s%%%d@v:lua._G.click_select_terminal@  %d: %s  %%X%s%%%d@v:lua._G.click_close_terminal@󰅖 %%X%%#StatusLine#",
-      tab_hl, i, i, inst.name,
+      "%s%%%d@v:lua._G.click_select_terminal@   %d: %s  %%X%s%%%d@v:lua._G.click_close_terminal@󰅖 %%X%%#StatusLine#",
+      tab_hl, i, i, inst.name or "Git Bash",
       close_hl, i
     )
     table.insert(parts, tab_str)
@@ -3085,7 +3085,7 @@ _G.new_terminal = function()
   vim.keymap.set("t", "<C-End>", function() send_term("\x05") end, { buffer = new_buf, nowait = true, silent = true })
 
   local inst_idx = #_G.term_instances + 1
-  table.insert(_G.term_instances, { buf = new_buf, name = "bash" })
+  table.insert(_G.term_instances, { buf = new_buf, name = "Git Bash" })
   _G.active_term_idx = inst_idx
 
   vim.api.nvim_create_autocmd("TermClose", {

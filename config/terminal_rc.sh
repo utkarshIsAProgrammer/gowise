@@ -43,7 +43,10 @@ bind '"\eb": backward-word' 2>/dev/null || true
 bind '"\ef": forward-word' 2>/dev/null || true
 bind '"\ed": kill-word' 2>/dev/null || true
 
-# Git branch parser with vibrant status colors
+# Git Bash Environment & Profile
+export MSYSTEM="MINGW64"
+
+# Git branch parser with authentic Git Bash styling
 parse_git_branch() {
   local branch
   branch=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
@@ -51,18 +54,20 @@ parse_git_branch() {
     local dirty
     dirty=$(git status --porcelain 2>/dev/null)
     if [ -n "$dirty" ]; then
-      # Amber/Yellow branch with red star for uncommitted changes
-      printf " \033[1;33m(\033[1;31m%s*\033[1;33m)\033[0m" "$branch"
+      printf " \033[36m(\033[36m%s\033[31m *\033[36m)\033[0m" "$branch"
     else
-      # Emerald Green branch for clean git repo
-      printf " \033[1;32m(%s)\033[0m" "$branch"
+      printf " \033[36m(%s)\033[0m" "$branch"
     fi
   fi
 }
 
-# Modern VS Code / Git terminal prompt
-# [user@hostname:path] (branch*) $ 
-export PS1='\[\033[1;36m\]\w\[\033[0m\]$(parse_git_branch) \[\033[1;32m\]\$ \[\033[0m\]'
+# Authentic 2-Line Git Bash Prompt:
+# user@host (green) MINGW64 (purple) ~/path (yellow) (branch *) (cyan)
+# $ (white)
+export PS1='\[\033[32m\]\u@\h \[\033[35m\]$MSYSTEM \[\033[33m\]\w\[\033[0m\]$(parse_git_branch)\n\[\033[0m\]$ '
+
+# Standard Git Bash convenience alias
+alias cls='clear'
 
 # Terminal commands to interact seamlessly with Minimal editor
 _minimal_forward_open() {
