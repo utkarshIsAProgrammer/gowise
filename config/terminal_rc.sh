@@ -76,7 +76,7 @@ _minimal_forward_open() {
     return
   fi
   if [ "$#" -eq 0 ]; then
-    nvim --server "$NVIM" --remote-expr "luaeval('_G.focus_editor_from_terminal()')" 2>/dev/null || true
+    nvim --headless --clean --server "$NVIM" --remote-expr "luaeval('_G.focus_editor_from_terminal()')" >/dev/null 2>&1 || true
     return
   fi
   for target in "$@"; do
@@ -87,9 +87,8 @@ _minimal_forward_open() {
       else
         abs_path="$(realpath -m "$target" 2>/dev/null || readlink -m "$target" 2>/dev/null || echo "$PWD/$target")"
       fi
-      local escaped="${abs_path//\\/\\\\}"
-      escaped="${escaped//\'/\\\'}"
-      nvim --server "$NVIM" --remote-expr "luaeval('_G.open_file_from_terminal(\"'$escaped'\")')" 2>/dev/null || true
+      local safe_path="${abs_path//\'/\'\\\'\'}"
+      nvim --headless --clean --server "$NVIM" --remote-expr "luaeval('_G.open_file_from_terminal(_A)', '$safe_path')" >/dev/null 2>&1 || true
     fi
   done
 }
