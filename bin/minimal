@@ -89,8 +89,9 @@ fi
 
 # If target directory provided as single argument, ensure clean entry
 if [ "$#" -eq 1 ] && [ -d "$1" ]; then
-  cd "$1"
-  set --
+  abs_dir="$(realpath -m "$1" 2>/dev/null || readlink -m "$1" 2>/dev/null || echo "$PWD/$1")"
+  cd "$abs_dir"
+  set -- "$abs_dir"
 fi
 
 # Launch in Neovide GUI if available and requested, otherwise terminal Neovim

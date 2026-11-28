@@ -2106,22 +2106,96 @@ _G.ensure_ui_chrome = function()
 
   -- Automatically open sidebar on startup
   local function open_sidebar_on_startup(data)
-    local directory = vim.fn.isdirectory(data.file) == 1
-    if directory then
+    local target = (data and data.file) or ""
+    if (target == "" or target:match("NvimTree")) and vim.fn.argc() > 0 then
+      target = vim.fn.argv(0) or ""
+    end
+
+    local is_dir = false
+    local dir_path = nil
+
+    if target ~= "" and vim.fn.isdirectory(target) == 1 then
+      is_dir = true
+      dir_path = vim.fn.fnamemodify(target, ":p"):gsub("/+$", "")
+    elseif target == "." then
+      is_dir = true
+      dir_path = vim.fn.getcwd()
+    elseif target:match("NvimTree") or (vim.bo and vim.bo.filetype == "NvimTree") then
+      is_dir = true
+      dir_path = vim.fn.getcwd()
+    end
+
+    if is_dir and dir_path then
       vim.g.explicit_workspace_opened = true
-      vim.cmd.cd(data.file)
+      pcall(vim.cmd.cd, dir_path)
+
+      -- Find project entry file
       local entry = nil
-      for _, cand in ipairs({ "index.html", "main.go", "main.py", "index.js", "App.tsx", "package.json", "README.md" }) do
-        local full = data.file .. "/" .. cand
+      for _, cand in ipairs({
+        "index.html", "main.py", "app.py", "index.js", "index.ts",
+        "App.tsx", "App.jsx", "src/index.html", "src/main.py", "src/app.py",
+        "src/App.tsx", "src/App.jsx", "src/index.js", "src/index.ts",
+        "package.json", "README.md", "Cargo.toml", "go.mod", "Makefile"
+      }) do
+        local full = dir_path .. "/" .. cand
         if vim.fn.filereadable(full) == 1 then
           entry = full
           break
         end
       end
+
+      -- If no standard entry file, check for top-level non-hidden files
+      if not entry then
+        local ok_scan, handle = pcall(vim.uv.fs_scandir, dir_path)
+        if ok_scan and handle then
+          local cand_files = {}
+          while true do
+            local name, t = vim.uv.fs_scandir_next(handle)
+            if not name then break end
+            if t == "file" and not name:match("^%.") then
+              table.insert(cand_files, name)
+            end
+          end
+          table.sort(cand_files)
+          if #cand_files > 0 then
+            entry = dir_path .. "/" .. cand_files[1]
+          end
+        end
+      end
+
+      -- Open nvim-tree rooted at the directory
+      pcall(api.tree.change_root, dir_path)
+      pcall(api.tree.open, { focus = false })
+
+      -- Ensure an editor window exists alongside NvimTree
+      local ed = find_editor_win()
+      if not ed or not vim.api.nvim_win_is_valid(ed) then
+        vim.cmd("silent! rightbelow vsplit")
+        ed = vim.api.nvim_get_current_win()
+      end
+      vim.api.nvim_set_current_win(ed)
+
       if entry then
         vim.cmd("silent! edit " .. vim.fn.fnameescape(entry))
+        pcall(vim.cmd, "startinsert")
+      else
+        if _G.open_homescreen then
+          _G.open_homescreen()
+        end
       end
-      api.tree.open({ focus = false })
+
+      vim.schedule(function()
+        local tree_win = api.tree.winid()
+        if tree_win and vim.api.nvim_win_is_valid(tree_win) then
+          pcall(vim.api.nvim_win_set_width, tree_win, _G.sidebar_width or 24)
+        end
+        local editor = find_editor_win()
+        if editor and vim.api.nvim_win_is_valid(editor) then
+          vim.api.nvim_set_current_win(editor)
+          if entry then pcall(vim.cmd, "startinsert") end
+        end
+      end)
+      return
     elseif vim.fn.argc() > 0 then
       vim.g.explicit_workspace_opened = true
       local cur_win = vim.api.nvim_get_current_win()
@@ -3890,15 +3964,23 @@ local function save_session()
     if ok_core and nt_core.get_explorer then
       local exp = nt_core.get_explorer()
       if exp and exp.nodes then
-        local function collect_open(nodes)
+        local function is_ignored(p)
+          if not p then return true end
+          return p:match("/%.git") or p:match("/%.venv") or p:match("/node_modules")
+                 or p:match("/__pycache__") or p:match("/%.pytest_cache") or p:match("/venv")
+                 or p:match("/target") or p:match("/build") or p:match("/dist")
+        end
+        local function collect_open(nodes, depth)
+          if depth > 2 or #expanded_dirs >= 10 then return end
           for _, n in ipairs(nodes) do
-            if n.nodes and n.open and n.absolute_path then
+            if #expanded_dirs >= 10 then break end
+            if n.nodes and n.open and n.absolute_path and not is_ignored(n.absolute_path) then
               table.insert(expanded_dirs, n.absolute_path)
-              collect_open(n.nodes)
+              collect_open(n.nodes, depth + 1)
             end
           end
         end
-        collect_open(exp.nodes)
+        collect_open(exp.nodes, 1)
       end
     end
   end
@@ -3931,6 +4013,9 @@ local function restore_session()
   end
   if _G.ensure_ui_chrome then _G.ensure_ui_chrome() end
 
+  local home_dir = vim.fn.expand("~")
+  local current_cwd = vim.fn.getcwd()
+
   local function open_fallback_home()
     session_restored = true
     if _G.open_homescreen then _G.open_homescreen() end
@@ -3948,6 +4033,12 @@ local function restore_session()
         end
       end)
     end
+  end
+
+  -- If user launched minimal from within a specific project directory (not home), respect that directory!
+  if current_cwd ~= home_dir and vim.fn.isdirectory(current_cwd) == 1 then
+    open_fallback_home()
+    return
   end
 
   if vim.fn.filereadable(session_file) ~= 1 then
@@ -4036,12 +4127,21 @@ local function restore_session()
             local exp = nt_core.get_explorer()
             if exp and exp.nodes then
               local open_set = {}
-              for _, p in ipairs(data.expanded_dirs) do open_set[p] = true end
+              local count = 0
+              for _, p in ipairs(data.expanded_dirs) do
+                if count < 10 and not p:match("/%.git") and not p:match("/%.venv") and not p:match("/node_modules") and not p:match("/__pycache__") then
+                  open_set[p] = true
+                  count = count + 1
+                end
+              end
+              local expand_count = 0
               local function expand_matching(nodes)
                 for _, n in ipairs(nodes) do
+                  if expand_count >= 10 then return end
                   if n.nodes and n.absolute_path and open_set[n.absolute_path] then
                     if not n.open then
                       pcall(t_api.node.expand, n)
+                      expand_count = expand_count + 1
                     end
                     expand_matching(n.nodes)
                   end
@@ -4067,14 +4167,16 @@ local function restore_session()
     local ed = find_editor_win()
     if ed and vim.api.nvim_win_is_valid(ed) then
       vim.api.nvim_set_current_win(ed)
-      vim.cmd("startinsert")
+      pcall(vim.cmd, "startinsert")
     end
     if _G.reapply_all_icon_colors then
       vim.schedule(_G.reapply_all_icon_colors)
     end
   else
-    -- Workspace folder opened with no open files
-    if _G.open_homescreen then _G.open_homescreen() end
+    -- Workspace folder opened with no open files -> show Homescreen!
+    if _G.open_homescreen then
+      _G.open_homescreen()
+    end
   end
 end
 
@@ -6054,8 +6156,14 @@ _G.open_workspace_folder = function(target_dir)
 
   if file_to_open then
     vim.cmd("silent! edit " .. vim.fn.fnameescape(file_to_open))
+    pcall(vim.cmd, "startinsert")
   else
-    vim.cmd("enew")
+    if _G.open_homescreen then
+      _G.open_homescreen()
+    else
+      vim.cmd("enew")
+      pcall(vim.cmd, "startinsert")
+    end
   end
 
   local new_buf = vim.api.nvim_get_current_buf()
