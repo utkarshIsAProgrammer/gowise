@@ -60,7 +60,7 @@ fi
 # Forward file opens if called inside the integrated terminal drawer
 if [ -n "$NVIM" ]; then
   if [ "$#" -eq 0 ]; then
-    nvim --headless --clean --server "$NVIM" --remote-expr "luaeval('_G.focus_editor_from_terminal()')" >/dev/null 2>&1 || true
+    command nvim --headless --clean --server "$NVIM" --remote-expr "luaeval('_G.focus_editor_from_terminal()')" >/dev/null 2>&1 || true
     exit 0
   fi
   for target in "$@"; do
@@ -71,7 +71,7 @@ if [ -n "$NVIM" ]; then
         abs_path="$(realpath -m "$target" 2>/dev/null || readlink -m "$target" 2>/dev/null || echo "$PWD/$target")"
       fi
       safe_path="${abs_path//\'/\'\\\'\'}"
-      nvim --headless --clean --server "$NVIM" --remote-expr "luaeval('_G.open_file_from_terminal(_A)', '$safe_path')" >/dev/null 2>&1 || true
+      command nvim --headless --clean --server "$NVIM" --remote-expr "luaeval('_G.open_file_from_terminal(_A)', '$safe_path')" >/dev/null 2>&1 || true
     fi
   done
   exit 0

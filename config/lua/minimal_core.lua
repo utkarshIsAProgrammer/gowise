@@ -3239,10 +3239,6 @@ _G.open_file_from_terminal = function(file_path)
   if not file_path or file_path == "" then return "ERR" end
   _G.autosave_all_modified()
   vim.schedule(function()
-    if vim.fn.mode() == "t" then
-      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-\\><C-n>", true, false, true), "nx", false)
-    end
-
     local ed = find_editor_win()
     if not ed or not is_valid_win(ed) then
       if is_valid_win(term_win) then
@@ -3252,12 +3248,6 @@ _G.open_file_from_terminal = function(file_path)
         vim.cmd("enew")
       end
       ed = vim.api.nvim_get_current_win()
-    else
-      vim.api.nvim_set_current_win(ed)
-    end
-
-    if ed and is_valid_win(ed) then
-      vim.api.nvim_set_current_win(ed)
     end
 
     -- If target is a directory, change directory and reload tree root
@@ -3279,22 +3269,31 @@ _G.open_file_from_terminal = function(file_path)
       pcall(vim.fn.mkdir, parent_dir, "p")
     end
 
-    local ok_edit = pcall(vim.cmd.edit, vim.fn.fnameescape(file_path))
-    if not ok_edit then
-      vim.cmd("enew")
-      pcall(vim.cmd.edit, vim.fn.fnameescape(file_path))
+    if ed and is_valid_win(ed) then
+      vim.api.nvim_win_call(ed, function()
+        local ok_edit = pcall(vim.cmd.edit, vim.fn.fnameescape(file_path))
+        if not ok_edit then
+          vim.cmd("enew")
+          pcall(vim.cmd.edit, vim.fn.fnameescape(file_path))
+        end
+        local cur_buf = vim.api.nvim_get_current_buf()
+        if (vim.uv or vim.loop).fs_stat(file_path) then
+          vim.b[cur_buf].was_on_disk = true
+        end
+      end)
     end
-    local cur_buf = vim.api.nvim_get_current_buf()
-    if (vim.uv or vim.loop).fs_stat(file_path) then
-      vim.b[cur_buf].was_on_disk = true
-    end
-    vim.cmd("startinsert")
 
     if package.loaded["nvim-tree"] then
       local ok_t, t_api = pcall(require, "nvim-tree.api")
       if ok_t and t_api.tree and pcall(t_api.tree.is_visible) and t_api.tree.is_visible() then
         pcall(t_api.tree.find_file, file_path)
       end
+    end
+
+    -- Keep terminal drawer focused in terminal mode so user can continue running commands without pause or stuck cursor
+    if is_valid_win(term_win) then
+      vim.api.nvim_set_current_win(term_win)
+      vim.cmd("startinsert")
     end
   end)
   return "OK"
